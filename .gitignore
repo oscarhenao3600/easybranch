@@ -1,0 +1,381 @@
+# ===== EASYBRANCH - GITIGNORE =====
+
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# Grunt intermediate storage
+.grunt
+
+# Bower dependency directory
+bower_components
+
+# node-waf configuration
+.lock-wscript
+
+# Compiled binary addons
+build/Release
+
+# Dependency directories
+jspm_packages/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache
+.cache
+.parcel-cache
+
+# Next.js build output
+.next
+
+# Nuxt.js build / generate output
+.nuxt
+dist
+
+# Gatsby files
+.cache/
+public
+
+# Storybook build outputs
+.out
+.storybook-out
+
+# Temporary folders
+tmp/
+temp/
+
+# Editor directories and files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# WhatsApp Web.js sessions
+backend/sessions/
+sessions/
+whatsapp-sessions/
+
+# Uploads directory
+uploads/
+backend/uploads/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Test files
+test-results/
+coverage/
+
+# Build directories
+build/
+dist/
+out/
+
+# PM2 files
+.pm2/
+
+# Docker files
+docker-compose.override.yml
+
+# SSL certificates
+*.pem
+*.key
+*.crt
+*.csr
+
+# Configuration files that might contain secrets
+config/production.json
+config/local.json
+
+# IDE specific files
+*.sublime-project
+*.sublime-workspace
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# MacOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Project specific
+# Keep these files but ignore their contents if they contain sensitive data
+# backend/.env.example (keep this as template)
+# README.md (keep this)
+
+# Ignore large media files
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+*.mkv
+*.mp3
+*.wav
+*.flac
+*.aac
+*.ogg
+
+# Ignore large image files (keep small ones for UI)
+*.psd
+*.ai
+*.eps
+*.raw
+*.tiff
+*.tif
+
+# Archive files
+*.zip
+*.rar
+*.7z
+*.tar
+*.gz
+*.bz2
+
+# Temporary files
+*.tmp
+*.temp
+*.cache
+
+# Lock files
+*.lock
+
+# Generated files
+generated/
+auto-generated/
+
+# Documentation build
+docs/_build/
+docs/build/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# PEP 582
+__pypackages__/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# ===== EASYBRANCH SPECIFIC =====
+
+# WhatsApp Business API keys (if any)
+whatsapp-keys/
+twilio-keys/
+
+# AI model files (if any)
+models/
+*.model
+
+# Backup databases
+*.sql.backup
+*.db.backup
+
+# Development certificates
+dev-certs/
+
+# Local configuration overrides
+local-config/
+config/local/
+
+# Performance monitoring
+performance-logs/
+
+# Security scan results
+security-scan-results/
+
+# Deployment scripts (keep templates, ignore actual deployments)
+deploy/local/
+deploy/production/
+
+# Monitoring and analytics
+monitoring/
+analytics/
+
+# Feature flags
+feature-flags/local.json
+
+# A/B testing data
+ab-test-data/
+
+# User uploads (keep structure, ignore content)
+user-uploads/
+customer-uploads/
+
+# Generated reports
+reports/
+exports/
+
+# Cache directories
+cache/
+.cache/
+
+# Session storage
+session-storage/
+
+# Queue data
+queue-data/
+
+# Search indexes
+search-indexes/
+
+# ===== END EASYBRANCH GITIGNORE =====

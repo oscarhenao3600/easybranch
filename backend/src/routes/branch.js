@@ -1,0 +1,421 @@
+const express = require('express');
+const { body, validationResult } = require('express-validator');
+const Branch = require('../models/Branch');
+const Business = require('../models/Business');
+const Service = require('../models/Service');
+const Order = require('../models/Order');
+const authMiddleware = require('../middleware/auth');
+const LoggerService = require('../services/LoggerService');
+
+const router = express.Router();
+const logger = new LoggerService();
+
+// Validation rules
+const branchValidation = [
+    body('name').trim().isLength({ min: 2, max: 100 }).withMessage('Nombre debe tener entre 2 y 100 caracteres'),
+    body('businessId').isMongoId().withMessage('ID de negocio inválido'),
+    body('address').isObject().withMessage('Dirección debe ser un objeto'),
+    body('address.street').notEmpty().withMessage('Calle es requerida'),
+    body('address.city').notEmpty().withMessage('Ciudad es requerida'),
+    body('contact.phone').matches(/^\+?[\d\s\-\(\)]+$/).withMessage('Teléfono inválido'),
+    body('contact.email').optional().isEmail().withMessage('Email inválido'),
+    body('whatsapp.phoneNumber').matches(/^\+?[\d\s\-\(\)]+$/).withMessage('Número de WhatsApp inválido'),
+    body('whatsapp.provider').isIn(['whatsapp-web.js', 'twilio', '360dialog']).withMessage('Proveedor de WhatsApp inválido'),
+    body('kitchen.phone').optional().matches(/^\+?[\d\s\-\(\)]+$/).withMessage('Teléfono de cocina inválido'),
+    body('settings.businessHours').optional().isObject().withMessage('Horarios de negocio deben ser un objeto'),
+    body('settings.delivery.enabled').optional().isBoolean().withMessage('Delivery enabled debe ser booleano'),
+    body('settings.delivery.radius').optional().isFloat({ min: 0 }).withMessage('Radio de delivery debe ser un número positivo'),
+    body('settings.delivery.fee').optional().isFloat({ min: 0 }).withMessage('Costo de delivery debe ser un número positivo'),
+    body('ai.prompt').optional().isLength({ max: 1000 }).withMessage('Prompt de IA no puede exceder 1000 caracteres'),
+    body('ai.model').optional().isIn(['huggingface', 'deepseek', 'openai']).withMessage('Modelo de IA inválido')
+];
+
+const updateBranchValidation = [
+    body('name').optional().trim().isLength({ min: 2, max: 100 }).withMessage('Nombre debe tener entre 2 y 100 caracteres'),
+    body('address').optional().isObject().withMessage('Dirección debe ser un objeto'),
+    body('address.street').optional().notEmpty().withMessage('Calle es requerida'),
+    body('address.city').optional().notEmpty().withMessage('Ciudad es requerida'),
+    body('contact.phone').optional().matches(/^\+?[\d\s\-\(\)]+$/).withMessage('Teléfono inválido'),
+    body('contact.email').optional().isEmail().withMessage('Email inválido'),
+    body('whatsapp.phoneNumber').optional().matches(/^\+?[\d\s\-\(\)]+$/).withMessage('Número de WhatsApp inválido'),
+    body('whatsapp.provider').optional().isIn(['whatsapp-web.js', 'twilio', '360dialog']).withMessage('Proveedor de WhatsApp inválido'),
+    body('kitchen.phone').optional().matches(/^\+?[\d\s\-\(\)]+$/).withMessage('Teléfono de cocina inválido'),
+    body('settings.businessHours').optional().isObject().withMessage('Horarios de negocio deben ser un objeto'),
+    body('settings.delivery.enabled').optional().isBoolean().withMessage('Delivery enabled debe ser booleano'),
+    body('settings.delivery.radius').optional().isFloat({ min: 0 }).withMessage('Radio de delivery debe ser un número positivo'),
+    body('settings.delivery.fee').optional().isFloat({ min: 0 }).withMessage('Costo de delivery debe ser un número positivo'),
+    body('ai.prompt').optional().isLength({ max: 1000 }).withMessage('Prompt de IA no puede exceder 1000 caracteres'),
+    body('ai.model').optional().isIn(['huggingface', 'deepseek', 'openai']).withMessage('Modelo de IA inválido')
+];
+
+// GET /api/branch - List branches (with business access control)
+router.get('/', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), async (req, res) => {
+    try {
+        const { page = 1, limit = 10, search, status, businessId } = req.query;
+        
+        const filter = {};
+        
+        // Apply business access control
+        if (req.user.role === 'business_admin') {
+            filter.businessId = req.user.businessId;
+        } else if (req.user.role === 'branch_admin') {
+            filter.branchId = req.user.branchId;
+        } else if (businessId) {
+            filter.businessId = businessId;
+        }
+
+        if (search) {
+            filter.$or = [
+                { name: { $regex: search, $options: 'i' } },
+                { 'address.city': { $regex: search, $options: 'i' } },
+                { 'contact.phone': { $regex: search, $options: 'i' } }
+            ];
+        }
+        if (status) filter.status = status;
+
+        const branches = await Branch.find(filter)
+            .populate('businessId', 'name businessType')
+            .select('-__v')
+            .limit(limit * 1)
+            .skip((page - 1) * limit)
+            .sort({ createdAt: -1 });
+
+        const total = await Branch.countDocuments(filter);
+
+        res.json({
+            success: true,
+            data: branches,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        });
+    } catch (error) {
+        logger.error('Error listing branches:', error);
+        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+});
+
+// GET /api/branch/:branchId - Get specific branch
+router.get('/:branchId', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
+    try {
+        const branch = await Branch.findById(req.params.branchId)
+            .populate('businessId', 'name businessType settings')
+            .select('-__v');
+
+        if (!branch) {
+            return res.status(404).json({ success: false, message: 'Sucursal no encontrada' });
+        }
+
+        res.json({ success: true, data: branch });
+    } catch (error) {
+        logger.error('Error getting branch:', error);
+        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+});
+
+// POST /api/branch - Create new branch
+router.post('/', authMiddleware.requireRole(['super_admin', 'business_admin']), branchValidation, async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ success: false, errors: errors.array() });
+        }
+
+        // Check if business exists and user has access
+        const business = await Business.findById(req.body.businessId);
+        if (!business) {
+            return res.status(404).json({ success: false, message: 'Negocio no encontrado' });
+        }
+
+        if (req.user.role === 'business_admin' && req.user.businessId !== req.body.businessId) {
+            return res.status(403).json({ success: false, message: 'No tienes permisos para crear sucursales en este negocio' });
+        }
+
+        const branchData = {
+            ...req.body,
+            branchId: `BR${Date.now()}${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
+            status: 'active',
+            isActive: true,
+            whatsapp: {
+                ...req.body.whatsapp,
+                connectionStatus: 'disconnected',
+                qrCode: null,
+                sessionData: null
+            }
+        };
+
+        const branch = new Branch(branchData);
+        await branch.save();
+
+        logger.info(`Branch created: ${branch.branchId} - ${branch.name} for business ${business.name}`);
+        res.status(201).json({ success: true, data: branch });
+    } catch (error) {
+        logger.error('Error creating branch:', error);
+        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+});
+
+// PUT /api/branch/:branchId - Update branch
+router.put('/:branchId', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), updateBranchValidation, async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ success: false, errors: errors.array() });
+        }
+
+        const branch = await Branch.findByIdAndUpdate(
+            req.params.branchId,
+            { ...req.body, updatedAt: new Date() },
+            { new: true, runValidators: true }
+        ).populate('businessId', 'name businessType')
+         .select('-__v');
+
+        if (!branch) {
+            return res.status(404).json({ success: false, message: 'Sucursal no encontrada' });
+        }
+
+        logger.info(`Branch updated: ${branch.branchId} - ${branch.name}`);
+        res.json({ success: true, data: branch });
+    } catch (error) {
+        logger.error('Error updating branch:', error);
+        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+});
+
+// DELETE /api/branch/:branchId - Delete branch
+router.delete('/:branchId', authMiddleware.requireRole(['super_admin', 'business_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
+    try {
+        const branch = await Branch.findById(req.params.branchId);
+        if (!branch) {
+            return res.status(404).json({ success: false, message: 'Sucursal no encontrada' });
+        }
+
+        // Check if branch has active orders
+        const activeOrders = await Order.countDocuments({ 
+            branchId: branch.branchId, 
+            status: { $in: ['pending', 'confirmed', 'preparing', 'ready'] } 
+        });
+
+        if (activeOrders > 0) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `No se puede eliminar la sucursal. Tiene ${activeOrders} pedidos activos` 
+            });
+        }
+
+        // Soft delete
+        branch.isActive = false;
+        branch.status = 'inactive';
+        branch.updatedAt = new Date();
+        await branch.save();
+
+        logger.info(`Branch deleted: ${branch.branchId} - ${branch.name}`);
+        res.json({ success: true, message: 'Sucursal eliminada correctamente' });
+    } catch (error) {
+        logger.error('Error deleting branch:', error);
+        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+});
+
+// GET /api/branch/:branchId/stats - Get branch statistics
+router.get('/:branchId/stats', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
+    try {
+        const { branchId } = req.params;
+        const { period = '30d' } = req.query;
+
+        const dateFilter = {};
+        if (period === '7d') {
+            dateFilter.createdAt = { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) };
+        } else if (period === '30d') {
+            dateFilter.createdAt = { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) };
+        } else if (period === '90d') {
+            dateFilter.createdAt = { $gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) };
+        }
+
+        // Get services count
+        const servicesCount = await Service.countDocuments({ branchId, isActive: true });
+        const totalServices = await Service.countDocuments({ branchId });
+
+        // Get orders statistics
+        const ordersStats = await Order.aggregate([
+            { $match: { branchId, ...dateFilter } },
+            {
+                $group: {
+                    _id: null,
+                    totalOrders: { $sum: 1 },
+                    totalRevenue: { $sum: '$total' },
+                    avgOrderValue: { $avg: '$total' },
+                    completedOrders: { $sum: { $cond: [{ $eq: ['$status', 'delivered'] }, 1, 0] } },
+                    cancelledOrders: { $sum: { $cond: [{ $eq: ['$status', 'cancelled'] }, 1, 0] } },
+                    pendingOrders: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
+                    preparingOrders: { $sum: { $cond: [{ $in: ['$status', ['confirmed', 'preparing']] }, 1, 0] } }
+                }
+            }
+        ]);
+
+        // Get today's orders
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayOrders = await Order.countDocuments({ 
+            branchId, 
+            createdAt: { $gte: today } 
+        });
+
+        // Get WhatsApp status
+        const branch = await Branch.findById(branchId).select('whatsapp.connectionStatus');
+
+        const stats = {
+            services: {
+                active: servicesCount,
+                total: totalServices
+            },
+            orders: ordersStats[0] || {
+                totalOrders: 0,
+                totalRevenue: 0,
+                avgOrderValue: 0,
+                completedOrders: 0,
+                cancelledOrders: 0,
+                pendingOrders: 0,
+                preparingOrders: 0
+            },
+            todayOrders,
+            whatsapp: {
+                status: branch?.whatsapp?.connectionStatus || 'disconnected'
+            }
+        };
+
+        res.json({ success: true, data: stats });
+    } catch (error) {
+        logger.error('Error getting branch stats:', error);
+        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+});
+
+// GET /api/branch/:branchId/services - Get branch services
+router.get('/:branchId/services', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
+    try {
+        const { page = 1, limit = 10, category, available } = req.query;
+        
+        const filter = { branchId: req.params.branchId };
+        if (category) filter.category = category;
+        if (available === 'true') filter.isAvailable = true;
+
+        const services = await Service.find(filter)
+            .select('-__v')
+            .limit(limit * 1)
+            .skip((page - 1) * limit)
+            .sort({ category: 1, name: 1 });
+
+        const total = await Service.countDocuments(filter);
+
+        res.json({
+            success: true,
+            data: services,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        });
+    } catch (error) {
+        logger.error('Error getting branch services:', error);
+        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+});
+
+// GET /api/branch/:branchId/orders - Get branch orders
+router.get('/:branchId/orders', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
+    try {
+        const { page = 1, limit = 10, status, date } = req.query;
+        
+        const filter = { branchId: req.params.branchId };
+        if (status) filter.status = status;
+        if (date) {
+            const startDate = new Date(date);
+            const endDate = new Date(date);
+            endDate.setDate(endDate.getDate() + 1);
+            filter.createdAt = { $gte: startDate, $lt: endDate };
+        }
+
+        const orders = await Order.find(filter)
+            .select('-__v')
+            .limit(limit * 1)
+            .skip((page - 1) * limit)
+            .sort({ createdAt: -1 });
+
+        const total = await Order.countDocuments(filter);
+
+        res.json({
+            success: true,
+            data: orders,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        });
+    } catch (error) {
+        logger.error('Error getting branch orders:', error);
+        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+});
+
+// POST /api/branch/:branchId/activate - Activate branch
+router.post('/:branchId/activate', authMiddleware.requireRole(['super_admin', 'business_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
+    try {
+        const branch = await Branch.findByIdAndUpdate(
+            req.params.branchId,
+            { isActive: true, status: 'active', updatedAt: new Date() },
+            { new: true }
+        ).select('-__v');
+
+        if (!branch) {
+            return res.status(404).json({ success: false, message: 'Sucursal no encontrada' });
+        }
+
+        logger.info(`Branch activated: ${branch.branchId} - ${branch.name}`);
+        res.json({ success: true, data: branch });
+    } catch (error) {
+        logger.error('Error activating branch:', error);
+        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+});
+
+// POST /api/branch/:branchId/deactivate - Deactivate branch
+router.post('/:branchId/deactivate', authMiddleware.requireRole(['super_admin', 'business_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
+    try {
+        const branch = await Branch.findByIdAndUpdate(
+            req.params.branchId,
+            { isActive: false, status: 'inactive', updatedAt: new Date() },
+            { new: true }
+        ).select('-__v');
+
+        if (!branch) {
+            return res.status(404).json({ success: false, message: 'Sucursal no encontrada' });
+        }
+
+        logger.info(`Branch deactivated: ${branch.branchId} - ${branch.name}`);
+        res.json({ success: true, data: branch });
+    } catch (error) {
+        logger.error('Error deactivating branch:', error);
+        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+});
+
+// POST /api/branch/:branchId/upload-catalog - Upload catalog PDF
+router.post('/:branchId/upload-catalog', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
+    try {
+        // This endpoint will be implemented when we add file upload middleware
+        res.json({ success: true, message: 'Endpoint para subir catálogo PDF - Pendiente de implementar' });
+    } catch (error) {
+        logger.error('Error uploading catalog:', error);
+        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+});
+
+module.exports = router;

@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EasyBranch - Super Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="styles.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 col-lg-2 px-0">
+                <div class="sidebar p-3">
+                    <div class="text-center mb-4">
+                        <i class="fas fa-building brand-logo"></i>
+                        <h5 class="text-white">EasyBranch</h5>
+                        <small class="text-white-50">Super Admin</small>
+                    </div>
+                    
+                    <nav class="nav flex-column">
+                        <a class="nav-link active" href="#" data-section="dashboard">
+                            <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                        </a>
+                        <a class="nav-link" href="#" data-section="businesses">
+                            <i class="fas fa-building me-2"></i>Negocios
+                        </a>
+                        <a class="nav-link" href="#" data-section="branches">
+                            <i class="fas fa-store me-2"></i>Sucursales
+                        </a>
+                        <a class="nav-link" href="#" data-section="users">
+                            <i class="fas fa-users me-2"></i>Usuarios
+                        </a>
+                        <a class="nav-link" href="#" data-section="orders">
+                            <i class="fas fa-shopping-cart me-2"></i>Pedidos
+                        </a>
+                        <a class="nav-link" href="#" data-section="whatsapp">
+                            <i class="fab fa-whatsapp me-2"></i>WhatsApp
+                        </a>
+                        <a class="nav-link" href="#" data-section="ai">
+                            <i class="fas fa-robot me-2"></i>IA & PDFs
+                        </a>
+                        <a class="nav-link" href="#" data-section="billing">
+                            <i class="fas fa-file-invoice me-2"></i>Facturación
+                        </a>
+                        <a class="nav-link" href="#" data-section="settings">
+                            <i class="fas fa-cog me-2"></i>Configuración
+                        </a>
+                        <hr class="text-white-50">
+                        <a class="nav-link" href="#" id="logoutBtn">
+                            <i class="fas fa-sign-out-alt me-2"></i>Cerrar Sesión
+                        </a>
+                    </nav>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9 col-lg-10 px-0">
+                <div class="main-content p-4">
+                    <!-- Header -->
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <div>
+                            <h2 id="pageTitle">Dashboard</h2>
+                            <p class="text-muted mb-0">
+                                Usuario: <span id="userName">Super Admin</span> | 
+                                <span id="userEmail">admin@easybranch.com</span>
+                            </p>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-primary me-2">Super Admin</span>
+                            <div class="dropdown">
+                                <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                    <i class="fas fa-user me-2"></i>Perfil
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="#" id="profileBtn">
+                                        <i class="fas fa-user-edit me-2"></i>Editar Perfil
+                                    </a></li>
+                                    <li><a class="dropdown-item" href="#" id="changePasswordBtn">
+                                        <i class="fas fa-key me-2"></i>Cambiar Contraseña
+                                    </a></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Alert Container -->
+                    <div id="alertContainer"></div>
+
+                    <!-- Dashboard Section -->
+                    <div id="dashboardSection">
+                        <!-- Quick Stats -->
+                        <div class="quick-stats">
+                            <div class="row text-center">
+                                <div class="col-md-3">
+                                    <h3 id="totalBusinesses">0</h3>
+                                    <p class="mb-0">Negocios Activos</p>
+                                </div>
+                                <div class="col-md-3">
+                                    <h3 id="totalBranches">0</h3>
+                                    <p class="mb-0">Sucursales</p>
+                                </div>
+                                <div class="col-md-3">
+                                    <h3 id="totalOrders">0</h3>
+                                    <p class="mb-0">Pedidos Hoy</p>
+                                </div>
+                                <div class="col-md-3">
+                                    <h3 id="totalRevenue">$0</h3>
+                                    <p class="mb-0">Ingresos Hoy</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Stats Cards -->
+                        <div class="row mb-4">
+                            <div class="col-md-3">
+                                <div class="card stat-card">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between">
+                                            <div>
+                                                <h3 id="connectedWhatsApp">0</h3>
+                                                <p class="mb-0">WhatsApp Conectados</p>
+                                            </div>
+                                            <div class="stat-icon">
+                                                <i class="fab fa-whatsapp"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card stat-card">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between">
+                                            <div>
+                                                <h3 id="activeUsers">0</h3>
+                                                <p class="mb-0">Usuarios Activos</p>
+                                            </div>
+                                            <div class="stat-icon">
+                                                <i class="fas fa-users"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card stat-card">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between">
+                                            <div>
+                                                <h3 id="aiResponses">0</h3>
+                                                <p class="mb-0">Respuestas IA</p>
+                                            </div>
+                                            <div class="stat-icon">
+                                                <i class="fas fa-robot"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card stat-card">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between">
+                                            <div>
+                                                <h3 id="systemHealth">100%</h3>
+                                                <p class="mb-0">Salud del Sistema</p>
+                                            </div>
+                                            <div class="stat-icon">
+                                                <i class="fas fa-heartbeat"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Recent Activity -->
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">
+                                            <i class="fas fa-chart-line me-2"></i>Actividad Reciente
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="recentActivity">
+                                            <div class="text-center text-muted">
+                                                <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
+                                                <p>Cargando actividad...</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">
+                                            <i class="fas fa-exclamation-triangle me-2"></i>Alertas
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="alertsList">
+                                            <div class="text-center text-muted">
+                                                <i class="fas fa-check-circle fa-2x mb-3 text-success"></i>
+                                                <p>No hay alertas</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Other Sections (initially hidden) -->
+                    <div id="businessesSection" style="display: none;">
+                        <!-- Businesses content will be loaded here -->
+                    </div>
+
+                    <div id="branchesSection" style="display: none;">
+                        <!-- Branches content will be loaded here -->
+                    </div>
+
+                    <div id="usersSection" style="display: none;">
+                        <!-- Users content will be loaded here -->
+                    </div>
+
+                    <div id="ordersSection" style="display: none;">
+                        <!-- Orders content will be loaded here -->
+                    </div>
+
+                    <div id="whatsappSection" style="display: none;">
+                        <!-- WhatsApp content will be loaded here -->
+                    </div>
+
+                    <div id="aiSection" style="display: none;">
+                        <!-- AI content will be loaded here -->
+                    </div>
+
+                    <div id="billingSection" style="display: none;">
+                        <!-- Billing content will be loaded here -->
+                    </div>
+
+                    <div id="settingsSection" style="display: none;">
+                        <!-- Settings content will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        class AuthService {
+            constructor() {
+                this.baseURL = 'http://localhost:4000/api';
+                this.token = localStorage.getItem('token');
+                this.user = JSON.parse(localStorage.getItem('user'));
+            }
+
+            isAuthenticated() {
+                return !!this.token;
+            }
+
+            getUser() {
+                return this.user;
+            }
+
+            getToken() {
+                return this.token;
+            }
+
+            logout() {
+                this.token = null;
+                this.user = null;
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                window.location.href = 'index.html';
+            }
+
+            async makeRequest(endpoint, options = {}) {
+                const response = await fetch(`${this.baseURL}${endpoint}`, {
+                    ...options,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${this.token}`,
+                        ...options.headers
+                    }
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Error en la solicitud');
+                }
+
+                return data;
+            }
+        }
+
+        class SuperAdminDashboard {
+            constructor() {
+                this.authService = new AuthService();
+                this.currentSection = 'dashboard';
+                this.init();
+            }
+
+            init() {
+                if (!this.authService.isAuthenticated()) {
+                    window.location.href = 'index.html';
+                    return;
+                }
+
+                const user = this.authService.getUser();
+                if (user.role !== 'super_admin') {
+                    this.authService.logout();
+                    return;
+                }
+
+                this.setupUserInfo();
+                this.bindEvents();
+                this.loadDashboard();
+            }
+
+            setupUserInfo() {
+                const user = this.authService.getUser();
+                document.getElementById('userName').textContent = user.name;
+                document.getElementById('userEmail').textContent = user.email;
+            }
+
+            bindEvents() {
+                // Navigation
+                document.querySelectorAll('.nav-link[data-section]').forEach(link => {
+                    link.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const section = e.target.closest('.nav-link').dataset.section;
+                        this.showSection(section);
+                    });
+                });
+
+                // Logout
+                document.getElementById('logoutBtn').addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.authService.logout();
+                });
+
+                // Profile actions
+                document.getElementById('profileBtn').addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.showProfileModal();
+                });
+
+                document.getElementById('changePasswordBtn').addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.showChangePasswordModal();
+                });
+            }
+
+            showSection(sectionName) {
+                // Hide all sections
+                document.querySelectorAll('[id$="Section"]').forEach(section => {
+                    section.style.display = 'none';
+                });
+
+                // Show selected section
+                const sectionElement = document.getElementById(`${sectionName}Section`);
+                if (sectionElement) {
+                    sectionElement.style.display = 'block';
+                }
+
+                // Update navigation
+                document.querySelectorAll('.nav-link').forEach(link => {
+                    link.classList.remove('active');
+                });
+                document.querySelector(`[data-section="${sectionName}"]`).classList.add('active');
+
+                // Update page title
+                const titles = {
+                    dashboard: 'Dashboard',
+                    businesses: 'Gestión de Negocios',
+                    branches: 'Gestión de Sucursales',
+                    users: 'Gestión de Usuarios',
+                    orders: 'Pedidos',
+                    whatsapp: 'WhatsApp',
+                    ai: 'IA & PDFs',
+                    billing: 'Facturación',
+                    settings: 'Configuración'
+                };
+                document.getElementById('pageTitle').textContent = titles[sectionName] || 'Dashboard';
+
+                this.currentSection = sectionName;
+                this.loadSectionData(sectionName);
+            }
+
+            async loadDashboard() {
+                try {
+                    // Load dashboard stats
+                    await this.loadDashboardStats();
+                    
+                    // Load recent activity
+                    await this.loadRecentActivity();
+                    
+                    // Load alerts
+                    await this.loadAlerts();
+                    
+                } catch (error) {
+                    this.showAlert('Error cargando dashboard: ' + error.message, 'danger');
+                }
+            }
+
+            async loadDashboardStats() {
+                try {
+                    // Simulate API call
+                    const stats = {
+                        totalBusinesses: 12,
+                        totalBranches: 45,
+                        totalOrders: 156,
+                        totalRevenue: 2847.50,
+                        connectedWhatsApp: 38,
+                        activeUsers: 89,
+                        aiResponses: 234,
+                        systemHealth: 100
+                    };
+
+                    // Update stats
+                    document.getElementById('totalBusinesses').textContent = stats.totalBusinesses;
+                    document.getElementById('totalBranches').textContent = stats.totalBranches;
+                    document.getElementById('totalOrders').textContent = stats.totalOrders;
+                    document.getElementById('totalRevenue').textContent = '$' + stats.totalRevenue.toFixed(2);
+                    document.getElementById('connectedWhatsApp').textContent = stats.connectedWhatsApp;
+                    document.getElementById('activeUsers').textContent = stats.activeUsers;
+                    document.getElementById('aiResponses').textContent = stats.aiResponses;
+                    document.getElementById('systemHealth').textContent = stats.systemHealth + '%';
+
+                } catch (error) {
+                    console.error('Error loading stats:', error);
+                }
+            }
+
+            async loadRecentActivity() {
+                try {
+                    const activityContainer = document.getElementById('recentActivity');
+                    
+                    // Simulate recent activity
+                    const activities = [
+                        { type: 'order', message: 'Nuevo pedido en Restaurante El Buen Sabor', time: '2 min' },
+                        { type: 'whatsapp', message: 'WhatsApp conectado en Sucursal Centro', time: '5 min' },
+                        { type: 'user', message: 'Nuevo usuario registrado: María López', time: '10 min' },
+                        { type: 'business', message: 'Negocio "Café Aroma" activado', time: '15 min' },
+                        { type: 'ai', message: 'IA respondió 5 consultas en la última hora', time: '1 hora' }
+                    ];
+
+                    activityContainer.innerHTML = activities.map(activity => `
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="me-3">
+                                <i class="fas fa-${this.getActivityIcon(activity.type)} text-primary"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <p class="mb-0">${activity.message}</p>
+                                <small class="text-muted">${activity.time}</small>
+                            </div>
+                        </div>
+                    `).join('');
+
+                } catch (error) {
+                    console.error('Error loading activity:', error);
+                }
+            }
+
+            getActivityIcon(type) {
+                const icons = {
+                    order: 'shopping-cart',
+                    whatsapp: 'whatsapp',
+                    user: 'user',
+                    business: 'building',
+                    ai: 'robot'
+                };
+                return icons[type] || 'info-circle';
+            }
+
+            async loadAlerts() {
+                try {
+                    const alertsContainer = document.getElementById('alertsList');
+                    
+                    // Simulate alerts
+                    const alerts = [
+                        { type: 'warning', message: '3 sucursales sin conexión WhatsApp', time: '1 hora' },
+                        { type: 'info', message: 'Actualización de IA disponible', time: '2 horas' }
+                    ];
+
+                    if (alerts.length === 0) {
+                        alertsContainer.innerHTML = `
+                            <div class="text-center text-muted">
+                                <i class="fas fa-check-circle fa-2x mb-3 text-success"></i>
+                                <p>No hay alertas</p>
+                            </div>
+                        `;
+                    } else {
+                        alertsContainer.innerHTML = alerts.map(alert => `
+                            <div class="alert alert-${alert.type} alert-sm mb-2">
+                                <small>${alert.message}</small>
+                                <br><small class="text-muted">${alert.time}</small>
+                            </div>
+                        `).join('');
+                    }
+
+                } catch (error) {
+                    console.error('Error loading alerts:', error);
+                }
+            }
+
+            async loadSectionData(sectionName) {
+                switch (sectionName) {
+                    case 'businesses':
+                        await this.loadBusinesses();
+                        break;
+                    case 'branches':
+                        await this.loadBranches();
+                        break;
+                    case 'users':
+                        await this.loadUsers();
+                        break;
+                    case 'orders':
+                        await this.loadOrders();
+                        break;
+                    case 'whatsapp':
+                        await this.loadWhatsApp();
+                        break;
+                    case 'ai':
+                        await this.loadAI();
+                        break;
+                    case 'billing':
+                        await this.loadBilling();
+                        break;
+                    case 'settings':
+                        await this.loadSettings();
+                        break;
+                }
+            }
+
+            // Placeholder methods for other sections
+            async loadBusinesses() {
+                const section = document.getElementById('businessesSection');
+                section.innerHTML = '<div class="text-center"><h4>Gestión de Negocios</h4><p>Contenido en desarrollo...</p></div>';
+            }
+
+            async loadBranches() {
+                const section = document.getElementById('branchesSection');
+                section.innerHTML = '<div class="text-center"><h4>Gestión de Sucursales</h4><p>Contenido en desarrollo...</p></div>';
+            }
+
+            async loadUsers() {
+                const section = document.getElementById('usersSection');
+                section.innerHTML = '<div class="text-center"><h4>Gestión de Usuarios</h4><p>Contenido en desarrollo...</p></div>';
+            }
+
+            async loadOrders() {
+                const section = document.getElementById('ordersSection');
+                section.innerHTML = '<div class="text-center"><h4>Pedidos</h4><p>Contenido en desarrollo...</p></div>';
+            }
+
+            async loadWhatsApp() {
+                const section = document.getElementById('whatsappSection');
+                section.innerHTML = `
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fab fa-whatsapp me-2"></i>Gestión de WhatsApp
+                            </h5>
+                            <button class="btn btn-primary btn-sm" onclick="whatsappManager.showNewConnectionModal()">
+                                <i class="fas fa-plus me-2"></i>Nueva Conexión
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div id="whatsappConnections">
+                                <div class="row" id="whatsappConnectionsGrid">
+                                    <div class="col-12 text-center text-muted">
+                                        <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
+                                        <p>Cargando conexiones...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Load connections after rendering
+                await this.loadWhatsAppConnections();
+            }
+
+            async loadAI() {
+                const section = document.getElementById('aiSection');
+                section.innerHTML = '<div class="text-center"><h4>IA & PDFs</h4><p>Contenido en desarrollo...</p></div>';
+            }
+
+            async loadBilling() {
+                const section = document.getElementById('billingSection');
+                section.innerHTML = '<div class="text-center"><h4>Facturación</h4><p>Contenido en desarrollo...</p></div>';
+            }
+
+            async loadSettings() {
+                const section = document.getElementById('settingsSection');
+                section.innerHTML = '<div class="text-center"><h4>Configuración</h4><p>Contenido en desarrollo...</p></div>';
+            }
+
+            showAlert(message, type) {
+                const container = document.getElementById('alertContainer');
+                
+                const alert = document.createElement('div');
+                alert.className = `alert alert-${type} alert-dismissible fade show`;
+                alert.innerHTML = `
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+
+                container.innerHTML = '';
+                container.appendChild(alert);
+
+                setTimeout(() => {
+                    if (alert.parentNode) {
+                        alert.remove();
+                    }
+                }, 5000);
+            }
+
+            showProfileModal() {
+                this.showAlert('Funcionalidad de perfil en desarrollo', 'info');
+            }
+
+            showChangePasswordModal() {
+                this.showAlert('Funcionalidad de cambio de contraseña en desarrollo', 'info');
+            }
+
+            // WhatsApp Management Methods
+            async loadWhatsAppConnections() {
+                try {
+                    console.log('Loading WhatsApp connections...');
+                    const response = await this.authService.makeRequest('/whatsapp/connections');
+                    console.log('WhatsApp connections response:', response);
+                    const connections = response.data;
+                    
+                    const container = document.getElementById('whatsappConnectionsGrid');
+                    console.log('Container found:', container);
+                    
+                    if (connections.length === 0) {
+                        container.innerHTML = `
+                            <div class="col-12 text-center text-muted">
+                                <i class="fab fa-whatsapp fa-3x mb-3"></i>
+                                <h5>No hay conexiones de WhatsApp</h5>
+                                <p>Conecta WhatsApp de tus sucursales para recibir pedidos automáticamente</p>
+                                <button class="btn btn-primary" onclick="whatsappManager.showNewConnectionModal()">
+                                    <i class="fas fa-plus me-2"></i>Crear Primera Conexión
+                                </button>
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    // Set up QR code refresh for connecting connections
+                    this.setupQRCodeRefresh(connections);
+
+                    const htmlContent = connections.map(connection => `
+                        <div class="col-md-6 col-lg-4 mb-4">
+                            <div class="card whatsapp-connection-card ${connection.status} h-100">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">
+                                        <i class="fab fa-whatsapp me-2"></i>${connection.connectionName}
+                                    </h6>
+                                    <span class="badge bg-${this.getConnectionStatusColor(connection.status)}">
+                                        ${connection.status}
+                                    </span>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="fas fa-phone text-success me-2"></i>
+                                            <div>
+                                                <small class="text-muted d-block">WhatsApp</small>
+                                                <strong>${connection.phoneNumber}</strong>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="fas fa-headset text-info me-2"></i>
+                                            <div>
+                                                <small class="text-muted d-block">Atención al Cliente</small>
+                                                <strong>${connection.customerServiceNumber || connection.phoneNumber}</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row text-center mb-3">
+                                        <div class="col-6">
+                                            <div class="border-end">
+                                                <small class="text-muted d-block">Mensajes Hoy</small>
+                                                <h5 class="mb-0 text-primary">${connection.messagesToday || 0}</h5>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted d-block">Tasa Respuesta</small>
+                                            <h5 class="mb-0 text-success">${connection.responseRate || 0}%</h5>
+                                        </div>
+                                    </div>
+
+                                    ${connection.qrCodeDataURL ? `
+                                        <div class="text-center mb-3">
+                                            <div class="qr-display-container">
+                                                <img src="${connection.qrCodeDataURL}" alt="QR Code" class="qr-code-image" data-connection-id="${connection._id}">
+                                            </div>
+                                            <small class="text-muted d-block mt-2">
+                                                <i class="fas fa-mobile-alt me-1"></i>
+                                                Escanea con WhatsApp
+                                            </small>
+                                        </div>
+                                    ` : `
+                                        <div class="text-center mb-3">
+                                            <div class="qr-placeholder">
+                                                <i class="fas fa-qrcode fa-3x text-muted"></i>
+                                                <small class="text-muted d-block">QR Code no disponible</small>
+                                            </div>
+                                        </div>
+                                    `}
+                                </div>
+                                <div class="card-footer">
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-sm btn-${connection.status === 'connected' ? 'warning' : 'success'} flex-fill" 
+                                                onclick="whatsappManager.toggleConnection('${connection._id}', '${connection.status === 'connected' ? 'disconnect' : 'connect'}')">
+                                            <i class="fas fa-${connection.status === 'connected' ? 'power-off' : 'plug'} me-1"></i>
+                                            ${connection.status === 'connected' ? 'Desconectar' : 'Conectar'}
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary" 
+                                                onclick="whatsappManager.editConnection('${connection._id}')">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" 
+                                                onclick="whatsappManager.deleteConnection('${connection._id}')">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                    
+                    console.log('Generated HTML:', htmlContent);
+                    container.innerHTML = htmlContent;
+                    console.log('HTML inserted into container');
+
+                } catch (error) {
+                    console.error('Error loading WhatsApp connections:', error);
+                    this.showAlert('Error cargando conexiones de WhatsApp: ' + error.message, 'danger');
+                }
+            }
+
+            getConnectionStatusColor(status) {
+                const colors = {
+                    connected: 'success',
+                    disconnected: 'secondary',
+                    connecting: 'warning',
+                    error: 'danger'
+                };
+                return colors[status] || 'secondary';
+            }
+
+            async toggleConnection(connectionId, action) {
+                try {
+                    const response = await this.authService.makeRequest(`/whatsapp/connections/${connectionId}/toggle`, {
+                        method: 'POST',
+                        body: JSON.stringify({ action })
+                    });
+
+                    this.showAlert(response.message, 'success');
+                    await this.loadWhatsAppConnections();
+
+                } catch (error) {
+                    console.error('Error toggling connection:', error);
+                    this.showAlert('Error cambiando estado de conexión: ' + error.message, 'danger');
+                }
+            }
+
+            async deleteConnection(connectionId) {
+                if (!confirm('¿Estás seguro de que quieres eliminar esta conexión de WhatsApp?')) {
+                    return;
+                }
+
+                try {
+                    await this.authService.makeRequest(`/whatsapp/connections/${connectionId}`, {
+                        method: 'DELETE'
+                    });
+
+                    this.showAlert('Conexión eliminada exitosamente', 'success');
+                    await this.loadWhatsAppConnections();
+
+                } catch (error) {
+                    console.error('Error deleting connection:', error);
+                    this.showAlert('Error eliminando conexión: ' + error.message, 'danger');
+                }
+            }
+
+            showNewConnectionModal() {
+                // Show the modal
+                const modal = new bootstrap.Modal(document.getElementById('whatsappConnectionModal'));
+                modal.show();
+                
+                // Load branches for the select
+                this.loadBranchesForSelect();
+            }
+
+            async loadBranchesForSelect() {
+                try {
+                    // For now, we'll use mock data. Later this will come from API
+                    const branches = [
+                        { _id: 'branch1', name: 'Sucursal Centro' },
+                        { _id: 'branch2', name: 'Sucursal Norte' },
+                        { _id: 'branch3', name: 'Sucursal Sur' }
+                    ];
+                    
+                    const select = document.getElementById('branchSelect');
+                    select.innerHTML = '<option value="">Selecciona una sucursal</option>';
+                    
+                    branches.forEach(branch => {
+                        const option = document.createElement('option');
+                        option.value = branch._id;
+                        option.textContent = branch.name;
+                        select.appendChild(option);
+                    });
+                    
+                } catch (error) {
+                    console.error('Error loading branches:', error);
+                }
+            }
+
+            async createWhatsAppConnection() {
+                const connectionData = {
+                    connectionName: document.getElementById('connectionName').value,
+                    phoneNumber: document.getElementById('phoneNumber').value,
+                    customerServiceNumber: document.getElementById('customerServiceNumber').value,
+                    branchId: document.getElementById('branchSelect').value,
+                    autoReply: document.getElementById('autoReply').checked,
+                    aiIntegration: document.getElementById('autoReply').checked,
+                    offHoursMessage: document.getElementById('welcomeMessage').value,
+                    businessId: 'business1' // For demo purposes, this would be dynamic
+                };
+                
+                // Validate required fields
+                if (!connectionData.connectionName || !connectionData.phoneNumber || !connectionData.customerServiceNumber || !connectionData.branchId) {
+                    this.showAlert('Por favor completa todos los campos requeridos', 'warning');
+                    return;
+                }
+                
+                try {
+                    // Show loading state
+                    const createBtn = document.getElementById('createConnectionBtn');
+                    const originalText = createBtn.innerHTML;
+                    createBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creando...';
+                    createBtn.disabled = true;
+                    
+                    // Create connection
+                    const response = await this.authService.makeRequest('/whatsapp/connections', {
+                        method: 'POST',
+                        body: JSON.stringify(connectionData)
+                    });
+                    
+                    console.log('Response from backend:', response); // Debug log
+                    
+                    // Show QR code
+                    if (response.data && response.data.qrCodeDataURL) {
+                        this.showQRCode(response.data.qrCodeDataURL);
+                        this.showAlert('Conexión creada exitosamente. Escanea el QR code para conectar WhatsApp', 'success');
+                    } else {
+                        console.error('No QR code data received:', response);
+                        this.showAlert('Conexión creada pero no se pudo generar el QR code', 'warning');
+                    }
+                    
+                    // Update the connections list
+                    await this.loadWhatsAppConnections();
+                    
+                } catch (error) {
+                    console.error('Error creating connection:', error);
+                    this.showAlert('Error creando conexión: ' + error.message, 'danger');
+                } finally {
+                    // Reset button
+                    const createBtn = document.getElementById('createConnectionBtn');
+                    createBtn.innerHTML = originalText;
+                    createBtn.disabled = false;
+                }
+            }
+
+            showQRCode(qrCodeDataURL) {
+                const qrContainer = document.getElementById('qrCodeContainer');
+                
+                if (qrCodeDataURL) {
+                    qrContainer.innerHTML = `
+                        <div class="text-center">
+                            <div class="qr-modal-container">
+                                <img src="${qrCodeDataURL}" alt="QR Code" class="qr-modal-image">
+                            </div>
+                            <div class="mt-3">
+                                <h6 class="text-success mb-2">
+                                    <i class="fab fa-whatsapp me-2"></i>¡QR Code Generado!
+                                </h6>
+                                <small class="text-muted">
+                                    <i class="fas fa-mobile-alt me-1"></i>
+                                    Abre WhatsApp en tu teléfono y escanea este código
+                                </small>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    qrContainer.innerHTML = `
+                        <div class="text-center">
+                            <i class="fas fa-qrcode fa-4x text-muted mb-3"></i>
+                            <p class="text-muted">QR Code se generará al crear la conexión</p>
+                        </div>
+                    `;
+                }
+            }
+
+            editConnection(connectionId) {
+                this.showAlert('Modal de edición en desarrollo', 'info');
+            }
+
+            // Setup QR code refresh for connecting connections
+            setupQRCodeRefresh(connections) {
+                // Clear existing timers
+                if (this.qrRefreshTimers) {
+                    Object.values(this.qrRefreshTimers).forEach(timer => clearInterval(timer));
+                }
+                this.qrRefreshTimers = {};
+
+                // Set up refresh for each connecting connection
+                connections.forEach(connection => {
+                    if (connection.status === 'connecting' && connection.qrCodeDataURL) {
+                        this.qrRefreshTimers[connection._id] = setInterval(async () => {
+                            await this.refreshQRCode(connection._id);
+                        }, 50000); // 50 seconds
+                    }
+                });
+            }
+
+            // Refresh QR code for a specific connection
+            async refreshQRCode(connectionId) {
+                try {
+                    const response = await this.authService.makeRequest(`/whatsapp/connections/${connectionId}/qr`);
+                    
+                    if (response.success && response.data.qrCodeDataURL) {
+                        // Update QR code in the UI
+                        const qrImage = document.querySelector(`[data-connection-id="${connectionId}"] .qr-code-image`);
+                        if (qrImage) {
+                            qrImage.src = response.data.qrCodeDataURL;
+                        }
+
+                        // Update QR code in modal if it's open
+                        const modalQRImage = document.querySelector('#qrCodeContainer .qr-modal-image');
+                        if (modalQRImage && modalQRImage.src.includes(connectionId)) {
+                            modalQRImage.src = response.data.qrCodeDataURL;
+                        }
+
+                        console.log('QR code refreshed for connection:', connectionId);
+                    }
+                } catch (error) {
+                    console.error('Error refreshing QR code:', error);
+                }
+            }
+
+            // Stop QR code refresh for a connection
+            stopQRCodeRefresh(connectionId) {
+                if (this.qrRefreshTimers && this.qrRefreshTimers[connectionId]) {
+                    clearInterval(this.qrRefreshTimers[connectionId]);
+                    delete this.qrRefreshTimers[connectionId];
+                }
+            }
+        }
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', () => {
+            const dashboard = new SuperAdminDashboard();
+            // Make WhatsApp manager globally accessible
+            window.whatsappManager = dashboard;
+            
+            // WhatsApp connection modal
+            document.getElementById('createConnectionBtn').addEventListener('click', (e) => {
+                e.preventDefault();
+                dashboard.createWhatsAppConnection();
+            });
+        });
+    </script>
+
+    <!-- WhatsApp Connection Modal -->
+    <div class="modal fade" id="whatsappConnectionModal" tabindex="-1" aria-labelledby="whatsappConnectionModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="whatsappConnectionModalLabel">
+                        <i class="fab fa-whatsapp me-2"></i>Nueva Conexión WhatsApp
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <form id="whatsappConnectionForm">
+                                <div class="mb-3">
+                                    <label for="connectionName" class="form-label">Nombre de la Conexión</label>
+                                    <input type="text" class="form-control" id="connectionName" required 
+                                           placeholder="Ej: Sucursal Centro WhatsApp">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="phoneNumber" class="form-label">Número de WhatsApp</label>
+                                    <input type="tel" class="form-control" id="phoneNumber" required 
+                                           placeholder="+573001234567">
+                                    <small class="text-muted">Incluye el código de país (+57 para Colombia)</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="customerServiceNumber" class="form-label">Número de Atención al Cliente</label>
+                                    <input type="tel" class="form-control" id="customerServiceNumber" required 
+                                           placeholder="+573001234567">
+                                    <small class="text-muted">Número para quejas, reclamos y sugerencias</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="branchSelect" class="form-label">Sucursal</label>
+                                    <select class="form-select" id="branchSelect" required>
+                                        <option value="">Selecciona una sucursal</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="autoReply" checked>
+                                        <label class="form-check-label" for="autoReply">
+                                            Respuestas automáticas con IA
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="welcomeMessage" class="form-label">Mensaje de Bienvenida</label>
+                                    <textarea class="form-control" id="welcomeMessage" rows="3" 
+                                              placeholder="Mensaje que se enviará cuando alguien diga 'Hola'">¡Hola! 👋 Bienvenido a nuestro negocio. ¿En qué puedo ayudarte hoy?</textarea>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="text-center">
+                                <h6 class="mb-3">📱 Escanea el QR Code</h6>
+                                <div id="qrCodeContainer" class="qr-container">
+                                    <div class="text-center">
+                                        <i class="fas fa-qrcode fa-4x text-muted mb-3"></i>
+                                        <p class="text-muted">QR Code se generará al crear la conexión</p>
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <small class="text-muted">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        Abre WhatsApp en tu teléfono y escanea este código
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="createConnectionBtn">
+                        <i class="fas fa-plus me-2"></i>Crear Conexión
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

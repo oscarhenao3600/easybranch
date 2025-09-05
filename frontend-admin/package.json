@@ -1,0 +1,19 @@
+{
+  "name": "easybranch-frontend",
+  "version": "1.0.0",
+  "description": "EasyBranch Frontend Server",
+  "main": "frontend-server.js",
+  "scripts": {
+    "start": "node frontend-server.js",
+    "dev": "node frontend-server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "keywords": [
+    "frontend",
+    "easybranch"
+  ],
+  "author": "",
+  "license": "ISC"
+}

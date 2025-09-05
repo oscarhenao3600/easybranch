@@ -1,0 +1,319 @@
+/* EasyBranch - Paleta de Colores Sobria */
+:root {
+    /* Colores principales */
+    --primary-gray: #8e9aaf;
+    --primary-gray-dark: #6c7b7f;
+    --primary-green: #90EE90;
+    --primary-green-dark: #7dd87d;
+    
+    /* Grises */
+    --gray-100: #f8f9fa;
+    --gray-200: #e9ecef;
+    --gray-300: #dee2e6;
+    --gray-400: #ced4da;
+    --gray-500: #adb5bd;
+    --gray-600: #6c757d;
+    --gray-700: #495057;
+    --gray-800: #343a40;
+    --gray-900: #212529;
+    
+    /* Estados */
+    --success: #90EE90;
+    --warning: #ffc107;
+    --danger: #dc3545;
+    --info: #17a2b8;
+}
+
+/* Estilos generales */
+body {
+    background: linear-gradient(135deg, var(--gray-100) 0%, var(--gray-200) 100%);
+}
+
+/* Sidebar */
+.sidebar {
+    background: linear-gradient(135deg, var(--primary-gray) 0%, var(--primary-gray-dark) 100%);
+    min-height: 100vh;
+}
+
+.sidebar .nav-link {
+    color: rgba(255, 255, 255, 0.9);
+    border-radius: 10px;
+    margin: 5px 10px;
+    padding: 12px 15px;
+    transition: all 0.3s ease;
+}
+
+.sidebar .nav-link:hover,
+.sidebar .nav-link.active {
+    color: white;
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateX(5px);
+}
+
+.brand-logo {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+}
+
+/* Cards de estadísticas */
+.stat-card {
+    background: linear-gradient(135deg, var(--primary-green) 0%, var(--primary-green-dark) 100%);
+    color: var(--gray-800);
+}
+
+/* Quick stats */
+.quick-stats {
+    background: linear-gradient(135deg, var(--primary-gray) 0%, var(--primary-gray-dark) 100%);
+    color: white;
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 30px;
+}
+
+/* Cards de negocio/sucursal */
+.business-card, .branch-card {
+    border-left: 5px solid var(--primary-gray);
+    transition: all 0.3s ease;
+}
+
+.business-card:hover, .branch-card:hover {
+    border-left-color: var(--primary-gray-dark);
+    transform: translateX(5px);
+}
+
+.business-card.active, .branch-card.connected {
+    border-left-color: var(--primary-green);
+}
+
+/* Botones */
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary-green) 0%, var(--primary-green-dark) 100%);
+    border: none;
+    color: var(--gray-800);
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, var(--primary-green-dark) 0%, #6bc76b 100%);
+    color: var(--gray-800);
+}
+
+/* Formularios */
+.form-control:focus {
+    border-color: var(--primary-green);
+    box-shadow: 0 0 0 0.2rem rgba(144, 238, 144, 0.25);
+}
+
+/* Badges */
+.badge-success {
+    background-color: var(--primary-green);
+    color: var(--gray-800);
+}
+
+.badge-warning {
+    background-color: var(--warning);
+    color: var(--gray-800);
+}
+
+.badge-danger {
+    background-color: var(--danger);
+    color: white;
+}
+
+/* Login específico */
+.login-header {
+    background: linear-gradient(135deg, var(--primary-gray) 0%, var(--primary-gray-dark) 100%);
+    color: white;
+    padding: 2.5rem;
+    text-align: center;
+}
+
+.btn-login {
+    background: linear-gradient(135deg, var(--primary-green) 0%, var(--primary-green-dark) 100%);
+    border: none;
+    border-radius: 10px;
+    padding: 15px 35px;
+    font-weight: 600;
+    font-size: 1.1rem;
+    transition: all 0.3s ease;
+    color: var(--gray-800);
+}
+
+.btn-login:hover {
+    background: linear-gradient(135deg, var(--primary-green-dark) 0%, #6bc76b 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(144, 238, 144, 0.4);
+    color: var(--gray-800);
+}
+
+.demo-info {
+    background: rgba(142, 154, 175, 0.1);
+    border-radius: 10px;
+    padding: 15px;
+    margin-top: 20px;
+    border-left: 4px solid var(--primary-gray);
+}
+
+/* Login page layout */
+body.login-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.login-card {
+    background: rgba(255, 255, 255, 0.98);
+    border-radius: 16px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+}
+
+.login-body {
+    padding: 2.5rem;
+}
+
+.alert {
+    border-radius: 10px;
+    border: none;
+}
+
+/* WhatsApp specific styles */
+.whatsapp-connection-card {
+    border-left: 5px solid var(--primary-gray);
+    transition: all 0.3s ease;
+    border-radius: 15px;
+    overflow: hidden;
+}
+
+.whatsapp-connection-card.connected {
+    border-left-color: var(--success);
+    box-shadow: 0 4px 20px rgba(144, 238, 144, 0.2);
+}
+
+.whatsapp-connection-card.disconnected {
+    border-left-color: var(--gray-500);
+}
+
+.whatsapp-connection-card.connecting {
+    border-left-color: var(--warning);
+    box-shadow: 0 4px 20px rgba(255, 193, 7, 0.2);
+}
+
+.whatsapp-connection-card.error {
+    border-left-color: var(--danger);
+    box-shadow: 0 4px 20px rgba(220, 53, 69, 0.2);
+}
+
+.whatsapp-connection-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+/* QR Code Display Styles */
+.qr-display-container {
+    position: relative;
+    display: inline-block;
+    background: white;
+    border-radius: 15px;
+    padding: 15px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    border: 2px solid var(--gray-200);
+}
+
+.qr-code-image {
+    width: 120px;
+    height: 120px;
+    border-radius: 10px;
+    display: block;
+}
+
+.qr-overlay {
+    position: absolute;
+    bottom: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255, 255, 255, 0.95);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+}
+
+.qr-placeholder {
+    background: var(--gray-100);
+    border-radius: 15px;
+    padding: 20px;
+    border: 2px dashed var(--gray-300);
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Modal QR Code Styles */
+.qr-container {
+    background: var(--gray-100);
+    border-radius: 15px;
+    padding: 20px;
+    border: 2px dashed var(--gray-300);
+}
+
+.qr-container img {
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+}
+
+/* Modal QR Code Display */
+.qr-modal-container {
+    background: white;
+    border-radius: 15px;
+    padding: 20px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    border: 2px solid var(--gray-200);
+    display: inline-block;
+}
+
+.qr-modal-image {
+    width: 200px;
+    height: 200px;
+    border-radius: 10px;
+    display: block;
+}
+
+/* Card Header Styles */
+.whatsapp-connection-card .card-header {
+    background: linear-gradient(135deg, var(--primary-gray) 0%, var(--primary-gray-dark) 100%);
+    color: white;
+    border-bottom: none;
+}
+
+.whatsapp-connection-card.connected .card-header {
+    background: linear-gradient(135deg, var(--success) 0%, var(--primary-green-dark) 100%);
+}
+
+.whatsapp-connection-card.connecting .card-header {
+    background: linear-gradient(135deg, var(--warning) 0%, #e0a800 100%);
+}
+
+.whatsapp-connection-card.error .card-header {
+    background: linear-gradient(135deg, var(--danger) 0%, #c82333 100%);
+}
+
+/* Button hover effects */
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .qr-code-image {
+        width: 100px;
+        height: 100px;
+    }
+    
+    .qr-display-container {
+        padding: 10px;
+    }
+}
