@@ -5,9 +5,11 @@ const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
 const LoggerService = require('../services/LoggerService');
+const TokenService = require('../services/TokenService');
 
 const router = express.Router();
 const logger = new LoggerService();
+const tokenService = new TokenService();
 
 // Validaciones
 const loginValidation = [
@@ -24,15 +26,19 @@ const registerValidation = [
 
 // Generar token JWT
 const generateToken = (user) => {
+  const payload = {
+    userId: user.userId,
+    email: user.email,
+    role: user.role,
+    businessId: user.businessId,
+    branchId: user.branchId,
+    iat: Math.floor(Date.now() / 1000), // Issued at
+    jti: `token_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` // JWT ID único
+  };
+  
   return jwt.sign(
-    {
-      userId: user.userId,
-      email: user.email,
-      role: user.role,
-      businessId: user.businessId,
-      branchId: user.branchId
-    },
-    '1357',
+    payload,
+    process.env.JWT_SECRET || '1357',
     { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
   );
 };
@@ -51,50 +57,19 @@ router.post('/login', loginValidation, async (req, res) => {
 
     const { email, password } = req.body;
 
-    // Buscar usuario
-    const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user) {
-      logger.auth('unknown', `Intento de login fallido - Email no encontrado: ${email}`);
-      return res.status(401).json({
-        error: 'Credenciales inválidas',
-        code: 'INVALID_CREDENTIALS'
+    // Usar TokenService para procesar el login con renovación automática
+    const result = await tokenService.processLogin(email, password);
+
+    if (!result.success) {
+      const statusCode = result.code === 'INVALID_CREDENTIALS' || result.code === 'USER_INACTIVE' ? 401 : 500;
+      return res.status(statusCode).json({
+        error: result.error,
+        code: result.code
       });
     }
 
-    // Verificar contraseña
-    const isValidPassword = await user.comparePassword(password);
-    if (!isValidPassword) {
-      logger.auth(user.userId, `Intento de login fallido - Contraseña incorrecta`);
-      return res.status(401).json({
-        error: 'Credenciales inválidas',
-        code: 'INVALID_CREDENTIALS'
-      });
-    }
-
-    // Verificar si el usuario está activo
-    if (!user.isActive) {
-      logger.auth(user.userId, `Intento de login fallido - Usuario inactivo`);
-      return res.status(401).json({
-        error: 'Usuario inactivo',
-        code: 'USER_INACTIVE'
-      });
-    }
-
-    // Actualizar último login
-    user.lastLogin = new Date();
-    await user.save();
-
-    // Generar token
-    const token = generateToken(user);
-
-    logger.auth(user.userId, 'Login exitoso');
-
-    res.json({
-      message: 'Login exitoso',
-      token: token,
-      user: user.toSafeObject(),
-      expiresIn: process.env.JWT_EXPIRES_IN || '24h'
-    });
+    // Login exitoso - el TokenService ya generó un token fresco
+    res.json(result);
 
   } catch (error) {
     logger.error('Error en login:', error);
@@ -168,25 +143,31 @@ router.post('/register', registerValidation, async (req, res) => {
 // POST /api/auth/refresh
 router.post('/refresh', authMiddleware.verifyToken, async (req, res) => {
   try {
-    const user = await User.findOne({ userId: req.user.userId });
+    const currentToken = req.headers.authorization?.split(' ')[1];
     
-    if (!user || !user.isActive) {
+    if (!currentToken) {
       return res.status(401).json({
-        error: 'Usuario no válido',
-        code: 'INVALID_USER'
+        error: 'Token requerido',
+        code: 'TOKEN_REQUIRED'
       });
     }
 
-    // Generar nuevo token
-    const token = generateToken(user);
+    // Usar TokenService para renovar el token
+    const result = await tokenService.refreshToken(currentToken);
 
-    logger.auth(user.userId, 'Token refrescado');
+    if (!result.success) {
+      return res.status(401).json({
+        error: result.error,
+        code: 'TOKEN_REFRESH_FAILED'
+      });
+    }
 
     res.json({
-      message: 'Token refrescado',
-      token: token,
-      user: user.toSafeObject(),
-      expiresIn: process.env.JWT_EXPIRES_IN || '24h'
+      message: 'Token renovado exitosamente',
+      token: result.token,
+      user: result.user,
+      expiresIn: result.expiresIn,
+      timestamp: new Date().toISOString()
     });
 
   } catch (error) {

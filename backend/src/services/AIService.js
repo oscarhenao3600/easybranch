@@ -36,6 +36,12 @@ class AIService {
     this.logger.ai(branchId, '📋 Menú configurado');
   }
 
+  // Limpiar contenido del menú para una sucursal
+  clearMenuContent(branchId) {
+    this.menuContent.delete(branchId);
+    this.logger.ai(branchId, '🗑️ Menú eliminado');
+  }
+
   // Configurar prompt personalizado para una sucursal
   setAIPrompt(branchId, prompt) {
     this.aiPrompts.set(branchId, prompt);
@@ -510,6 +516,206 @@ class AIService {
       useHuggingFace: this.useHuggingFace,
       modelName: this.modelName
     };
+  }
+
+  // Generar prompt enriquecido con contenido del PDF
+  generateEnhancedPrompt(branchId, businessType = 'restaurant') {
+    const basePrompt = this.getPrompt(branchId, businessType);
+    const menuContent = this.menuContent.get(branchId);
+    
+    if (!menuContent) {
+      return basePrompt;
+    }
+
+    let enhancedPrompt = basePrompt + '\n\n';
+    
+    // Agregar información del negocio
+    if (menuContent.businessInfo) {
+      const businessInfo = menuContent.businessInfo;
+      enhancedPrompt += 'INFORMACIÓN DEL NEGOCIO:\n';
+      
+      if (businessInfo.name) {
+        enhancedPrompt += `- Nombre: ${businessInfo.name}\n`;
+      }
+      if (businessInfo.address) {
+        enhancedPrompt += `- Dirección: ${businessInfo.address}\n`;
+      }
+      if (businessInfo.phone) {
+        enhancedPrompt += `- Teléfono: ${businessInfo.phone}\n`;
+      }
+      if (businessInfo.hours) {
+        enhancedPrompt += `- Horarios: ${businessInfo.hours}\n`;
+      }
+      enhancedPrompt += '\n';
+    }
+
+    // Agregar información de contacto
+    if (menuContent.contactInfo) {
+      const contactInfo = menuContent.contactInfo;
+      if (contactInfo.phones.length > 0) {
+        enhancedPrompt += `CONTACTOS:\n`;
+        enhancedPrompt += `- Teléfonos: ${contactInfo.phones.join(', ')}\n`;
+      }
+      if (contactInfo.emails.length > 0) {
+        enhancedPrompt += `- Emails: ${contactInfo.emails.join(', ')}\n`;
+      }
+      if (contactInfo.socialMedia.length > 0) {
+        enhancedPrompt += `- Redes Sociales: `;
+        contactInfo.socialMedia.forEach(social => {
+          enhancedPrompt += `${social.platform}: ${social.handle} `;
+        });
+        enhancedPrompt += '\n';
+      }
+      enhancedPrompt += '\n';
+    }
+
+    // Agregar secciones del menú
+    if (menuContent.sections && menuContent.sections.length > 0) {
+      enhancedPrompt += 'MENÚ DISPONIBLE:\n';
+      menuContent.sections.forEach(section => {
+        enhancedPrompt += `\n${section.name.toUpperCase()}:\n`;
+        if (section.products && section.products.length > 0) {
+          section.products.forEach(product => {
+            enhancedPrompt += `- ${product.name}`;
+            if (product.description) {
+              enhancedPrompt += `: ${product.description}`;
+            }
+            if (product.price) {
+              enhancedPrompt += ` - $${product.price}`;
+            }
+            enhancedPrompt += '\n';
+          });
+        }
+      });
+      enhancedPrompt += '\n';
+    }
+
+    // Agregar productos destacados
+    if (menuContent.products && menuContent.products.length > 0) {
+      enhancedPrompt += 'PRODUCTOS DESTACADOS:\n';
+      const topProducts = menuContent.products.slice(0, 10); // Top 10 productos
+      topProducts.forEach(product => {
+        enhancedPrompt += `- ${product.name}`;
+        if (product.price) {
+          enhancedPrompt += ` ($${product.price})`;
+        }
+        if (product.category && product.category !== 'general') {
+          enhancedPrompt += ` [${product.category}]`;
+        }
+        enhancedPrompt += '\n';
+      });
+      enhancedPrompt += '\n';
+    }
+
+    // Agregar resumen estadístico
+    if (menuContent.summary) {
+      const summary = menuContent.summary;
+      enhancedPrompt += 'RESUMEN DEL MENÚ:\n';
+      enhancedPrompt += `- Total de secciones: ${summary.totalSections}\n`;
+      enhancedPrompt += `- Total de productos: ${summary.totalProducts}\n`;
+      
+      if (summary.priceRange.min !== null) {
+        enhancedPrompt += `- Rango de precios: $${summary.priceRange.min} - $${summary.priceRange.max}\n`;
+        enhancedPrompt += `- Precio promedio: $${summary.priceRange.average.toFixed(2)}\n`;
+      }
+      enhancedPrompt += '\n';
+    }
+
+    // Instrucciones finales
+    enhancedPrompt += `INSTRUCCIONES IMPORTANTES:
+- Usa esta información para responder preguntas sobre productos, precios y disponibilidad
+- Si no encuentras un producto específico, sugiere alternativas similares
+- Siempre menciona los precios cuando sea relevante
+- Si el cliente pregunta por información de contacto, usa los datos proporcionados
+- Mantén un tono amigable y profesional
+- Si no estás seguro de algo, es mejor decir que no tienes esa información específica`;
+
+    return enhancedPrompt;
+  }
+
+  // Obtener respuesta de IA con contexto enriquecido
+  async getAIResponse(branchId, userMessage, businessType = 'restaurant') {
+    try {
+      const enhancedPrompt = this.generateEnhancedPrompt(branchId, businessType);
+      const conversationHistory = this.conversationHistory.get(branchId) || [];
+      
+      // Construir contexto completo
+      let fullContext = enhancedPrompt + '\n\nCONVERSACIÓN:\n';
+      
+      // Agregar historial de conversación (últimos 5 mensajes)
+      const recentHistory = conversationHistory.slice(-5);
+      recentHistory.forEach(msg => {
+        fullContext += `${msg.role}: ${msg.content}\n`;
+      });
+      
+      fullContext += `Usuario: ${userMessage}\nAsistente:`;
+
+      // Simular respuesta de IA (aquí integrarías con el modelo real)
+      const response = await this.generateSimulatedResponse(userMessage, enhancedPrompt);
+      
+      // Guardar en historial
+      conversationHistory.push(
+        { role: 'Usuario', content: userMessage, timestamp: new Date() },
+        { role: 'Asistente', content: response, timestamp: new Date() }
+      );
+      
+      // Mantener solo los últimos mensajes
+      if (conversationHistory.length > this.maxHistoryLength) {
+        conversationHistory.splice(0, conversationHistory.length - this.maxHistoryLength);
+      }
+      
+      this.conversationHistory.set(branchId, conversationHistory);
+      
+      return {
+        success: true,
+        response: response,
+        context: {
+          hasMenuContent: !!this.menuContent.get(branchId),
+          promptLength: enhancedPrompt.length,
+          conversationLength: conversationHistory.length
+        }
+      };
+      
+    } catch (error) {
+      this.logger.error(`Error generando respuesta de IA para sucursal ${branchId}:`, error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  // Generar respuesta simulada mejorada
+  async generateSimulatedResponse(userMessage, enhancedPrompt) {
+    const message = userMessage.toLowerCase();
+    
+    // Respuestas basadas en contenido del PDF
+    if (message.includes('menú') || message.includes('menu')) {
+      return 'Te puedo ayudar con información sobre nuestro menú. ¿Hay alguna categoría específica que te interese? Por ejemplo: bebidas, platos principales, postres, etc.';
+    }
+    
+    if (message.includes('precio') || message.includes('cuesta') || message.includes('vale')) {
+      return 'Los precios varían según el producto. ¿Hay algún plato específico del que te gustaría saber el precio? Puedo ayudarte a encontrar la información que necesitas.';
+    }
+    
+    if (message.includes('dirección') || message.includes('ubicación') || message.includes('donde')) {
+      return 'Te puedo proporcionar nuestra dirección y datos de contacto. ¿Te gustaría que te comparta esta información?';
+    }
+    
+    if (message.includes('horario') || message.includes('hora') || message.includes('abierto')) {
+      return 'Te puedo informar sobre nuestros horarios de atención. ¿Necesitas saber los horarios para algún día específico?';
+    }
+    
+    if (message.includes('pedido') || message.includes('orden') || message.includes('comprar')) {
+      return '¡Perfecto! Te puedo ayudar con tu pedido. ¿Qué te gustaría ordenar? Puedo sugerirte algunos de nuestros platos más populares.';
+    }
+    
+    if (message.includes('recomendación') || message.includes('recomienda') || message.includes('sugerir')) {
+      return '¡Me encanta ayudar con recomendaciones! Basándome en nuestro menú, puedo sugerirte algunos platos excelentes. ¿Tienes alguna preferencia de sabor o tipo de comida?';
+    }
+    
+    // Respuesta por defecto más inteligente
+    return 'Hola! Soy tu asistente virtual y estoy aquí para ayudarte con cualquier consulta sobre nuestro menú, precios, pedidos o información general. ¿En qué puedo asistirte hoy?';
   }
 }
 

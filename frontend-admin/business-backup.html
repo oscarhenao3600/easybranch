@@ -1,0 +1,1453 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EasyBranch - Business Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="styles.css" rel="stylesheet">
+    <style>
+        .stat-item {
+            padding: 20px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-item:hover {
+            transform: translateY(-5px);
+        }
+
+        .branch-item {
+            transition: all 0.3s ease;
+            background: #fff;
+        }
+
+        .branch-item:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+
+        .business-details {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 20px;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 col-lg-2 px-0">
+                <div class="sidebar p-3">
+                    <div class="text-center mb-4">
+                        <i class="fas fa-building brand-logo"></i>
+                        <h5 class="text-white">EasyBranch</h5>
+                        <small class="text-white-50">Business Admin</small>
+                    </div>
+                    
+                    <nav class="nav flex-column">
+                        <a class="nav-link active" href="#" data-section="dashboard">
+                            <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                        </a>
+                        <a class="nav-link" href="#" data-section="business-management">
+                            <i class="fas fa-building me-2"></i>Mi Negocio
+                        </a>
+                        <a class="nav-link" href="#" data-section="orders">
+                            <i class="fas fa-shopping-cart me-2"></i>Pedidos
+                        </a>
+                        <a class="nav-link" href="#" data-section="whatsapp">
+                            <i class="fab fa-whatsapp me-2"></i>WhatsApp
+                        </a>
+                        <a class="nav-link" href="#" data-section="ai">
+                            <i class="fas fa-robot me-2"></i>IA & PDFs
+                        </a>
+                        <a class="nav-link" href="#" data-section="services">
+                            <i class="fas fa-list me-2"></i>Productos
+                        </a>
+                        <a class="nav-link" href="#" data-section="users">
+                            <i class="fas fa-users me-2"></i>Usuarios
+                        </a>
+                        <a class="nav-link" href="#" data-section="reports">
+                            <i class="fas fa-chart-bar me-2"></i>Reportes
+                        </a>
+                        <a class="nav-link" href="#" data-section="billing">
+                            <i class="fas fa-file-invoice me-2"></i>Facturación
+                        </a>
+                        <hr class="text-white-50">
+                        <a class="nav-link" href="#" id="logoutBtn">
+                            <i class="fas fa-sign-out-alt me-2"></i>Cerrar Sesión
+                        </a>
+                    </nav>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9 col-lg-10 px-0">
+                <div class="main-content p-4">
+                    <!-- Header -->
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <div>
+                            <h2 id="pageTitle">Dashboard</h2>
+                            <p class="text-muted mb-0">
+                                Negocio: <span id="businessName">Mi Restaurante</span> | 
+                                Usuario: <span id="userName">Business Admin</span>
+                            </p>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-success me-2">Business Admin</span>
+                            <div class="dropdown">
+                                <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                    <i class="fas fa-user me-2"></i>Perfil
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="#" id="profileBtn">
+                                        <i class="fas fa-user-edit me-2"></i>Editar Perfil
+                                    </a></li>
+                                    <li><a class="dropdown-item" href="#" id="changePasswordBtn">
+                                        <i class="fas fa-key me-2"></i>Cambiar Contraseña
+                                    </a></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Alert Container -->
+                    <div id="alertContainer"></div>
+
+                    <!-- Dashboard Section -->
+                    <div id="dashboardSection">
+                        <!-- Quick Stats -->
+                        <div class="quick-stats">
+                            <div class="row text-center">
+                                <div class="col-md-3">
+                                    <h3 id="totalBranches">0</h3>
+                                    <p class="mb-0">Sucursales</p>
+                                </div>
+                                <div class="col-md-3">
+                                    <h3 id="totalOrders">0</h3>
+                                    <p class="mb-0">Pedidos Hoy</p>
+                                </div>
+                                <div class="col-md-3">
+                                    <h3 id="totalRevenue">$0</h3>
+                                    <p class="mb-0">Ingresos Hoy</p>
+                                </div>
+                                <div class="col-md-3">
+                                    <h3 id="connectedWhatsApp">0</h3>
+                                    <p class="mb-0">WhatsApp Conectados</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Stats Cards -->
+                        <div class="row mb-4">
+                            <div class="col-md-3">
+                                <div class="card stat-card">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between">
+                                            <div>
+                                                <h3 id="pendingOrders">0</h3>
+                                                <p class="mb-0">Pendientes</p>
+                                            </div>
+                                            <div class="stat-icon">
+                                                <i class="fas fa-clock"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card stat-card">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between">
+                                            <div>
+                                                <h3 id="readyOrders">0</h3>
+                                                <p class="mb-0">Listos</p>
+                                            </div>
+                                            <div class="stat-icon">
+                                                <i class="fas fa-check-circle"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card stat-card">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between">
+                                            <div>
+                                                <h3 id="aiResponses">0</h3>
+                                                <p class="mb-0">Respuestas IA</p>
+                                            </div>
+                                            <div class="stat-icon">
+                                                <i class="fas fa-robot"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card stat-card">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between">
+                                            <div>
+                                                <h3 id="totalProducts">0</h3>
+                                                <p class="mb-0">Productos</p>
+                                            </div>
+                                            <div class="stat-icon">
+                                                <i class="fas fa-list"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Recent Orders and WhatsApp Status -->
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">
+                                            <i class="fas fa-shopping-cart me-2"></i>Pedidos Recientes
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="recentOrders">
+                                            <div class="text-center text-muted">
+                                                <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
+                                                <p>Cargando pedidos...</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">
+                                            <i class="fab fa-whatsapp me-2"></i>Estado WhatsApp
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="whatsappStatus">
+                                            <div class="text-center text-muted">
+                                                <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
+                                                <p>Cargando estado...</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Other Sections (initially hidden) -->
+                    <div id="businessManagementSection" style="display: none;">
+                        <!-- Business Management content will be loaded here -->
+                    </div>
+
+                    <div id="ordersSection" style="display: none;">
+                        <!-- Orders content will be loaded here -->
+                    </div>
+
+                    <div id="whatsappSection" style="display: none;">
+                        <!-- WhatsApp content will be loaded here -->
+                    </div>
+
+                    <div id="aiSection" style="display: none;">
+                        <!-- AI content will be loaded here -->
+                    </div>
+
+                    <div id="servicesSection" style="display: none;">
+                        <!-- Services content will be loaded here -->
+                    </div>
+
+                    <div id="usersSection" style="display: none;">
+                        <!-- Users content will be loaded here -->
+                    </div>
+
+                    <div id="reportsSection" style="display: none;">
+                        <!-- Reports content will be loaded here -->
+                    </div>
+
+                                         <div id="billingSection" style="display: none;">
+                         <!-- Billing content will be loaded here -->
+                     </div>
+                 </div>
+             </div>
+         </div>
+     </div>
+
+     <!-- WhatsApp Connection Modal -->
+     <div class="modal fade" id="whatsappConnectionModal" tabindex="-1" aria-labelledby="whatsappConnectionModalLabel" aria-hidden="true">
+         <div class="modal-dialog modal-lg">
+             <div class="modal-content">
+                 <div class="modal-header">
+                     <h5 class="modal-title" id="whatsappConnectionModalLabel">
+                         <i class="fab fa-whatsapp me-2"></i>Nueva Conexión WhatsApp
+                     </h5>
+                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                 </div>
+                 <div class="modal-body">
+                     <div class="row">
+                         <div class="col-md-6">
+                             <form id="whatsappConnectionForm">
+                                 <div class="mb-3">
+                                     <label for="connectionName" class="form-label">Nombre de la Conexión</label>
+                                     <input type="text" class="form-control" id="connectionName" required 
+                                            placeholder="Ej: Sucursal Centro WhatsApp">
+                                 </div>
+                                 <div class="mb-3">
+                                     <label for="phoneNumber" class="form-label">Número de WhatsApp</label>
+                                     <input type="tel" class="form-control" id="phoneNumber" required 
+                                            placeholder="+573001234567">
+                                     <small class="text-muted">Incluye el código de país (+57 para Colombia)</small>
+                                 </div>
+                                 <div class="mb-3">
+                                     <label for="branchSelect" class="form-label">Sucursal</label>
+                                     <select class="form-select" id="branchSelect" required>
+                                         <option value="">Selecciona una sucursal</option>
+                                         <option value="branch1">Sucursal Centro</option>
+                                         <option value="branch2">Sucursal Norte</option>
+                                         <option value="branch3">Sucursal Sur</option>
+                                     </select>
+                                 </div>
+                                 <div class="mb-3">
+                                     <div class="form-check">
+                                         <input class="form-check-input" type="checkbox" id="autoReply" checked>
+                                         <label class="form-check-label" for="autoReply">
+                                             Respuestas automáticas con IA
+                                         </label>
+                                     </div>
+                                 </div>
+                                 <div class="mb-3">
+                                     <label for="welcomeMessage" class="form-label">Mensaje de Bienvenida</label>
+                                     <textarea class="form-control" id="welcomeMessage" rows="3" 
+                                               placeholder="Mensaje que se enviará cuando alguien diga 'Hola'">¡Hola! 👋 Bienvenido a nuestro negocio. ¿En qué puedo ayudarte hoy?</textarea>
+                                 </div>
+                             </form>
+                         </div>
+                         <div class="col-md-6">
+                             <div class="text-center">
+                                 <h6 class="mb-3">📱 Escanea el QR Code</h6>
+                                 <div id="qrCodeContainer" class="qr-container">
+                                     <div class="text-center">
+                                         <i class="fas fa-qrcode fa-4x text-muted mb-3"></i>
+                                         <p class="text-muted">QR Code se generará al crear la conexión</p>
+                                     </div>
+                                 </div>
+                                 <div class="mt-3">
+                                     <small class="text-muted">
+                                         <i class="fas fa-info-circle me-1"></i>
+                                         Abre WhatsApp en tu teléfono y escanea este código
+                                     </small>
+                                 </div>
+                             </div>
+                         </div>
+                     </div>
+                 </div>
+                 <div class="modal-footer">
+                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                     <button type="button" class="btn btn-primary" id="createConnectionBtn">
+                         <i class="fas fa-plus me-2"></i>Crear Conexión
+                     </button>
+                 </div>
+             </div>
+         </div>
+     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        class AuthService {
+            constructor() {
+                this.baseURL = 'http://localhost:4000/api';
+                this.token = localStorage.getItem('token');
+                this.user = JSON.parse(localStorage.getItem('user'));
+            }
+
+            isAuthenticated() {
+                return !!this.token;
+            }
+
+            getUser() {
+                return this.user;
+            }
+
+            getToken() {
+                return this.token;
+            }
+
+            logout() {
+                this.token = null;
+                this.user = null;
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                window.location.href = 'index.html';
+            }
+
+            async makeRequest(endpoint, options = {}) {
+                const response = await fetch(`${this.baseURL}${endpoint}`, {
+                    ...options,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${this.token}`,
+                        ...options.headers
+                    }
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Error en la solicitud');
+                }
+
+                return data;
+            }
+        }
+
+        class BusinessAdminDashboard {
+            constructor() {
+                this.authService = new AuthService();
+                this.currentSection = 'dashboard';
+                this.businessId = null;
+                this.init();
+            }
+
+            init() {
+                if (!this.authService.isAuthenticated()) {
+                    window.location.href = 'index.html';
+                    return;
+                }
+
+                const user = this.authService.getUser();
+                if (user.role !== 'business_admin') {
+                    this.authService.logout();
+                    return;
+                }
+
+                this.businessId = user.businessId;
+                this.setupUserInfo();
+                this.bindEvents();
+                this.loadDashboard();
+            }
+
+            setupUserInfo() {
+                const user = this.authService.getUser();
+                document.getElementById('userName').textContent = user.name;
+                document.getElementById('businessName').textContent = user.businessId || 'Mi Negocio';
+            }
+
+            bindEvents() {
+                // Navigation
+                document.querySelectorAll('.nav-link[data-section]').forEach(link => {
+                    link.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const section = e.target.closest('.nav-link').dataset.section;
+                        this.showSection(section);
+                    });
+                });
+
+                // Logout
+                document.getElementById('logoutBtn').addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.authService.logout();
+                });
+
+                // Profile actions
+                document.getElementById('profileBtn').addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.showProfileModal();
+                });
+
+                                 document.getElementById('changePasswordBtn').addEventListener('click', (e) => {
+                     e.preventDefault();
+                     this.showChangePasswordModal();
+                 });
+
+                 // WhatsApp connection modal
+                 document.getElementById('createConnectionBtn').addEventListener('click', (e) => {
+                     e.preventDefault();
+                     this.createWhatsAppConnection();
+                 });
+            }
+
+            showSection(sectionName) {
+                // Hide all sections
+                document.querySelectorAll('[id$="Section"]').forEach(section => {
+                    section.style.display = 'none';
+                });
+
+                // Show selected section
+                const sectionElement = document.getElementById(`${sectionName}Section`);
+                if (sectionElement) {
+                    sectionElement.style.display = 'block';
+                }
+
+                // Update navigation
+                document.querySelectorAll('.nav-link').forEach(link => {
+                    link.classList.remove('active');
+                });
+                document.querySelector(`[data-section="${sectionName}"]`).classList.add('active');
+
+                // Update page title
+                const titles = {
+                    dashboard: 'Dashboard',
+                    branches: 'Mis Sucursales',
+                    orders: 'Pedidos',
+                    whatsapp: 'WhatsApp',
+                    ai: 'IA & PDFs',
+                    services: 'Productos',
+                    users: 'Usuarios',
+                    reports: 'Reportes',
+                    billing: 'Facturación'
+                };
+                document.getElementById('pageTitle').textContent = titles[sectionName] || 'Dashboard';
+
+                this.currentSection = sectionName;
+                this.loadSectionData(sectionName);
+            }
+
+            async loadDashboard() {
+                try {
+                    // Load dashboard stats
+                    await this.loadDashboardStats();
+                    
+                    // Load recent orders
+                    await this.loadRecentOrders();
+                    
+                    // Load WhatsApp status
+                    await this.loadWhatsAppStatus();
+                    
+                } catch (error) {
+                    this.showAlert('Error cargando dashboard: ' + error.message, 'danger');
+                }
+            }
+
+            async loadDashboardStats() {
+                try {
+                    // Simulate API call
+                    const stats = {
+                        totalBranches: 5,
+                        totalOrders: 23,
+                        totalRevenue: 456.78,
+                        connectedWhatsApp: 4,
+                        pendingOrders: 8,
+                        readyOrders: 3,
+                        aiResponses: 45,
+                        totalProducts: 67
+                    };
+
+                    // Update stats
+                    document.getElementById('totalBranches').textContent = stats.totalBranches;
+                    document.getElementById('totalOrders').textContent = stats.totalOrders;
+                    document.getElementById('totalRevenue').textContent = '$' + stats.totalRevenue.toFixed(2);
+                    document.getElementById('connectedWhatsApp').textContent = stats.connectedWhatsApp;
+                    document.getElementById('pendingOrders').textContent = stats.pendingOrders;
+                    document.getElementById('readyOrders').textContent = stats.readyOrders;
+                    document.getElementById('aiResponses').textContent = stats.aiResponses;
+                    document.getElementById('totalProducts').textContent = stats.totalProducts;
+
+                } catch (error) {
+                    console.error('Error loading stats:', error);
+                }
+            }
+
+            async loadRecentOrders() {
+                try {
+                    const ordersContainer = document.getElementById('recentOrders');
+                    
+                    // Simulate recent orders
+                    const orders = [
+                        { id: '#001', customer: 'Juan Pérez', items: 3, total: 25.50, status: 'pending', time: '5 min' },
+                        { id: '#002', customer: 'María García', items: 2, total: 18.75, status: 'ready', time: '12 min' },
+                        { id: '#003', customer: 'Carlos López', items: 1, total: 12.00, status: 'preparing', time: '18 min' },
+                        { id: '#004', customer: 'Ana Martínez', items: 4, total: 32.25, status: 'confirmed', time: '25 min' }
+                    ];
+
+                    ordersContainer.innerHTML = orders.map(order => `
+                        <div class="d-flex justify-content-between align-items-center mb-3 p-3 border rounded">
+                            <div>
+                                <h6 class="mb-1">${order.id} - ${order.customer}</h6>
+                                <small class="text-muted">${order.items} items • $${order.total}</small>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-${this.getStatusColor(order.status)}">${order.status}</span>
+                                <br><small class="text-muted">${order.time}</small>
+                            </div>
+                        </div>
+                    `).join('');
+
+                } catch (error) {
+                    console.error('Error loading orders:', error);
+                }
+            }
+
+            getStatusColor(status) {
+                const colors = {
+                    pending: 'warning',
+                    confirmed: 'info',
+                    preparing: 'primary',
+                    ready: 'success',
+                    delivered: 'secondary',
+                    cancelled: 'danger'
+                };
+                return colors[status] || 'secondary';
+            }
+
+            async loadWhatsAppStatus() {
+                try {
+                    const statusContainer = document.getElementById('whatsappStatus');
+                    
+                    // Simulate WhatsApp status
+                    const branches = [
+                        { name: 'Sucursal Centro', status: 'connected', lastSeen: '2 min' },
+                        { name: 'Sucursal Norte', status: 'connected', lastSeen: '5 min' },
+                        { name: 'Sucursal Sur', status: 'disconnected', lastSeen: '1 hora' },
+                        { name: 'Sucursal Este', status: 'connected', lastSeen: '10 min' }
+                    ];
+
+                    statusContainer.innerHTML = branches.map(branch => `
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                                <small class="fw-bold">${branch.name}</small>
+                                <br><small class="text-muted">${branch.lastSeen}</small>
+                            </div>
+                            <div>
+                                <span class="badge bg-${branch.status === 'connected' ? 'success' : 'danger'}">
+                                    <i class="fab fa-whatsapp me-1"></i>${branch.status}
+                                </span>
+                            </div>
+                        </div>
+                    `).join('');
+
+                } catch (error) {
+                    console.error('Error loading WhatsApp status:', error);
+                }
+            }
+
+            async loadSectionData(sectionName) {
+                switch (sectionName) {
+                    case 'business-management':
+                        await this.loadBusinessManagement();
+                        break;
+                    case 'orders':
+                        await this.loadOrders();
+                        break;
+                    case 'whatsapp':
+                        await this.loadWhatsApp();
+                        break;
+                    case 'ai':
+                        await this.loadAI();
+                        break;
+                    case 'services':
+                        await this.loadServices();
+                        break;
+                    case 'users':
+                        await this.loadUsers();
+                        break;
+                    case 'reports':
+                        await this.loadReports();
+                        break;
+                    case 'billing':
+                        await this.loadBilling();
+                        break;
+                }
+            }
+
+            // Gestión unificada de Negocio y Sucursales
+            async loadBusinessManagement() {
+                const section = document.getElementById('businessManagementSection');
+                section.innerHTML = `
+                    <div class="row">
+                        <!-- Información del Negocio -->
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-building me-2"></i>Información del Negocio
+                                    </h5>
+                                    <button class="btn btn-outline-primary btn-sm" onclick="businessManager.editBusiness()">
+                                        <i class="fas fa-edit me-1"></i>Editar
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    <div id="businessInfo">
+                                        <div class="text-center text-muted">
+                                            <i class="fas fa-building fa-3x mb-3"></i>
+                                            <h5>Cargando información...</h5>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Gestión de Sucursales -->
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-store me-2"></i>Mis Sucursales
+                                    </h5>
+                                    <button class="btn btn-primary btn-sm" onclick="businessManager.createBranch()">
+                                        <i class="fas fa-plus me-1"></i>Nueva Sucursal
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    <div id="branchesList">
+                                        <div class="text-center text-muted">
+                                            <i class="fas fa-store fa-3x mb-3"></i>
+                                            <h5>Cargando sucursales...</h5>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Estadísticas del Negocio -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-chart-bar me-2"></i>Estadísticas del Negocio
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row text-center" id="businessStats">
+                                        <div class="col-md-3">
+                                            <div class="stat-item">
+                                                <h3 class="text-primary" id="totalBranches">0</h3>
+                                                <p class="mb-0">Sucursales</p>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="stat-item">
+                                                <h3 class="text-success" id="connectedBranches">0</h3>
+                                                <p class="mb-0">Conectadas</p>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="stat-item">
+                                                <h3 class="text-info" id="totalOrders">0</h3>
+                                                <p class="mb-0">Pedidos Hoy</p>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="stat-item">
+                                                <h3 class="text-warning" id="aiEnabled">0</h3>
+                                                <p class="mb-0">IA Activa</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Cargar datos del negocio y sucursales
+                await this.loadBusinessInfo();
+                await this.loadBranchesList();
+                await this.loadBusinessStats();
+            }
+
+            // Cargar información del negocio
+            async loadBusinessInfo() {
+                try {
+                    const token = localStorage.getItem('token');
+                    const response = await fetch('/api/business', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    const businessInfo = document.getElementById('businessInfo');
+                    
+                    if (data.success && data.data.length > 0) {
+                        const business = data.data[0]; // Tomar el primer negocio
+                        businessInfo.innerHTML = `
+                            <div class="business-details">
+                                <h4 class="text-primary mb-3">${business.name}</h4>
+                                <div class="row">
+                                    <div class="col-12">
+                                        <p><strong>Tipo:</strong> ${business.businessType || 'No especificado'}</p>
+                                        <p><strong>Descripción:</strong> ${business.description || 'Sin descripción'}</p>
+                                        <p><strong>Estado:</strong> 
+                                            <span class="badge ${business.status === 'active' ? 'bg-success' : 'bg-warning'}">
+                                                ${business.status === 'active' ? 'Activo' : 'Inactivo'}
+                                            </span>
+                                        </p>
+                                        <p><strong>Creado:</strong> ${new Date(business.createdAt).toLocaleDateString()}</p>
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <small class="text-muted">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        ID del Negocio: ${business.businessId}
+                                    </small>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        businessInfo.innerHTML = `
+                            <div class="text-center text-muted">
+                                <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                                <h5>No se encontró información del negocio</h5>
+                                <p>Contacta al administrador para configurar tu negocio</p>
+                            </div>
+                        `;
+                    }
+                } catch (error) {
+                    console.error('Error cargando información del negocio:', error);
+                    document.getElementById('businessInfo').innerHTML = `
+                        <div class="text-center text-danger">
+                            <i class="fas fa-exclamation-circle fa-2x mb-3"></i>
+                            <h5>Error cargando información</h5>
+                            <p>No se pudo cargar la información del negocio</p>
+                        </div>
+                    `;
+                }
+            }
+
+            // Cargar lista de sucursales
+            async loadBranchesList() {
+                try {
+                    const token = localStorage.getItem('token');
+                    const response = await fetch('/api/branch', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    const branchesList = document.getElementById('branchesList');
+                    
+                    if (data.success && data.data.length > 0) {
+                        let branchesHtml = '';
+                        data.data.forEach(branch => {
+                            const statusClass = branch.whatsapp?.isConnected ? 'success' : 'secondary';
+                            const statusText = branch.whatsapp?.isConnected ? 'Conectado' : 'Desconectado';
+                            const statusIcon = branch.whatsapp?.isConnected ? 'check-circle' : 'times-circle';
+                            
+                            branchesHtml += `
+                                <div class="branch-item border rounded p-3 mb-3">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1">${branch.name}</h6>
+                                            <p class="text-muted mb-2 small">${branch.description || 'Sin descripción'}</p>
+                                            <div class="d-flex align-items-center mb-2">
+                                                <span class="badge bg-${statusClass} me-2">
+                                                    <i class="fas fa-${statusIcon} me-1"></i>${statusText}
+                                                </span>
+                                                ${branch.whatsapp?.phoneNumber ? 
+                                                    `<small class="text-muted">
+                                                        <i class="fab fa-whatsapp me-1"></i>${branch.whatsapp.phoneNumber}
+                                                    </small>` : ''
+                                                }
+                                            </div>
+                                            <small class="text-muted">
+                                                <i class="fas fa-map-marker-alt me-1"></i>
+                                                ${branch.address?.street || 'Sin dirección'} - ${branch.address?.city || 'Sin ciudad'}
+                                            </small>
+                                        </div>
+                                        <div class="dropdown">
+                                            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                <i class="fas fa-ellipsis-v"></i>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li><a class="dropdown-item" href="#" onclick="businessManager.editBranch('${branch._id}')">
+                                                    <i class="fas fa-edit me-2"></i>Editar
+                                                </a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="businessManager.connectWhatsApp('${branch._id}')">
+                                                    <i class="fab fa-whatsapp me-2"></i>Conectar WhatsApp
+                                                </a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="businessManager.configureAI('${branch._id}')">
+                                                    <i class="fas fa-robot me-2"></i>Configurar IA
+                                                </a></li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li><a class="dropdown-item text-danger" href="#" onclick="businessManager.deleteBranch('${branch._id}')">
+                                                    <i class="fas fa-trash me-2"></i>Eliminar
+                                                </a></li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        
+                        branchesList.innerHTML = branchesHtml;
+                    } else {
+                        branchesList.innerHTML = `
+                            <div class="text-center text-muted">
+                                <i class="fas fa-store fa-2x mb-3"></i>
+                                <h5>No hay sucursales</h5>
+                                <p>Crea tu primera sucursal para comenzar</p>
+                                <button class="btn btn-primary" onclick="businessManager.createBranch()">
+                                    <i class="fas fa-plus me-1"></i>Crear Sucursal
+                                </button>
+                            </div>
+                        `;
+                    }
+                } catch (error) {
+                    console.error('Error cargando sucursales:', error);
+                    document.getElementById('branchesList').innerHTML = `
+                        <div class="text-center text-danger">
+                            <i class="fas fa-exclamation-circle fa-2x mb-3"></i>
+                            <h5>Error cargando sucursales</h5>
+                            <p>No se pudieron cargar las sucursales</p>
+                        </div>
+                    `;
+                }
+            }
+
+            // Cargar estadísticas del negocio
+            async loadBusinessStats() {
+                try {
+                    const token = localStorage.getItem('token');
+                    const [branchesResponse, ordersResponse] = await Promise.all([
+                        fetch('/api/branch', {
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            }
+                        }),
+                        fetch('/api/orders', {
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            }
+                        })
+                    ]);
+                    
+                    const branchesData = await branchesResponse.json();
+                    const ordersData = await ordersResponse.json();
+                    
+                    // Calcular estadísticas
+                    const totalBranches = branchesData.success ? branchesData.data.length : 0;
+                    const connectedBranches = branchesData.success ? 
+                        branchesData.data.filter(branch => branch.whatsapp?.isConnected).length : 0;
+                    const totalOrders = ordersData.success ? ordersData.data.length : 0;
+                    const aiEnabled = branchesData.success ? 
+                        branchesData.data.filter(branch => branch.ai?.enabled).length : 0;
+                    
+                    // Actualizar estadísticas
+                    document.getElementById('totalBranches').textContent = totalBranches;
+                    document.getElementById('connectedBranches').textContent = connectedBranches;
+                    document.getElementById('totalOrders').textContent = totalOrders;
+                    document.getElementById('aiEnabled').textContent = aiEnabled;
+                    
+                } catch (error) {
+                    console.error('Error cargando estadísticas:', error);
+                }
+            }
+
+            // Funciones de gestión (placeholders)
+            editBusiness() {
+                this.showAlert('Función de editar negocio en desarrollo', 'info');
+            }
+
+            createBranch() {
+                this.showAlert('Función de crear sucursal en desarrollo', 'info');
+            }
+
+            editBranch(branchId) {
+                this.showAlert(`Función de editar sucursal ${branchId} en desarrollo`, 'info');
+            }
+
+            connectWhatsApp(branchId) {
+                this.showAlert(`Función de conectar WhatsApp para sucursal ${branchId} en desarrollo`, 'info');
+            }
+
+            configureAI(branchId) {
+                // Abrir la página de gestión de IA
+                window.open('ai-management.html', '_blank');
+            }
+
+            deleteBranch(branchId) {
+                if (confirm('¿Estás seguro de que quieres eliminar esta sucursal?')) {
+                    this.showAlert(`Función de eliminar sucursal ${branchId} en desarrollo`, 'info');
+                }
+            }
+
+            async loadOrders() {
+                const section = document.getElementById('ordersSection');
+                section.innerHTML = `
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Gestión de Pedidos</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="text-center text-muted">
+                                <i class="fas fa-shopping-cart fa-3x mb-3"></i>
+                                <h5>Pedidos</h5>
+                                <p>Gestiona todos los pedidos de tus sucursales</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            async loadWhatsApp() {
+                const section = document.getElementById('whatsappSection');
+                section.innerHTML = `
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fab fa-whatsapp me-2"></i>Gestión de WhatsApp
+                            </h5>
+                            <button class="btn btn-primary btn-sm" onclick="whatsappManager.showNewConnectionModal()">
+                                <i class="fas fa-plus me-2"></i>Nueva Conexión
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div id="whatsappConnections">
+                                <div class="text-center text-muted">
+                                    <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
+                                    <p>Cargando conexiones...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Load connections after rendering
+                await this.loadWhatsAppConnections();
+            }
+
+            async loadAI() {
+                const section = document.getElementById('aiSection');
+                section.innerHTML = `
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">IA & PDFs</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="text-center text-muted mb-4">
+                                        <i class="fas fa-robot fa-3x mb-3"></i>
+                                        <h5>Inteligencia Artificial</h5>
+                                        <p>Configura IA y sube PDFs de menús para respuestas automáticas</p>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="card border-primary">
+                                                <div class="card-body text-center">
+                                                    <i class="fas fa-file-pdf fa-2x text-primary mb-3"></i>
+                                                    <h6>Gestión de PDFs</h6>
+                                                    <p class="text-muted small">Sube y procesa catálogos PDF</p>
+                                                    <button class="btn btn-primary btn-sm" onclick="window.open('ai-management.html', '_blank')">
+                                                        <i class="fas fa-upload me-1"></i>Gestionar PDFs
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="card border-success">
+                                                <div class="card-body text-center">
+                                                    <i class="fas fa-brain fa-2x text-success mb-3"></i>
+                                                    <h6>Configuración de IA</h6>
+                                                    <p class="text-muted small">Personaliza prompts y respuestas</p>
+                                                    <button class="btn btn-success btn-sm" onclick="window.open('ai-management.html', '_blank')">
+                                                        <i class="fas fa-cog me-1"></i>Configurar IA
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Estado de IA</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span>Estado:</span>
+                                        <span class="badge bg-success">Activa</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span>PDFs:</span>
+                                        <span id="aiPdfCount">0</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span>Prompts:</span>
+                                        <span id="aiPromptCount">0</span>
+                                    </div>
+                                    <hr>
+                                    <button class="btn btn-outline-primary btn-sm w-100" onclick="window.open('ai-management.html', '_blank')">
+                                        <i class="fas fa-external-link-alt me-1"></i>Abrir Gestión Completa
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Cargar estadísticas de IA
+                this.loadAIStats();
+            }
+            
+            async loadAIStats() {
+                try {
+                    // Aquí podrías cargar estadísticas reales de IA
+                    document.getElementById('aiPdfCount').textContent = '0';
+                    document.getElementById('aiPromptCount').textContent = '0';
+                } catch (error) {
+                    console.error('Error cargando estadísticas de IA:', error);
+                }
+            }
+
+            async loadServices() {
+                const section = document.getElementById('servicesSection');
+                section.innerHTML = `
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Productos y Servicios</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="text-center text-muted">
+                                <i class="fas fa-list fa-3x mb-3"></i>
+                                <h5>Catálogo</h5>
+                                <p>Gestiona tu catálogo de productos y servicios</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            async loadUsers() {
+                const section = document.getElementById('usersSection');
+                section.innerHTML = `
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Usuarios del Negocio</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="text-center text-muted">
+                                <i class="fas fa-users fa-3x mb-3"></i>
+                                <h5>Usuarios</h5>
+                                <p>Gestiona usuarios de tu negocio</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            async loadReports() {
+                const section = document.getElementById('reportsSection');
+                section.innerHTML = `
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Reportes y Analytics</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="text-center text-muted">
+                                <i class="fas fa-chart-bar fa-3x mb-3"></i>
+                                <h5>Reportes</h5>
+                                <p>Analiza el rendimiento de tu negocio</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            async loadBilling() {
+                const section = document.getElementById('billingSection');
+                section.innerHTML = `
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Facturación</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="text-center text-muted">
+                                <i class="fas fa-file-invoice fa-3x mb-3"></i>
+                                <h5>Facturación</h5>
+                                <p>Gestiona la facturación de tu negocio</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            showAlert(message, type) {
+                const container = document.getElementById('alertContainer');
+                
+                const alert = document.createElement('div');
+                alert.className = `alert alert-${type} alert-dismissible fade show`;
+                alert.innerHTML = `
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+
+                container.innerHTML = '';
+                container.appendChild(alert);
+
+                setTimeout(() => {
+                    if (alert.parentNode) {
+                        alert.remove();
+                    }
+                }, 5000);
+            }
+
+            showProfileModal() {
+                this.showAlert('Funcionalidad de perfil en desarrollo', 'info');
+            }
+
+            showChangePasswordModal() {
+                this.showAlert('Funcionalidad de cambio de contraseña en desarrollo', 'info');
+            }
+
+            // WhatsApp Management Methods
+            async loadWhatsAppConnections() {
+                try {
+                    const response = await this.authService.makeRequest('/whatsapp/connections');
+                    const connections = response.data;
+                    
+                    const container = document.getElementById('whatsappConnections');
+                    
+                    if (connections.length === 0) {
+                        container.innerHTML = `
+                            <div class="text-center text-muted">
+                                <i class="fab fa-whatsapp fa-3x mb-3"></i>
+                                <h5>No hay conexiones de WhatsApp</h5>
+                                <p>Conecta WhatsApp de tus sucursales para recibir pedidos automáticamente</p>
+                                <button class="btn btn-primary" onclick="whatsappManager.showNewConnectionModal()">
+                                    <i class="fas fa-plus me-2"></i>Crear Primera Conexión
+                                </button>
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    container.innerHTML = connections.map(connection => `
+                        <div class="card mb-3 whatsapp-connection-card ${connection.status}">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-md-3">
+                                        <h6 class="mb-1">${connection.connectionName}</h6>
+                                        <small class="text-muted">${connection.phoneNumber}</small>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <span class="badge bg-${this.getConnectionStatusColor(connection.status)}">
+                                            <i class="fab fa-whatsapp me-1"></i>${connection.status}
+                                        </span>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <small class="text-muted">Mensajes hoy</small>
+                                        <div class="fw-bold">${connection.messagesToday || 0}</div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <small class="text-muted">Respuesta</small>
+                                        <div class="fw-bold">${connection.responseRate || 0}%</div>
+                                    </div>
+                                    <div class="col-md-3 text-end">
+                                        <button class="btn btn-sm btn-${connection.status === 'connected' ? 'warning' : 'success'}" 
+                                                onclick="whatsappManager.toggleConnection('${connection._id}', '${connection.status === 'connected' ? 'disconnect' : 'connect'}')">
+                                            <i class="fas fa-${connection.status === 'connected' ? 'power-off' : 'plug'} me-1"></i>
+                                            ${connection.status === 'connected' ? 'Desconectar' : 'Conectar'}
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary ms-1" 
+                                                onclick="whatsappManager.editConnection('${connection._id}')">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger ms-1" 
+                                                onclick="whatsappManager.deleteConnection('${connection._id}')">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+
+                } catch (error) {
+                    console.error('Error loading WhatsApp connections:', error);
+                    this.showAlert('Error cargando conexiones de WhatsApp: ' + error.message, 'danger');
+                }
+            }
+
+            getConnectionStatusColor(status) {
+                const colors = {
+                    connected: 'success',
+                    disconnected: 'secondary',
+                    connecting: 'warning',
+                    error: 'danger'
+                };
+                return colors[status] || 'secondary';
+            }
+
+            async toggleConnection(connectionId, action) {
+                try {
+                    const response = await this.authService.makeRequest(`/whatsapp/connections/${connectionId}/toggle`, {
+                        method: 'POST',
+                        body: JSON.stringify({ action })
+                    });
+
+                    this.showAlert(response.message, 'success');
+                    await this.loadWhatsAppConnections();
+
+                } catch (error) {
+                    console.error('Error toggling connection:', error);
+                    this.showAlert('Error cambiando estado de conexión: ' + error.message, 'danger');
+                }
+            }
+
+            async deleteConnection(connectionId) {
+                if (!confirm('¿Estás seguro de que quieres eliminar esta conexión de WhatsApp?')) {
+                    return;
+                }
+
+                try {
+                    await this.authService.makeRequest(`/whatsapp/connections/${connectionId}`, {
+                        method: 'DELETE'
+                    });
+
+                    this.showAlert('Conexión eliminada exitosamente', 'success');
+                    await this.loadWhatsAppConnections();
+
+                } catch (error) {
+                    console.error('Error deleting connection:', error);
+                    this.showAlert('Error eliminando conexión: ' + error.message, 'danger');
+                }
+            }
+
+                         showNewConnectionModal() {
+                 // Show the modal
+                 const modal = new bootstrap.Modal(document.getElementById('whatsappConnectionModal'));
+                 modal.show();
+                 
+                 // Load branches for the select
+                 this.loadBranchesForSelect();
+             }
+
+             async loadBranchesForSelect() {
+                 try {
+                     // For now, we'll use mock data. Later this will come from API
+                     const branches = [
+                         { _id: 'branch1', name: 'Sucursal Centro' },
+                         { _id: 'branch2', name: 'Sucursal Norte' },
+                         { _id: 'branch3', name: 'Sucursal Sur' }
+                     ];
+                     
+                     const select = document.getElementById('branchSelect');
+                     select.innerHTML = '<option value="">Selecciona una sucursal</option>';
+                     
+                     branches.forEach(branch => {
+                         const option = document.createElement('option');
+                         option.value = branch._id;
+                         option.textContent = branch.name;
+                         select.appendChild(option);
+                     });
+                     
+                 } catch (error) {
+                     console.error('Error loading branches:', error);
+                 }
+             }
+
+             async createWhatsAppConnection() {
+                 const form = document.getElementById('whatsappConnectionForm');
+                 const formData = new FormData(form);
+                 
+                 const connectionData = {
+                     connectionName: document.getElementById('connectionName').value,
+                     phoneNumber: document.getElementById('phoneNumber').value,
+                     branchId: document.getElementById('branchSelect').value,
+                     autoReply: document.getElementById('autoReply').checked,
+                     aiIntegration: document.getElementById('autoReply').checked,
+                     offHoursMessage: document.getElementById('welcomeMessage').value,
+                     businessId: 'business1' // For demo purposes, this would be dynamic
+                 };
+                 
+                 // Validate required fields
+                 if (!connectionData.connectionName || !connectionData.phoneNumber || !connectionData.branchId) {
+                     this.showAlert('Por favor completa todos los campos requeridos', 'warning');
+                     return;
+                 }
+                 
+                 try {
+                     // Show loading state
+                     const createBtn = document.getElementById('createConnectionBtn');
+                     const originalText = createBtn.innerHTML;
+                     createBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creando...';
+                     createBtn.disabled = true;
+                     
+                     // Create connection
+                     const response = await this.authService.makeRequest('/whatsapp/connections', {
+                         method: 'POST',
+                         body: JSON.stringify(connectionData)
+                     });
+                     
+                     // Show QR code (simulated)
+                     this.showQRCode(response.data._id);
+                     
+                     this.showAlert('Conexión creada exitosamente. Escanea el QR code para conectar WhatsApp', 'success');
+                     
+                     // Update the connections list
+                     await this.loadWhatsAppConnections();
+                     
+                 } catch (error) {
+                     console.error('Error creating connection:', error);
+                     this.showAlert('Error creando conexión: ' + error.message, 'danger');
+                 } finally {
+                     // Reset button
+                     const createBtn = document.getElementById('createConnectionBtn');
+                     createBtn.innerHTML = originalText;
+                     createBtn.disabled = false;
+                 }
+             }
+
+             showQRCode(connectionId) {
+                 const qrContainer = document.getElementById('qrCodeContainer');
+                 
+                 // Generate a simple QR code (in real implementation, this would come from WhatsApp API)
+                 const qrCode = `
+                     <div class="text-center">
+                         <div class="qr-code-placeholder" style="
+                             width: 200px; 
+                             height: 200px; 
+                             background: linear-gradient(45deg, #25D366, #128C7E);
+                             border-radius: 10px;
+                             display: flex;
+                             align-items: center;
+                             justify-content: center;
+                             margin: 0 auto 15px;
+                             color: white;
+                             font-size: 3rem;
+                         ">
+                             <i class="fab fa-whatsapp"></i>
+                         </div>
+                         <p class="text-success fw-bold">QR Code Generado</p>
+                         <small class="text-muted">Conexión ID: ${connectionId}</small>
+                         <br><small class="text-muted">Escanea con WhatsApp para conectar</small>
+                     </div>
+                 `;
+                 
+                 qrContainer.innerHTML = qrCode;
+             }
+
+            editConnection(connectionId) {
+                this.showAlert('Modal de edición en desarrollo', 'info');
+            }
+        }
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', () => {
+            const dashboard = new BusinessAdminDashboard();
+            // Make managers globally accessible
+            window.whatsappManager = dashboard;
+            window.businessManager = dashboard;
+        });
+    </script>
+</body>
+</html>

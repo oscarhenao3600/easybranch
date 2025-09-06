@@ -4,9 +4,505 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EasyBranch - Super Admin</title>
+    <!-- Cache buster: 2025-09-06-18:40 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="styles.css" rel="stylesheet">
+    <style>
+        .stat-item {
+            padding: 20px;
+            border-radius: 12px;
+            background: #ffffff;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            border: none;
+        }
+
+        .stat-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08);
+        }
+        
+        .stat-item h3 {
+            font-weight: 700;
+            font-size: 2rem;
+            margin-bottom: 8px;
+        }
+        
+        .stat-item p {
+            font-size: 0.9rem;
+            color: #666;
+            font-weight: 500;
+            margin: 0;
+        }
+
+        .branch-item {
+            transition: all 0.3s ease;
+            background: #fff;
+        }
+
+        .branch-item:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+
+        .business-details {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        /* Estilo WhatsApp para Business Cards */
+        .business-card {
+            background: #ffffff;
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            overflow: hidden;
+            margin-bottom: 0;
+            height: 280px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .business-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08);
+        }
+        
+        .business-card .card-header {
+            background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+            border: none;
+            padding: 12px 16px;
+            border-radius: 12px 12px 0 0;
+            flex-shrink: 0;
+        }
+        
+        .business-card .card-header h5 {
+            font-weight: 600;
+            font-size: 1rem;
+            margin: 0;
+            line-height: 1.2;
+        }
+        
+        .business-card .card-body {
+            padding: 16px;
+            background: #ffffff;
+            flex: 1;
+            overflow-y: auto;
+        }
+        
+        .business-card .business-info p {
+            font-size: 0.8rem;
+            margin-bottom: 6px;
+            color: #4a4a4a;
+            line-height: 1.3;
+        }
+        
+        .business-card .business-info strong {
+            color: #2c2c2c;
+            font-weight: 600;
+        }
+        
+        .business-card .card-footer {
+            background: #f8f9fa;
+            border: none;
+            padding: 12px 16px;
+            border-radius: 0 0 12px 12px;
+            flex-shrink: 0;
+        }
+        
+        .business-card .btn-sm {
+            font-size: 0.75rem;
+            padding: 6px 12px;
+            border-radius: 16px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        .business-card .btn-outline-primary {
+            border: 1.5px solid #25D366;
+            color: #25D366;
+        }
+        
+        .business-card .btn-outline-primary:hover {
+            background: #25D366;
+            border-color: #25D366;
+            transform: translateY(-1px);
+        }
+        
+        .business-card .btn-success {
+            background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+            border: none;
+            box-shadow: 0 2px 4px rgba(37, 211, 102, 0.3);
+        }
+        
+        .business-card .btn-success:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(37, 211, 102, 0.4);
+        }
+
+        /* Estilo WhatsApp para Branch Cards */
+        .branch-card {
+            background: #ffffff;
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            overflow: hidden;
+            margin-bottom: 0;
+            height: 240px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .branch-card:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
+        
+        .branch-card .card-header {
+            background: linear-gradient(135deg, #34B7F1 0%, #1976D2 100%);
+            border: none;
+            padding: 10px 14px;
+            border-radius: 12px 12px 0 0;
+            flex-shrink: 0;
+        }
+        
+        .branch-card .card-header h6 {
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin: 0;
+            line-height: 1.2;
+        }
+        
+        .branch-card .card-body {
+            padding: 14px;
+            background: #ffffff;
+            flex: 1;
+            overflow-y: auto;
+        }
+        
+        .branch-card .branch-info p {
+            font-size: 0.75rem;
+            margin-bottom: 4px;
+            color: #4a4a4a;
+            line-height: 1.2;
+        }
+        
+        .branch-card .branch-info strong {
+            color: #2c2c2c;
+            font-weight: 600;
+        }
+        
+        .branch-card .card-footer {
+            background: #f8f9fa;
+            border: none;
+            padding: 10px 14px;
+            border-radius: 0 0 12px 12px;
+            flex-shrink: 0;
+        }
+        
+        .branch-card .btn-sm {
+            font-size: 0.7rem;
+            padding: 4px 10px;
+            border-radius: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        .branch-card .btn-outline-primary {
+            border: 1.5px solid #34B7F1;
+            color: #34B7F1;
+        }
+        
+        .branch-card .btn-outline-primary:hover {
+            background: #34B7F1;
+            border-color: #34B7F1;
+            transform: translateY(-1px);
+        }
+        
+        .branch-card .btn-outline-info {
+            border: 1.5px solid #1976D2;
+            color: #1976D2;
+        }
+        
+        .branch-card .btn-outline-info:hover {
+            background: #1976D2;
+            border-color: #1976D2;
+            transform: translateY(-1px);
+        }
+        
+        /* Badges estilo WhatsApp */
+        .badge {
+            font-size: 0.7rem;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+        
+        .badge.bg-success {
+            background: linear-gradient(135deg, #25D366 0%, #128C7E 100%) !important;
+        }
+        
+        .badge.bg-warning {
+            background: linear-gradient(135deg, #FFC107 0%, #FF8F00 100%) !important;
+            color: #000 !important;
+        }
+        
+        /* Estilos generales estilo WhatsApp */
+        body {
+            background: #f0f2f5;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        .container-fluid {
+            background: #f0f2f5;
+        }
+        
+        /* Mejorar el botón "Volver a Negocios" */
+        .btn-outline-secondary {
+            border: 1.5px solid #6c757d;
+            color: #6c757d;
+            border-radius: 20px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-outline-secondary:hover {
+            background: #6c757d;
+            border-color: #6c757d;
+            transform: translateY(-1px);
+        }
+        
+        /* Mejorar el título de la sección */
+        h4 {
+            color: #2c2c2c;
+            font-weight: 600;
+        }
+        
+        /* Mejorar el loading spinner */
+        .spinner-border {
+            width: 2rem;
+            height: 2rem;
+            border-width: 0.2em;
+        }
+        
+        /* Mejorar los alerts */
+        .alert {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+        }
+        
+        .alert-danger {
+            background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+            color: #c62828;
+        }
+        
+        /* WhatsApp Layout Styles */
+        .whatsapp-header {
+            background: #ffffff;
+            border-bottom: 1px solid #e9edef;
+            padding: 16px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header-left {
+            flex: 1;
+        }
+        
+        .header-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #111b21;
+            margin: 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .header-subtitle {
+            font-size: 0.9rem;
+            color: #667781;
+            margin: 4px 0 0 0;
+        }
+        
+        .header-right {
+            flex-shrink: 0;
+        }
+        
+        .whatsapp-btn {
+            border: none;
+            border-radius: 20px;
+            padding: 10px 20px;
+            font-weight: 500;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            text-decoration: none;
+        }
+        
+        .whatsapp-btn-primary {
+            background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+            color: white;
+            box-shadow: 0 2px 4px rgba(37, 211, 102, 0.3);
+        }
+        
+        .whatsapp-btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(37, 211, 102, 0.4);
+            color: white;
+        }
+        
+        .whatsapp-btn-secondary {
+            background: #ffffff;
+            color: #667781;
+            border: 1px solid #e9edef;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .whatsapp-btn-secondary:hover {
+            background: #f5f6fa;
+            transform: translateY(-1px);
+            color: #667781;
+        }
+        
+        .whatsapp-content {
+            background: #f0f2f5;
+            min-height: calc(100vh - 200px);
+            padding: 0;
+        }
+        
+        .content-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .business-cards-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 16px;
+            margin-top: 0;
+            max-width: 100%;
+        }
+        
+        .loading-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 20px;
+            color: #667781;
+        }
+        
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #e9edef;
+            border-top: 3px solid #25D366;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Stats and Branches Grid Styles */
+        .stats-section {
+            background: #ffffff;
+            margin: 20px 0;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+            overflow: hidden;
+        }
+        
+        .stats-container {
+            padding: 20px;
+        }
+        
+        .branches-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 14px;
+            margin-top: 20px;
+        }
+        
+        /* Section Title Styles */
+        .section-title-container {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin: 20px 0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+            border-left: 4px solid #25D366;
+        }
+        
+        .section-title {
+            color: #2C3E50;
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 0 0 8px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .section-title i {
+            color: #25D366;
+            font-size: 1.1rem;
+        }
+        
+        .section-subtitle {
+            color: #7F8C8D;
+            font-size: 0.9rem;
+            margin: 0;
+            font-weight: 400;
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .business-cards-container {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+            
+            .header-content {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+            
+            .header-right {
+                width: 100%;
+            }
+            
+            .whatsapp-btn {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .content-container {
+                padding: 16px;
+            }
+        }
+    </style>
 </head>
 <body>
     <div class="container-fluid">
@@ -24,11 +520,8 @@
                         <a class="nav-link active" href="#" data-section="dashboard">
                             <i class="fas fa-tachometer-alt me-2"></i>Dashboard
                         </a>
-                        <a class="nav-link" href="#" data-section="businesses">
-                            <i class="fas fa-building me-2"></i>Negocios
-                        </a>
-                        <a class="nav-link" href="#" data-section="branches">
-                            <i class="fas fa-store me-2"></i>Sucursales
+                        <a class="nav-link" href="#" data-section="business-management">
+                            <i class="fas fa-building me-2"></i>Mi Negocio
                         </a>
                         <a class="nav-link" href="#" data-section="users">
                             <i class="fas fa-users me-2"></i>Usuarios
@@ -88,6 +581,180 @@
 
                     <!-- Alert Container -->
                     <div id="alertContainer"></div>
+
+                    <!-- Business Edit Modal -->
+                    <div class="modal fade" id="businessEditModal" tabindex="-1" aria-labelledby="businessEditModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="businessEditModalLabel">
+                                        <i class="fas fa-building me-2"></i>Editar Información del Negocio
+                                    </h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <form id="businessEditForm">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="businessName" class="form-label">Nombre del Negocio *</label>
+                                                    <input type="text" class="form-control" id="businessName" name="name" required>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="businessRazonSocial" class="form-label">Razón Social</label>
+                                                    <input type="text" class="form-control" id="businessRazonSocial" name="razonSocial">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="businessNit" class="form-label">NIT *</label>
+                                                    <input type="text" class="form-control" id="businessNit" name="nit" required>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="businessPhone" class="form-label">Teléfono *</label>
+                                                    <input type="tel" class="form-control" id="businessPhone" name="phone" required>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="businessAddress" class="form-label">Dirección *</label>
+                                            <textarea class="form-control" id="businessAddress" name="address" rows="2" required></textarea>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <div class="mb-3">
+                                                    <label for="businessCity" class="form-label">Ciudad *</label>
+                                                    <input type="text" class="form-control" id="businessCity" name="city" required>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="mb-3">
+                                                    <label for="businessDepartment" class="form-label">Departamento *</label>
+                                                    <input type="text" class="form-control" id="businessDepartment" name="department" required>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="mb-3">
+                                                    <label for="businessCountry" class="form-label">País</label>
+                                                    <input type="text" class="form-control" id="businessCountry" name="country" value="Colombia" readonly>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="businessDescription" class="form-label">Descripción</label>
+                                            <textarea class="form-control" id="businessDescription" name="description" rows="3"></textarea>
+                                        </div>
+                                    </form>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                    <button type="button" class="btn btn-primary" onclick="superAdmin.saveBusiness()">
+                                        <i class="fas fa-save me-1"></i>Guardar Cambios
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Branch Create Modal -->
+                    <div class="modal fade" id="branchCreateModal" tabindex="-1" aria-labelledby="branchCreateModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="branchCreateModalLabel">
+                                        <i class="fas fa-store me-2"></i>Crear Nueva Sucursal
+                                    </h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <form id="branchCreateForm">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="branchName" class="form-label">Nombre de la Sucursal *</label>
+                                                    <input type="text" class="form-control" id="branchName" name="name" required>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="branchRazonSocial" class="form-label">Razón Social</label>
+                                                    <input type="text" class="form-control" id="branchRazonSocial" name="razonSocial">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="branchNit" class="form-label">NIT *</label>
+                                                    <input type="text" class="form-control" id="branchNit" name="nit" required>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="branchPhone" class="form-label">Teléfono *</label>
+                                                    <input type="tel" class="form-control" id="branchPhone" name="phone" required>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="branchAddress" class="form-label">Dirección *</label>
+                                            <textarea class="form-control" id="branchAddress" name="address" rows="2" required></textarea>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <div class="mb-3">
+                                                    <label for="branchCity" class="form-label">Ciudad *</label>
+                                                    <input type="text" class="form-control" id="branchCity" name="city" required>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="mb-3">
+                                                    <label for="branchDepartment" class="form-label">Departamento *</label>
+                                                    <input type="text" class="form-control" id="branchDepartment" name="department" required>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="mb-3">
+                                                    <label for="branchCountry" class="form-label">País</label>
+                                                    <input type="text" class="form-control" id="branchCountry" name="country" value="Colombia" readonly>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="branchDescription" class="form-label">Descripción</label>
+                                            <textarea class="form-control" id="branchDescription" name="description" rows="3"></textarea>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="branchEmail" class="form-label">Email</label>
+                                                    <input type="email" class="form-control" id="branchEmail" name="email">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="branchManager" class="form-label">Gerente/Responsable</label>
+                                                    <input type="text" class="form-control" id="branchManager" name="manager">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                    <button type="button" class="btn btn-success" onclick="superAdmin.saveBranch()">
+                                        <i class="fas fa-plus me-1"></i>Crear Sucursal
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
                     <!-- Dashboard Section -->
                     <div id="dashboardSection">
@@ -217,12 +884,8 @@
                     </div>
 
                     <!-- Other Sections (initially hidden) -->
-                    <div id="businessesSection" style="display: none;">
-                        <!-- Businesses content will be loaded here -->
-                    </div>
-
-                    <div id="branchesSection" style="display: none;">
-                        <!-- Branches content will be loaded here -->
+                    <div id="businessManagementSection" style="display: none;">
+                        <!-- Business Management content will be loaded here -->
                     </div>
 
                     <div id="usersSection" style="display: none;">
@@ -258,19 +921,34 @@
         class AuthService {
             constructor() {
                 this.baseURL = 'http://localhost:4000/api';
+                this.loadFromStorage();
+            }
+
+            loadFromStorage() {
                 this.token = localStorage.getItem('token');
-                this.user = JSON.parse(localStorage.getItem('user'));
+                this.user = JSON.parse(localStorage.getItem('user') || 'null');
+            }
+
+            saveToStorage(token, user) {
+                this.token = token;
+                this.user = user;
+                localStorage.setItem('token', token);
+                localStorage.setItem('user', JSON.stringify(user));
+                console.log('✅ Token guardado en localStorage:', token.substring(0, 20) + '...');
             }
 
             isAuthenticated() {
+                this.loadFromStorage(); // Siempre verificar el storage más reciente
                 return !!this.token;
             }
 
             getUser() {
+                this.loadFromStorage();
                 return this.user;
             }
 
             getToken() {
+                this.loadFromStorage(); // Siempre obtener el token más reciente
                 return this.token;
             }
 
@@ -283,6 +961,8 @@
             }
 
             async makeRequest(endpoint, options = {}) {
+                this.loadFromStorage(); // Asegurar token actualizado
+                
                 const response = await fetch(`${this.baseURL}${endpoint}`, {
                     ...options,
                     headers: {
@@ -300,11 +980,17 @@
 
                 return data;
             }
+
+            // Método para actualizar token después del login
+            updateToken(token, user) {
+                this.saveToStorage(token, user);
+            }
         }
 
         class SuperAdminDashboard {
             constructor() {
                 this.authService = new AuthService();
+                this.baseURL = 'http://localhost:4000/api';
                 this.currentSection = 'dashboard';
                 this.init();
             }
@@ -367,7 +1053,13 @@
                 });
 
                 // Show selected section
-                const sectionElement = document.getElementById(`${sectionName}Section`);
+                let sectionElement;
+                if (sectionName === 'business-management') {
+                    sectionElement = document.getElementById('businessManagementSection');
+                } else {
+                    sectionElement = document.getElementById(`${sectionName}Section`);
+                }
+                
                 if (sectionElement) {
                     sectionElement.style.display = 'block';
                 }
@@ -381,8 +1073,7 @@
                 // Update page title
                 const titles = {
                     dashboard: 'Dashboard',
-                    businesses: 'Gestión de Negocios',
-                    branches: 'Gestión de Sucursales',
+                    'business-management': 'Mi Negocio',
                     users: 'Gestión de Usuarios',
                     orders: 'Pedidos',
                     whatsapp: 'WhatsApp',
@@ -515,11 +1206,8 @@
 
             async loadSectionData(sectionName) {
                 switch (sectionName) {
-                    case 'businesses':
-                        await this.loadBusinesses();
-                        break;
-                    case 'branches':
-                        await this.loadBranches();
+                    case 'business-management':
+                        await this.loadBusinessManagement();
                         break;
                     case 'users':
                         await this.loadUsers();
@@ -543,19 +1231,940 @@
             }
 
             // Placeholder methods for other sections
-            async loadBusinesses() {
-                const section = document.getElementById('businessesSection');
-                section.innerHTML = '<div class="text-center"><h4>Gestión de Negocios</h4><p>Contenido en desarrollo...</p></div>';
+            async loadBusinessManagement() {
+                const section = document.getElementById('businessManagementSection');
+                section.innerHTML = `
+                    <!-- WhatsApp-style Header -->
+                    <div class="whatsapp-header">
+                        <div class="header-content">
+                            <div class="header-left">
+                                <h4 class="header-title">
+                                    <i class="fas fa-building me-2"></i>
+                                    Mi Negocio
+                                </h4>
+                                <p class="header-subtitle">Gestiona tus negocios y sucursales</p>
+                            </div>
+                            <div class="header-right">
+                                <button class="whatsapp-btn whatsapp-btn-primary" onclick="superAdmin.showCreateBusinessModal()">
+                                    <i class="fas fa-plus me-1"></i>
+                                    Nuevo Negocio
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- WhatsApp-style Content Area -->
+                    <div class="whatsapp-content">
+                        <div class="content-container">
+                            <!-- Business Cards Container -->
+                            <div id="businessInfo" class="business-cards-container">
+                                <div class="loading-state">
+                                    <div class="loading-spinner"></div>
+                                    <p>Cargando información...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Cargar datos del negocio y sucursales
+                await this.loadBusinessInfo();
+                // await this.loadBranchesList();
+                // await this.loadBusinessStats();
             }
 
-            async loadBranches() {
-                const section = document.getElementById('branchesSection');
-                section.innerHTML = '<div class="text-center"><h4>Gestión de Sucursales</h4><p>Contenido en desarrollo...</p></div>';
+            async loadBusinessInfo() {
+                try {
+                    // Verificar que el elemento existe
+                    const businessInfoElement = document.getElementById('businessInfo');
+                    if (!businessInfoElement) {
+                        console.error('❌ Elemento businessInfo no encontrado');
+                        return;
+                    }
+                    console.log('✅ Elemento businessInfo encontrado');
+                    
+                    // Verificar token antes de hacer la petición
+                    const token = this.authService.getToken();
+                    if (!token) {
+                        console.error('No hay token de autenticación');
+                        this.authService.logout();
+                        return;
+                    }
+                    
+                    console.log('Token encontrado:', token.substring(0, 20) + '...');
+                    
+                    const response = await fetch(`${this.baseURL}/business`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    console.log('Response status:', response.status);
+                    
+                    if (response.ok) {
+                        const responseData = await response.json();
+                        console.log('Datos de businesses:', responseData);
+                        
+                        const businesses = responseData.data || responseData;
+                        console.log('Businesses recibidos:', businesses.length);
+                        
+                        if (businesses && businesses.length > 0) {
+                            // Mostrar todos los negocios en cards estilo WhatsApp
+                            const businessesCards = businesses.map(business => `
+                                <div class="business-card">
+                                    <div class="card-header">
+                                        <h5 class="card-title">
+                                            <i class="fas fa-building me-2"></i>
+                                            ${business.name || business.razonSocial}
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="business-info">
+                                            <p><strong>Razón Social:</strong> ${business.razonSocial || 'No especificado'}</p>
+                                            <p><strong>NIT:</strong> ${business.nit || 'No especificado'}</p>
+                                            <p><strong>Teléfono:</strong> ${business.phone || business.contact?.phone || 'No especificado'}</p>
+                                            <p><strong>Dirección:</strong> ${business.address || 'No especificado'}</p>
+                                            <p><strong>Ciudad:</strong> ${business.city || 'No especificado'}</p>
+                                            <p><strong>Departamento:</strong> ${business.department || 'No especificado'}</p>
+                                            <p><strong>País:</strong> ${business.country || 'Colombia'}</p>
+                                            <p><strong>Estado:</strong> <span class="badge bg-success">Activo</span></p>
+                                        </div>
+                                    </div>
+                                    <div class="card-footer">
+                                        <div class="d-flex justify-content-between">
+                                            <button class="btn btn-outline-primary btn-sm" onclick="superAdmin.editBusiness('${business._id}')">
+                                                <i class="fas fa-edit me-1"></i> Editar
+                                            </button>
+                                            <button class="btn btn-success btn-sm" onclick="superAdmin.viewBusinessBranches('${business._id}', '${business.name || business.razonSocial}')">
+                                                <i class="fas fa-store me-1"></i> Ver Sucursales
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('');
+                            
+                            document.getElementById('businessInfo').innerHTML = businessesCards;
+                            console.log('✅ HTML insertado en businessInfo:', document.getElementById('businessInfo').innerHTML.substring(0, 200) + '...');
+                        } else {
+                            document.getElementById('businessInfo').innerHTML = `
+                                <div class="text-center text-muted">
+                                    <i class="fas fa-building fa-3x mb-3"></i>
+                                    <h5>No hay negocios</h5>
+                                    <p>Comienza creando tu primer negocio</p>
+                                </div>
+                            `;
+                        }
+                    } else if (response.status === 401) {
+                        console.error('Token expirado o inválido');
+                        alert('Tu sesión ha expirado. Por favor, inicia sesión nuevamente.');
+                        this.authService.logout();
+                    } else {
+                        const errorText = await response.text();
+                        console.error('Error response:', errorText);
+                        throw new Error(`Error al cargar información del negocio: ${response.status}`);
+                    }
+                } catch (error) {
+                    console.error('Error cargando información del negocio:', error);
+                    document.getElementById('businessInfo').innerHTML = `
+                        <div class="text-center text-danger">
+                            <h5>Error cargando información</h5>
+                            <p>No se pudo cargar la información del negocio</p>
+                            <button class="btn btn-primary" onclick="location.reload()">Reintentar</button>
+                        </div>
+                    `;
+                }
+            }
+
+            displayBusinessInfo(business) {
+                document.getElementById('businessInfo').innerHTML = `
+                    <div class="business-details">
+                        <h6><strong>Nombre:</strong> ${business.name || 'No especificado'}</h6>
+                        <h6><strong>Razón Social:</strong> ${business.razonSocial || 'No especificado'}</h6>
+                        <h6><strong>NIT:</strong> ${business.nit || 'No especificado'}</h6>
+                        <h6><strong>Teléfono:</strong> ${business.phone || 'No especificado'}</h6>
+                        <h6><strong>Dirección:</strong> ${business.address || 'No especificado'}</h6>
+                        <h6><strong>Ciudad:</strong> ${business.city || 'No especificado'}</h6>
+                        <h6><strong>Departamento:</strong> ${business.department || 'No especificado'}</h6>
+                        <h6><strong>País:</strong> ${business.country || 'Colombia'}</h6>
+                        <h6><strong>Descripción:</strong> ${business.description || 'No especificado'}</h6>
+                        <h6><strong>Estado:</strong> <span class="badge bg-success">Activo</span></h6>
+                        <h6><strong>Fecha de Creación:</strong> ${new Date(business.createdAt).toLocaleDateString()}</h6>
+                        <h6><strong>ID:</strong> <code>${business._id}</code></h6>
+                    </div>
+                `;
+            }
+
+            async loadSelectedBusiness() {
+                const businessId = document.getElementById('businessSelector').value;
+                if (businessId) {
+                    try {
+                        const response = await fetch(`${this.baseURL}/business/${businessId}`, {
+                            headers: {
+                                'Authorization': `Bearer ${this.authService.getToken()}`
+                            }
+                        });
+                        
+                        if (response.ok) {
+                            const business = await response.json();
+                            this.displayBusinessInfo(business);
+                        }
+                    } catch (error) {
+                        console.error('Error cargando negocio seleccionado:', error);
+                    }
+                }
+            }
+
+            async editBusiness(businessId) {
+                try {
+                    const response = await fetch(`${this.baseURL}/business/${businessId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const business = await response.json();
+                        this.loadBusinessDataForEdit(business);
+                        const modal = new bootstrap.Modal(document.getElementById('businessEditModal'));
+                        modal.show();
+                    } else {
+                        throw new Error('Error al cargar datos del negocio');
+                    }
+                } catch (error) {
+                    console.error('Error cargando negocio para editar:', error);
+                    alert('Error al cargar datos del negocio');
+                }
+            }
+
+            async viewBusinessDetails(businessId) {
+                try {
+                    const response = await fetch(`${this.baseURL}/business/${businessId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const business = await response.json();
+                        this.showBusinessDetailsModal(business);
+                    } else {
+                        throw new Error('Error al cargar detalles del negocio');
+                    }
+                } catch (error) {
+                    console.error('Error cargando detalles del negocio:', error);
+                    alert('Error al cargar detalles del negocio');
+                }
+            }
+
+            async viewBusinessBranches(businessId, businessName) {
+                try {
+                    console.log('🔍 Cargando sucursales para negocio:', businessId, businessName);
+                    
+                    // Mostrar loading
+                    document.getElementById('businessInfo').innerHTML = `
+                        <div class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Cargando...</span>
+                            </div>
+                            <p class="mt-2">Cargando sucursales de ${businessName}...</p>
+                        </div>
+                    `;
+
+                    // Cargar sucursales específicas del negocio
+                    const url = `${this.baseURL}/business/${businessId}/branches`;
+                    console.log('🌐 URL de sucursales:', url);
+                    
+                    const response = await fetch(url, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+                    
+                    console.log('📊 Response status:', response.status);
+                    
+                    if (response.ok) {
+                        const responseData = await response.json();
+                        console.log('✅ Datos de sucursales recibidos:', responseData);
+                        const branches = responseData.data || responseData;
+                        
+                        // Cargar estadísticas del negocio
+                        const statsResponse = await fetch(`${this.baseURL}/business/${businessId}/stats`, {
+                            headers: {
+                                'Authorization': `Bearer ${this.authService.getToken()}`
+                            }
+                        });
+                        
+                        let stats = null;
+                        if (statsResponse.ok) {
+                            stats = await statsResponse.json();
+                        }
+                        
+                        this.displayBusinessBranches(businessId, businessName, branches, stats);
+                    } else {
+                        const errorText = await response.text();
+                        console.error('❌ Error response:', errorText);
+                        throw new Error(`Error al cargar sucursales del negocio: ${response.status}`);
+                    }
+                } catch (error) {
+                    console.error('❌ Error cargando sucursales del negocio:', error);
+                    document.getElementById('businessInfo').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Error al cargar sucursales: ${error.message}
+                        </div>
+                    `;
+                }
+            }
+
+            displayBusinessBranches(businessId, businessName, branches, stats) {
+                const branchesHTML = branches && branches.length > 0 ? branches.map(branch => `
+                    <div class="branch-card">
+                        <div class="card-header">
+                            <h6 class="card-title">
+                                <i class="fas fa-store me-2"></i>
+                                ${branch.name}
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="branch-info">
+                                <p><strong>Dirección:</strong> ${branch.address || 'No especificado'}</p>
+                                <p><strong>Teléfono:</strong> ${branch.phone || 'No especificado'}</p>
+                                <p><strong>Ciudad:</strong> ${branch.city || 'No especificado'}</p>
+                                <p><strong>Gerente:</strong> ${branch.manager || 'No especificado'}</p>
+                                <p><strong>Estado:</strong> 
+                                    <span class="badge ${branch.whatsappConnected ? 'bg-success' : 'bg-warning'}">
+                                        ${branch.whatsappConnected ? 'Conectado' : 'Desconectado'}
+                                    </span>
+                                </p>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <div class="d-flex justify-content-between">
+                                <button class="btn btn-outline-primary btn-sm" onclick="superAdmin.editBranch('${branch._id}')">
+                                    <i class="fas fa-edit me-1"></i> Editar
+                                </button>
+                                <button class="btn btn-outline-info btn-sm" onclick="superAdmin.viewBranchDetails('${branch._id}')">
+                                    <i class="fas fa-eye me-1"></i> Ver
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('') : `
+                    <div class="no-branches">
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-store fa-3x mb-3"></i>
+                            <h5>No hay sucursales</h5>
+                            <p>Este negocio no tiene sucursales registradas</p>
+                        </div>
+                    </div>
+                `;
+
+                const statsHTML = stats ? `
+                    <div class="row text-center mb-4">
+                        <div class="col-md-3">
+                            <div class="stat-item">
+                                <h3 class="text-primary">${branches ? branches.length : 0}</h3>
+                                <p class="mb-0">Total Sucursales</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-item">
+                                <h3 class="text-success">${branches ? branches.filter(b => b.whatsappConnected).length : 0}</h3>
+                                <p class="mb-0">Conectadas</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-item">
+                                <h3 class="text-info">${stats.totalOrders || 0}</h3>
+                                <p class="mb-0">Total Pedidos</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-item">
+                                <h3 class="text-warning">${stats.totalRevenue || 0}</h3>
+                                <p class="mb-0">Ingresos</p>
+                            </div>
+                        </div>
+                    </div>
+                ` : '';
+
+                document.getElementById('businessInfo').innerHTML = `
+                    <!-- WhatsApp-style Header for Branches -->
+                    <div class="whatsapp-header">
+                        <div class="header-content">
+                            <div class="header-left">
+                                <h4 class="header-title">
+                                    <i class="fas fa-store me-2"></i>
+                                    ${businessName} - Sucursales
+                                </h4>
+                                <p class="header-subtitle">Gestiona las sucursales de este negocio</p>
+                            </div>
+                            <div class="header-right">
+                                <button class="whatsapp-btn whatsapp-btn-secondary" onclick="superAdmin.loadBusinessInfo()">
+                                    <i class="fas fa-arrow-left me-1"></i>
+                                    Volver a Negocios
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Stats Section -->
+                    ${statsHTML ? `
+                        <div class="stats-section">
+                            <div class="stats-container">
+                                ${statsHTML}
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    <!-- Sucursales Section Title -->
+                    <div class="section-title-container">
+                        <h5 class="section-title">
+                            <i class="fas fa-store me-2"></i>
+                            Sucursales del Negocio
+                        </h5>
+                        <p class="section-subtitle">
+                            ${branches && branches.length > 0 ? `${branches.length} sucursal${branches.length !== 1 ? 'es' : ''} registrada${branches.length !== 1 ? 's' : ''}` : 'No hay sucursales registradas'}
+                        </p>
+                    </div>
+
+                    <!-- Branches Grid -->
+                    <div class="branches-grid">
+                        ${branchesHTML}
+                    </div>
+                `;
+            }
+
+            showBusinessDetailsModal(business) {
+                const modalHtml = `
+                    <div class="modal fade" id="businessDetailsModal" tabindex="-1">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header bg-primary text-white">
+                                    <h5 class="modal-title">
+                                        <i class="fas fa-building me-2"></i>
+                                        Detalles del Negocio
+                                    </h5>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <h6><strong>Información Básica</strong></h6>
+                                            <p><strong>Nombre:</strong> ${business.name || 'No especificado'}</p>
+                                            <p><strong>Razón Social:</strong> ${business.razonSocial || 'No especificado'}</p>
+                                            <p><strong>NIT:</strong> ${business.nit || 'No especificado'}</p>
+                                            <p><strong>Teléfono:</strong> ${business.phone || business.contact?.phone || 'No especificado'}</p>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h6><strong>Ubicación</strong></h6>
+                                            <p><strong>Dirección:</strong> ${business.address || 'No especificado'}</p>
+                                            <p><strong>Ciudad:</strong> ${business.city || 'No especificado'}</p>
+                                            <p><strong>Departamento:</strong> ${business.department || 'No especificado'}</p>
+                                            <p><strong>País:</strong> ${business.country || 'Colombia'}</p>
+                                        </div>
+                                    </div>
+                                    <div class="row mt-3">
+                                        <div class="col-12">
+                                            <h6><strong>Información Adicional</strong></h6>
+                                            <p><strong>Descripción:</strong> ${business.description || 'No especificado'}</p>
+                                            <p><strong>Estado:</strong> <span class="badge bg-success">Activo</span></p>
+                                            <p><strong>Fecha de Creación:</strong> ${new Date(business.createdAt).toLocaleDateString()}</p>
+                                            <p><strong>ID:</strong> <code>${business._id}</code></p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-primary" onclick="superAdmin.editBusiness('${business._id}')">
+                                        <i class="fas fa-edit me-1"></i> Editar
+                                    </button>
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Remover modal anterior si existe
+                const existingModal = document.getElementById('businessDetailsModal');
+                if (existingModal) {
+                    existingModal.remove();
+                }
+                
+                // Agregar nuevo modal
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                
+                // Mostrar modal
+                const modal = new bootstrap.Modal(document.getElementById('businessDetailsModal'));
+                modal.show();
+                
+                // Limpiar modal cuando se cierre
+                document.getElementById('businessDetailsModal').addEventListener('hidden.bs.modal', function() {
+                    this.remove();
+                });
+            }
+
+            showCreateBusinessModal() {
+                const modalHtml = `
+                    <div class="modal fade" id="createBusinessModal" tabindex="-1">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header bg-success text-white">
+                                    <h5 class="modal-title">
+                                        <i class="fas fa-plus me-2"></i>
+                                        Crear Nuevo Negocio
+                                    </h5>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <form id="createBusinessForm">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="createBusinessName" class="form-label">Nombre del Negocio</label>
+                                                    <input type="text" class="form-control" id="createBusinessName" placeholder="Ej: Restaurante El Sabor">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="createBusinessRazonSocial" class="form-label">Razón Social</label>
+                                                    <input type="text" class="form-control" id="createBusinessRazonSocial" placeholder="Ej: El Sabor S.A.S.">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="createBusinessNit" class="form-label">NIT</label>
+                                                    <input type="text" class="form-control" id="createBusinessNit" placeholder="Ej: 900123456-1">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="createBusinessPhone" class="form-label">Teléfono</label>
+                                                    <input type="text" class="form-control" id="createBusinessPhone" placeholder="Ej: +573001234567">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="createBusinessAddress" class="form-label">Dirección</label>
+                                            <input type="text" class="form-control" id="createBusinessAddress" placeholder="Ej: Calle 15 #23-45">
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <div class="mb-3">
+                                                    <label for="createBusinessCity" class="form-label">Ciudad</label>
+                                                    <input type="text" class="form-control" id="createBusinessCity" placeholder="Ej: Bogotá">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="mb-3">
+                                                    <label for="createBusinessDepartment" class="form-label">Departamento</label>
+                                                    <input type="text" class="form-control" id="createBusinessDepartment" placeholder="Ej: Cundinamarca">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="mb-3">
+                                                    <label for="createBusinessCountry" class="form-label">País</label>
+                                                    <input type="text" class="form-control" id="createBusinessCountry" value="Colombia" readonly>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="createBusinessDescription" class="form-label">Descripción</label>
+                                            <textarea class="form-control" id="createBusinessDescription" rows="3" placeholder="Descripción del negocio"></textarea>
+                                        </div>
+                                    </form>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-success" onclick="superAdmin.saveNewBusiness()">
+                                        <i class="fas fa-save me-1"></i> Crear Negocio
+                                    </button>
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Remover modal anterior si existe
+                const existingModal = document.getElementById('createBusinessModal');
+                if (existingModal) {
+                    existingModal.remove();
+                }
+                
+                // Agregar nuevo modal
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                
+                // Mostrar modal
+                const modal = new bootstrap.Modal(document.getElementById('createBusinessModal'));
+                modal.show();
+                
+                // Limpiar modal cuando se cierre
+                document.getElementById('createBusinessModal').addEventListener('hidden.bs.modal', function() {
+                    this.remove();
+                });
+            }
+
+            async saveNewBusiness() {
+                try {
+                    const formData = {
+                        name: document.getElementById('createBusinessName').value,
+                        razonSocial: document.getElementById('createBusinessRazonSocial').value,
+                        nit: document.getElementById('createBusinessNit').value,
+                        phone: document.getElementById('createBusinessPhone').value,
+                        address: document.getElementById('createBusinessAddress').value,
+                        city: document.getElementById('createBusinessCity').value,
+                        department: document.getElementById('createBusinessDepartment').value,
+                        country: document.getElementById('createBusinessCountry').value,
+                        description: document.getElementById('createBusinessDescription').value
+                    };
+
+                    // Validación básica
+                    if (!formData.name && !formData.razonSocial) {
+                        alert('Debe proporcionar al menos un nombre o razón social');
+                        return;
+                    }
+
+                    if (!formData.nit) {
+                        alert('El NIT es requerido');
+                        return;
+                    }
+
+                    const response = await fetch(`${this.baseURL}/business`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        },
+                        body: JSON.stringify(formData)
+                    });
+
+                    if (response.ok) {
+                        alert('Negocio creado exitosamente');
+                        // Cerrar modal
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('createBusinessModal'));
+                        modal.hide();
+                        // Recargar información
+                        await this.loadBusinessInfo();
+                    } else {
+                        const error = await response.json();
+                        throw new Error(error.message || 'Error al crear el negocio');
+                    }
+                } catch (error) {
+                    console.error('Error creando negocio:', error);
+                    alert('Error al crear el negocio: ' + error.message);
+                }
+            }
+
+            async loadBranchesList() {
+                try {
+                    const response = await fetch(`${this.baseURL}/branch`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const responseData = await response.json();
+                        const branches = responseData.data || responseData;
+                        
+                        if (branches && branches.length > 0) {
+                            const branchesHTML = branches.map(branch => `
+                                <div class="branch-item border rounded p-3 mb-3">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <h6 class="mb-1"><strong>${branch.name}</strong></h6>
+                                            <p class="mb-1 text-muted">${branch.description || 'Sin descripción'}</p>
+                                            <small class="text-muted">
+                                                <i class="fas fa-map-marker-alt me-1"></i>${branch.address || 'Sin dirección'}
+                                            </small>
+                                        </div>
+                                        <div class="dropdown">
+                                            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                Acciones
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li><a class="dropdown-item" href="#" onclick="superAdmin.editBranch('${branch._id}')">
+                                                    <i class="fas fa-edit me-2"></i>Editar
+                                                </a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="superAdmin.connectWhatsApp('${branch._id}')">
+                                                    <i class="fab fa-whatsapp me-2"></i>Conectar WhatsApp
+                                                </a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="superAdmin.configureAI('${branch._id}')">
+                                                    <i class="fas fa-robot me-2"></i>Configurar IA
+                                                </a></li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li><a class="dropdown-item text-danger" href="#" onclick="superAdmin.deleteBranch('${branch._id}')">
+                                                    <i class="fas fa-trash me-2"></i>Eliminar
+                                                </a></li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('');
+                            
+                            document.getElementById('branchesList').innerHTML = branchesHTML;
+                        } else {
+                            document.getElementById('branchesList').innerHTML = `
+                                <div class="text-center text-muted">
+                                    <i class="fas fa-store fa-3x mb-3"></i>
+                                    <h5>No hay sucursales</h5>
+                                    <p>Comienza creando tu primera sucursal</p>
+                                </div>
+                            `;
+                        }
+                    } else {
+                        throw new Error('Error al cargar sucursales');
+                    }
+                } catch (error) {
+                    console.error('Error cargando sucursales:', error);
+                    document.getElementById('branchesList').innerHTML = `
+                        <div class="text-center text-danger">
+                            <h5>Error cargando sucursales</h5>
+                            <p>No se pudieron cargar las sucursales</p>
+                        </div>
+                    `;
+                }
+            }
+
+            async loadBusinessStats() {
+                try {
+                    const response = await fetch(`${this.baseURL}/branch`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const responseData = await response.json();
+                        const branches = responseData.data || responseData;
+                        
+                        document.getElementById('businessStats').innerHTML = `
+                            <div class="row text-center">
+                                <div class="col-md-3">
+                                    <div class="stat-item">
+                                        <h3 class="text-primary">${branches.length}</h3>
+                                        <p class="mb-0">Total Sucursales</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="stat-item">
+                                        <h3 class="text-success">${branches.filter(b => b.whatsappConnected).length}</h3>
+                                        <p class="mb-0">Conectadas</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="stat-item">
+                                        <h3 class="text-info">0</h3>
+                                        <p class="mb-0">Total Pedidos</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="stat-item">
+                                        <h3 class="text-warning">${branches.filter(b => b.aiEnabled).length}</h3>
+                                        <p class="mb-0">IA Activa</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        throw new Error('Error al cargar estadísticas');
+                    }
+                } catch (error) {
+                    console.error('Error cargando estadísticas:', error);
+                    document.getElementById('businessStats').innerHTML = `
+                        <div class="text-center text-danger">
+                            <h5>Error cargando estadísticas</h5>
+                            <p>No se pudieron cargar las estadísticas</p>
+                        </div>
+                    `;
+                }
             }
 
             async loadUsers() {
                 const section = document.getElementById('usersSection');
                 section.innerHTML = '<div class="text-center"><h4>Gestión de Usuarios</h4><p>Contenido en desarrollo...</p></div>';
+            }
+
+            // Business Management Actions
+            editBusiness() {
+                this.loadBusinessDataForEdit();
+                const modal = new bootstrap.Modal(document.getElementById('businessEditModal'));
+                modal.show();
+            }
+
+            createBranch() {
+                this.resetBranchForm();
+                const modal = new bootstrap.Modal(document.getElementById('branchCreateModal'));
+                modal.show();
+            }
+
+            editBranch(branchId) {
+                this.showAlert(`Función de editar sucursal ${branchId} en desarrollo`, 'info');
+            }
+
+            connectWhatsApp(branchId) {
+                this.showAlert(`Función de conectar WhatsApp para sucursal ${branchId} en desarrollo`, 'info');
+            }
+
+            configureAI(branchId) {
+                // Abrir la página de gestión de IA
+                window.open('ai-management.html', '_blank');
+            }
+
+            deleteBranch(branchId) {
+                if (confirm('¿Estás seguro de que quieres eliminar esta sucursal?')) {
+                    this.showAlert(`Función de eliminar sucursal ${branchId} en desarrollo`, 'info');
+                }
+            }
+
+            // Modal Helper Functions
+            async loadBusinessDataForEdit() {
+                try {
+                    const response = await fetch(`${this.baseURL}/business`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const businesses = await response.json();
+                        const business = businesses[0]; // Tomar el primer negocio
+                        
+                        // Llenar el formulario con los datos actuales
+                        document.getElementById('businessName').value = business.name || '';
+                        document.getElementById('businessRazonSocial').value = business.razonSocial || '';
+                        document.getElementById('businessNit').value = business.nit || '';
+                        document.getElementById('businessPhone').value = business.phone || '';
+                        document.getElementById('businessAddress').value = business.address || '';
+                        document.getElementById('businessCity').value = business.city || '';
+                        document.getElementById('businessDepartment').value = business.department || '';
+                        document.getElementById('businessCountry').value = business.country || 'Colombia';
+                        document.getElementById('businessDescription').value = business.description || '';
+                    } else {
+                        throw new Error('Error al cargar datos del negocio');
+                    }
+                } catch (error) {
+                    console.error('Error cargando datos del negocio:', error);
+                    this.showAlert('Error al cargar los datos del negocio', 'error');
+                }
+            }
+
+            resetBranchForm() {
+                document.getElementById('branchCreateForm').reset();
+                document.getElementById('branchCountry').value = 'Colombia';
+            }
+
+            async saveBusiness() {
+                try {
+                    const formData = new FormData(document.getElementById('businessEditForm'));
+                    const businessData = Object.fromEntries(formData.entries());
+                    
+                    // Validar campos requeridos
+                    if (!businessData.name || !businessData.nit || !businessData.phone || !businessData.address || !businessData.city || !businessData.department) {
+                        this.showAlert('Por favor completa todos los campos requeridos', 'error');
+                        return;
+                    }
+                    
+                    // Validar que al menos uno de nombre o razón social esté presente
+                    if (!businessData.name && !businessData.razonSocial) {
+                        this.showAlert('Debe especificar al menos el nombre del negocio o la razón social', 'error');
+                        return;
+                    }
+                    
+                    const response = await fetch(`${this.baseURL}/business`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        },
+                        body: JSON.stringify(businessData)
+                    });
+                    
+                    if (response.ok) {
+                        this.showAlert('Información del negocio actualizada correctamente', 'success');
+                        bootstrap.Modal.getInstance(document.getElementById('businessEditModal')).hide();
+                        await this.loadBusinessInfo(); // Recargar la información
+                    } else {
+                        const error = await response.json();
+                        throw new Error(error.message || 'Error al actualizar el negocio');
+                    }
+                } catch (error) {
+                    console.error('Error guardando negocio:', error);
+                    this.showAlert(`Error al guardar: ${error.message}`, 'error');
+                }
+            }
+
+            async saveBranch() {
+                try {
+                    const formData = new FormData(document.getElementById('branchCreateForm'));
+                    const branchData = Object.fromEntries(formData.entries());
+                    
+                    // Validar campos requeridos
+                    if (!branchData.name || !branchData.nit || !branchData.phone || !branchData.address || !branchData.city || !branchData.department) {
+                        this.showAlert('Por favor completa todos los campos requeridos', 'error');
+                        return;
+                    }
+                    
+                    // Validar que al menos uno de nombre o razón social esté presente
+                    if (!branchData.name && !branchData.razonSocial) {
+                        this.showAlert('Debe especificar al menos el nombre de la sucursal o la razón social', 'error');
+                        return;
+                    }
+                    
+                    // Obtener el businessId del negocio seleccionado
+                    const businessSelector = document.getElementById('businessSelector');
+                    let businessId;
+                    
+                    if (businessSelector && businessSelector.value) {
+                        businessId = businessSelector.value;
+                    } else {
+                        // Si no hay selector, obtener el primer negocio
+                        const response = await fetch(`${this.baseURL}/business`, {
+                            headers: {
+                                'Authorization': `Bearer ${this.authService.getToken()}`
+                            }
+                        });
+                        
+                        if (response.ok) {
+                            const businesses = await response.json();
+                            if (businesses.length > 0) {
+                                businessId = businesses[0]._id;
+                            } else {
+                                throw new Error('No hay negocios disponibles');
+                            }
+                        } else {
+                            throw new Error('Error al obtener negocios');
+                        }
+                    }
+                    
+                    // Agregar businessId a los datos
+                    branchData.businessId = businessId;
+                    
+                    const response = await fetch(`${this.baseURL}/branch`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        },
+                        body: JSON.stringify(branchData)
+                    });
+                    
+                    if (response.ok) {
+                        this.showAlert('Sucursal creada correctamente', 'success');
+                        bootstrap.Modal.getInstance(document.getElementById('branchCreateModal')).hide();
+                        await this.loadBranchesList(); // Recargar la lista de sucursales
+                        await this.loadBusinessStats(); // Actualizar estadísticas
+                    } else {
+                        const error = await response.json();
+                        throw new Error(error.message || 'Error al crear la sucursal');
+                    }
+                } catch (error) {
+                    console.error('Error creando sucursal:', error);
+                    this.showAlert(`Error al crear sucursal: ${error.message}`, 'error');
+                }
             }
 
             async loadOrders() {
@@ -1110,12 +2719,15 @@
             }
 
             // Mostrar modal de configuración de IA
-            showBranchAIConfigModal(branchId = null) {
+            async showBranchAIConfigModal(branchId = null) {
                 const modal = new bootstrap.Modal(document.getElementById('branchAIConfigModal'));
                 this.currentEditingBranchId = branchId;
                 
+                // Cargar sucursales antes de mostrar el modal
+                await this.loadBranchesForAIConfig();
+                
                 if (branchId) {
-                    this.loadBranchAIConfigForEdit(branchId);
+                    await this.loadBranchAIConfigForEdit(branchId);
                 } else {
                     this.resetBranchAIConfigForm();
                 }
@@ -1260,6 +2872,7 @@
             // Cargar sucursales para el modal de configuración
             async loadBranchesForAIConfig() {
                 try {
+                    console.log('🔄 Cargando sucursales para configuración de IA...');
                     const response = await fetch(`${this.baseURL}/branch`, {
                         headers: {
                             'Authorization': `Bearer ${this.authService.getToken()}`
@@ -1269,17 +2882,30 @@
                     if (response.ok) {
                         const data = await response.json();
                         const select = document.getElementById('configBranchId');
-                        select.innerHTML = '<option value="">Seleccionar sucursal</option>';
                         
-                        data.data.forEach(branch => {
-                            const option = document.createElement('option');
-                            option.value = branch._id;
-                            option.textContent = `${branch.name} - ${branch.address}`;
-                            select.appendChild(option);
-                        });
+                        if (select) {
+                            select.innerHTML = '<option value="">Seleccionar sucursal</option>';
+                            
+                            if (data.data && data.data.length > 0) {
+                                data.data.forEach(branch => {
+                                    const option = document.createElement('option');
+                                    option.value = branch._id;
+                                    option.textContent = `${branch.name} - ${branch.address}`;
+                                    select.appendChild(option);
+                                });
+                                console.log(`✅ ${data.data.length} sucursales cargadas`);
+                            } else {
+                                console.log('⚠️ No hay sucursales disponibles');
+                                select.innerHTML = '<option value="">No hay sucursales disponibles</option>';
+                            }
+                        } else {
+                            console.error('❌ Elemento configBranchId no encontrado');
+                        }
+                    } else {
+                        console.error('❌ Error en respuesta:', response.status, response.statusText);
                     }
                 } catch (error) {
-                    console.error('Error loading branches for AI config:', error);
+                    console.error('❌ Error loading branches for AI config:', error);
                 }
             }
         }
@@ -1290,6 +2916,7 @@
             // Make dashboard globally accessible
             window.dashboardApp = dashboard;
             window.whatsappManager = dashboard;
+            window.superAdmin = dashboard;
             
             // WhatsApp connection modal
             document.getElementById('createConnectionBtn').addEventListener('click', (e) => {

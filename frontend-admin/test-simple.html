@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Simple - Sin Dependencias</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: #f8f9fa; 
+        }
+        .container { 
+            max-width: 800px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 20px; 
+            border-radius: 10px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+        }
+        .test-result { 
+            padding: 15px; 
+            margin: 10px 0; 
+            border-radius: 5px; 
+        }
+        .success { 
+            background-color: #d4edda; 
+            color: #155724; 
+            border: 1px solid #c3e6cb; 
+        }
+        .error { 
+            background-color: #f8d7da; 
+            color: #721c24; 
+            border: 1px solid #f5c6cb; 
+        }
+        .info { 
+            background-color: #d1ecf1; 
+            color: #0c5460; 
+            border: 1px solid #bee5eb; 
+        }
+        .button { 
+            background: #007bff; 
+            color: white; 
+            padding: 10px 20px; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            margin: 5px; 
+            text-decoration: none;
+            display: inline-block;
+        }
+        .button:hover { 
+            background: #0056b3; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Simple - Sin Dependencias Externas</h1>
+        
+        <div class="test-result info">
+            <h3>📋 Información del Test:</h3>
+            <p><strong>Archivo:</strong> test-simple.html</p>
+            <p><strong>Servidor:</strong> http://localhost:3000</p>
+            <p><strong>Timestamp:</strong> <span id="timestamp"></span></p>
+            <p><strong>Sin Bootstrap:</strong> Solo CSS interno</p>
+            <p><strong>Sin FontAwesome:</strong> Solo texto</p>
+        </div>
+
+        <div class="test-result success">
+            <h3>✅ Si Ves Esta Página:</h3>
+            <p>El servidor frontend está funcionando correctamente</p>
+            <p>Los archivos se están sirviendo sin errores 404</p>
+        </div>
+
+        <div class="test-result error">
+            <h3>❌ Si Ves Errores 404:</h3>
+            <p>Hay un problema con el servidor frontend</p>
+            <p>Necesitamos reiniciar el servidor</p>
+        </div>
+
+        <div class="test-result info">
+            <h3>🔧 Próximos Pasos:</h3>
+            <p>1. <strong>Verificar:</strong> Que esta página se carga sin errores</p>
+            <p>2. <strong>Probar:</strong> <a href="business.html" class="button">business.html</a></p>
+            <p>3. <strong>Diagnóstico:</strong> <a href="diagnostico-completo.html" class="button">Diagnóstico Completo</a></p>
+        </div>
+
+        <div class="test-result info">
+            <h3>🌐 URLs de Prueba:</h3>
+            <p><a href="http://localhost:3000/test-simple.html" target="_blank">http://localhost:3000/test-simple.html</a></p>
+            <p><a href="http://localhost:3000/business.html" target="_blank">http://localhost:3000/business.html</a></p>
+            <p><a href="http://localhost:3000/index.html" target="_blank">http://localhost:3000/index.html</a></p>
+        </div>
+
+        <div class="test-result success">
+            <h3>🎯 Menú Correcto (Debería Mostrar):</h3>
+            <ul>
+                <li>📊 Dashboard</li>
+                <li>🏢 Mi Negocio ← <strong>UNIFICADO</strong></li>
+                <li>🛒 Pedidos</li>
+                <li>📱 WhatsApp</li>
+                <li>🤖 IA & PDFs</li>
+                <li>📋 Productos</li>
+                <li>👥 Usuarios</li>
+                <li>📈 Reportes</li>
+                <li>💰 Facturación</li>
+            </ul>
+        </div>
+
+        <div class="test-result error">
+            <h3>❌ Menú Incorrecto (NO Debería Mostrar):</h3>
+            <ul>
+                <li>📊 Dashboard</li>
+                <li>🏢 Negocios ← <strong>SEPARADO</strong></li>
+                <li>🏪 Sucursales ← <strong>SEPARADO</strong></li>
+                <li>🛒 Pedidos</li>
+                <li>📱 WhatsApp</li>
+                <li>🤖 IA & PDFs</li>
+                <li>📋 Productos</li>
+                <li>👥 Usuarios</li>
+                <li>📈 Reportes</li>
+                <li>💰 Facturación</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('timestamp').textContent = new Date().toISOString();
+        console.log('🧪 Test simple cargado correctamente');
+        console.log('📍 URL:', window.location.href);
+        console.log('🕒 Timestamp:', new Date().toISOString());
+    </script>
+</body>
+</html>

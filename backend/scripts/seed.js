@@ -21,17 +21,18 @@ const databaseService = new DatabaseService();
 const sampleBusinesses = [
     {
         name: 'Restaurante El Sabor',
+        razonSocial: 'El Sabor S.A.S.',
+        nit: '900123456-1',
+        phone: '+573001234567',
+        address: 'Calle 123 #45-67',
+        city: 'Bogotá',
+        department: 'Cundinamarca',
+        country: 'Colombia',
+        description: 'Restaurante especializado en comida colombiana tradicional',
         businessType: 'restaurant',
         contact: {
             email: 'info@elsabor.com',
             phone: '+573001234567'
-        },
-        address: {
-            street: 'Calle 123 #45-67',
-            city: 'Bogotá',
-            state: 'Cundinamarca',
-            country: 'Colombia',
-            zipCode: '110111'
         },
         settings: {
             timezone: 'America/Bogota',
@@ -62,17 +63,18 @@ const sampleBusinesses = [
     },
     {
         name: 'Café Aroma',
+        razonSocial: 'Café Aroma Ltda.',
+        nit: '900234567-2',
+        phone: '+573007654321',
+        address: 'Carrera 78 #90-12',
+        city: 'Medellín',
+        department: 'Antioquia',
+        country: 'Colombia',
+        description: 'Café de especialidad con ambiente acogedor',
         businessType: 'cafe',
         contact: {
             email: 'contacto@cafearoma.com',
             phone: '+573007654321'
-        },
-        address: {
-            street: 'Carrera 78 #90-12',
-            city: 'Medellín',
-            state: 'Antioquia',
-            country: 'Colombia',
-            zipCode: '050034'
         },
         settings: {
             timezone: 'America/Bogota',
@@ -102,18 +104,18 @@ const sampleBusinesses = [
         }
     },
     {
-        name: 'Farmacia Salud Total',
+        razonSocial: 'Farmacia Salud Total S.A.S.',
+        nit: '900345678-3',
+        phone: '+573001112223',
+        address: 'Avenida 68 #45-23',
+        city: 'Cali',
+        department: 'Valle del Cauca',
+        country: 'Colombia',
+        description: 'Farmacia con servicio 24 horas y entrega a domicilio',
         businessType: 'pharmacy',
         contact: {
             email: 'ventas@saludtotal.com',
             phone: '+573001112223'
-        },
-        address: {
-            street: 'Avenida 68 #45-23',
-            city: 'Cali',
-            state: 'Valle del Cauca',
-            country: 'Colombia',
-            zipCode: '760001'
         },
         settings: {
             timezone: 'America/Bogota',
@@ -147,13 +149,15 @@ const sampleBusinesses = [
 const sampleBranches = [
     {
         name: 'Sucursal Centro',
-        address: {
-            street: 'Calle 15 #23-45',
-            city: 'Bogotá',
-            state: 'Cundinamarca',
-            country: 'Colombia',
-            zipCode: '110111'
-        },
+        razonSocial: 'El Sabor Centro S.A.S.',
+        nit: '900123456-1-1',
+        phone: '+573001234567',
+        address: 'Calle 15 #23-45',
+        city: 'Bogotá',
+        department: 'Cundinamarca',
+        country: 'Colombia',
+        description: 'Sucursal principal en el centro de Bogotá',
+        manager: 'María González',
         contact: {
             phone: '+573001234567',
             email: 'centro@elsabor.com'
@@ -571,15 +575,12 @@ async function seedDatabase() {
         // Create users
         const createdUsers = [];
         for (const userData of sampleUsers) {
+            // Create user - password will be hashed by User model pre('save') middleware
             const user = new User({
                 ...userData,
                 userId: `USR${Date.now()}${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
                 isActive: true
             });
-
-            // Hash password
-            const salt = await bcrypt.genSalt(10);
-            user.password = await bcrypt.hash(userData.password, salt);
 
             // Assign business and branch IDs
             if (userData.role === 'business_admin') {
@@ -602,7 +603,7 @@ async function seedDatabase() {
         if (!superAdmin) {
             const adminUser = new User({
                 email: 'admin@easybranch.com',
-                password: await bcrypt.hash('admin123', 10),
+                password: 'admin123', // Will be hashed by pre('save') middleware
                 name: 'Super Administrador',
                 role: 'super_admin',
                 userId: `USR${Date.now()}${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
