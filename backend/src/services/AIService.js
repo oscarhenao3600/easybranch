@@ -94,11 +94,38 @@ class AIService {
     return defaultPrompts[businessType] || defaultPrompts.restaurant;
   }
 
-  // Generar respuesta usando IA
-  async generateResponse(branchId, userMessage, clientId = null, businessType = 'restaurant') {
+  // Generar respuesta usando IA con configuración específica de sucursal
+  async generateResponse(branchId, userMessage, clientId = null, businessType = 'restaurant', branchConfig = null) {
     try {
-      const menuContent = this.menuContent.get(branchId) || '';
-      const prompt = this.getPrompt(branchId, businessType);
+      console.log('🤖 ===== GENERANDO RESPUESTA IA CONTEXTUALIZADA =====');
+      console.log('🏪 Branch ID:', branchId);
+      console.log('💬 User Message:', userMessage);
+      console.log('🏢 Business Type:', businessType);
+      console.log('⚙️ Branch Config:', branchConfig ? 'Disponible' : 'No disponible');
+      console.log('==================================================');
+
+      // Usar configuración específica de la sucursal si está disponible
+      let menuContent = '';
+      let customPrompt = '';
+      let businessSettings = {};
+
+      if (branchConfig) {
+        menuContent = branchConfig.menuContent || '';
+        customPrompt = branchConfig.customPrompt || '';
+        businessSettings = branchConfig.businessSettings || {};
+        businessType = businessSettings.businessType || businessType;
+        
+        console.log('📋 Menu Content:', menuContent ? 'Disponible' : 'No disponible');
+        console.log('🎯 Custom Prompt:', customPrompt ? 'Disponible' : 'No disponible');
+        console.log('⚙️ Business Settings:', Object.keys(businessSettings).length > 0 ? 'Disponible' : 'No disponible');
+      } else {
+        // Usar configuración básica
+        menuContent = this.menuContent.get(branchId) || '';
+        customPrompt = this.aiPrompts.get(branchId) || '';
+      }
+
+      // Construir prompt contextualizado
+      const prompt = this.buildContextualizedPrompt(branchId, businessType, customPrompt, businessSettings);
       
       // Crear contexto completo
       const fullContext = this.buildContext(prompt, menuContent, userMessage);
@@ -111,14 +138,14 @@ class AIService {
           return response;
         } catch (hfError) {
           this.logger.warn(`Error con Hugging Face, usando simulación: ${hfError.message}`);
-          const response = await this.callFreeAI(fullContext, userMessage, businessType);
-          this.logger.ai(branchId, '🤖 Respuesta simulación generada');
+          const response = await this.callContextualizedAI(fullContext, userMessage, businessType, businessSettings);
+          this.logger.ai(branchId, '🤖 Respuesta simulación contextualizada generada');
           return response;
         }
       } else {
-        // Usar simulación inteligente
-        const response = await this.callFreeAI(fullContext, userMessage, businessType);
-        this.logger.ai(branchId, '🤖 Respuesta simulación generada');
+        // Usar simulación inteligente contextualizada
+        const response = await this.callContextualizedAI(fullContext, userMessage, businessType, businessSettings);
+        this.logger.ai(branchId, '🤖 Respuesta simulación contextualizada generada');
         return response;
       }
       
@@ -126,6 +153,49 @@ class AIService {
       this.logger.error(`Error generando respuesta IA para ${branchId}:`, error);
       return this.getFallbackResponse(userMessage, businessType);
     }
+  }
+
+  // Construir prompt contextualizado para la sucursal
+  buildContextualizedPrompt(branchId, businessType, customPrompt, businessSettings) {
+    if (customPrompt) {
+      return customPrompt;
+    }
+
+    // Construir prompt basado en configuración específica
+    let prompt = `Eres un asistente virtual especializado para esta sucursal específica. `;
+    
+    if (businessSettings.messages && businessSettings.messages.welcome) {
+      prompt += `Tu mensaje de bienvenida personalizado es: "${businessSettings.messages.welcome}". `;
+    }
+    
+    if (businessSettings.businessHours) {
+      const hours = businessSettings.businessHours;
+      prompt += `Nuestros horarios de atención son: `;
+      
+      // Handle both Map and Object formats
+      const hoursData = hours instanceof Map ? hours : hours;
+      const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+      
+      days.forEach(day => {
+        const dayData = hoursData.get ? hoursData.get(day) : hoursData[day];
+        if (dayData && dayData.isOpen) {
+          prompt += `${day}: ${dayData.open} - ${dayData.close}, `;
+        }
+      });
+      prompt += `. `;
+    }
+    
+    if (businessSettings.deliverySettings && businessSettings.deliverySettings.enabled) {
+      prompt += `Ofrecemos servicio a domicilio con tiempo de entrega de ${businessSettings.deliverySettings.deliveryTime}. `;
+      if (businessSettings.deliverySettings.minimumOrder > 0) {
+        prompt += `Pedido mínimo: $${businessSettings.deliverySettings.minimumOrder}. `;
+      }
+    }
+    
+    prompt += `Debes ser amigable, profesional y específico a esta sucursal. `;
+    prompt += `Responde de manera natural y conversacional, como si fueras un empleado de esta sucursal específica.`;
+    
+    return prompt;
   }
 
   // Construir contexto completo
@@ -174,6 +244,44 @@ class AIService {
       this.logger.error('Error llamando a Hugging Face:', error);
       throw error;
     }
+  }
+
+  // Simulación de IA contextualizada
+  async callContextualizedAI(context, userMessage, businessType, businessSettings = {}) {
+    const lowerMessage = userMessage.toLowerCase();
+    
+    // Usar mensajes personalizados si están disponibles
+    if (businessSettings.messages) {
+      if (lowerMessage.includes('hola') || lowerMessage.includes('buenos días') || lowerMessage.includes('buenas')) {
+        return businessSettings.messages.welcome || this.getDefaultGreeting(businessType);
+      }
+      
+      if (lowerMessage.includes('pedido') || lowerMessage.includes('ordenar')) {
+        return businessSettings.messages.orderConfirmation || this.getDefaultOrderResponse(businessType);
+      }
+      
+      if (lowerMessage.includes('domicilio') || lowerMessage.includes('delivery')) {
+        return businessSettings.messages.deliveryInfo || this.getDefaultDeliveryResponse(businessType);
+      }
+    }
+    
+    // Usar configuración específica de horarios
+    if (lowerMessage.includes('hora') || lowerMessage.includes('abierto') || lowerMessage.includes('cerrado')) {
+      return this.getHoursResponse(businessSettings.businessHours);
+    }
+    
+    // Usar configuración específica de productos
+    if (lowerMessage.includes('menú') || lowerMessage.includes('menu') || lowerMessage.includes('productos')) {
+      return this.getMenuResponse(businessSettings.productCategories);
+    }
+    
+    // Usar configuración específica de delivery
+    if (lowerMessage.includes('domicilio') || lowerMessage.includes('delivery') || lowerMessage.includes('entrega')) {
+      return this.getDeliveryResponse(businessSettings.deliverySettings);
+    }
+    
+    // Fallback a respuestas básicas
+    return this.callFreeAI(context, userMessage, businessType);
   }
 
   // Simulación de IA gratuita
@@ -236,6 +344,108 @@ class AIService {
     }
 
     return `Gracias por contactarnos. ¿En qué puedo ayudarte? Puedes preguntarme sobre nuestros productos, precios o hacer un pedido.`;
+  }
+
+  // Métodos auxiliares para respuestas contextualizadas
+  getDefaultGreeting(businessType) {
+    const greetings = {
+      restaurant: '¡Hola! Bienvenido a nuestro restaurante 🍽️\n\n¿En qué puedo ayudarte hoy?',
+      cafe: '¡Hola! Bienvenido a nuestra cafetería ☕\n\n¿En qué puedo ayudarte hoy?',
+      pharmacy: '¡Hola! Bienvenido a nuestra farmacia 💊\n\n¿En qué puedo ayudarte hoy?',
+      grocery: '¡Hola! Bienvenido a nuestra tienda 🛒\n\n¿En qué puedo ayudarte hoy?'
+    };
+    return greetings[businessType] || greetings.restaurant;
+  }
+
+  getDefaultOrderResponse(businessType) {
+    return '¡Perfecto! Para hacer tu pedido, por favor indícame qué te gustaría ordenar y te ayudo a procesarlo.';
+  }
+
+  getDefaultDeliveryResponse(businessType) {
+    return 'Ofrecemos servicio a domicilio. ¿Te gustaría conocer nuestros tiempos de entrega y tarifas?';
+  }
+
+  getHoursResponse(businessHours) {
+    if (!businessHours) {
+      return '🕐 Nuestros horarios de atención son de lunes a domingo. ¿Te gustaría conocer horarios específicos?';
+    }
+
+    let response = '🕐 *HORARIOS DE ATENCIÓN*\n\n';
+    const days = {
+      monday: 'Lunes',
+      tuesday: 'Martes', 
+      wednesday: 'Miércoles',
+      thursday: 'Jueves',
+      friday: 'Viernes',
+      saturday: 'Sábado',
+      sunday: 'Domingo'
+    };
+
+    // Handle both Map and Object formats
+    const hoursData = businessHours instanceof Map ? businessHours : businessHours;
+    
+    Object.keys(days).forEach(day => {
+      const dayData = hoursData.get ? hoursData.get(day) : hoursData[day];
+      if (dayData && dayData.isOpen) {
+        response += `${days[day]}: ${dayData.open} - ${dayData.close}\n`;
+      } else {
+        response += `${days[day]}: Cerrado\n`;
+      }
+    });
+
+    return response;
+  }
+
+  getMenuResponse(productCategories) {
+    if (!productCategories || productCategories.length === 0) {
+      return '🍽️ Tenemos una gran variedad de productos disponibles. ¿Te gustaría que te ayude a elegir algo específico?';
+    }
+
+    let response = '🍽️ *NUESTRO MENÚ*\n\n';
+    productCategories.forEach(category => {
+      response += `*${category.name}*\n`;
+      if (category.description) {
+        response += `${category.description}\n`;
+      }
+      category.items.forEach(item => {
+        response += `• ${item.name}`;
+        if (item.price) {
+          response += ` - $${item.price}`;
+        }
+        if (item.description) {
+          response += `\n  ${item.description}`;
+        }
+        response += '\n';
+      });
+      response += '\n';
+    });
+
+    return response;
+  }
+
+  getDeliveryResponse(deliverySettings) {
+    if (!deliverySettings || !deliverySettings.enabled) {
+      return 'Actualmente no ofrecemos servicio a domicilio, pero puedes recoger tu pedido en nuestra sucursal.';
+    }
+
+    let response = '🚚 *SERVICIO A DOMICILIO*\n\n';
+    response += `⏰ Tiempo de entrega: ${deliverySettings.deliveryTime}\n`;
+    
+    if (deliverySettings.minimumOrder > 0) {
+      response += `💰 Pedido mínimo: $${deliverySettings.minimumOrder}\n`;
+    }
+    
+    if (deliverySettings.deliveryFee > 0) {
+      response += `🚚 Costo de envío: $${deliverySettings.deliveryFee}\n`;
+    } else {
+      response += `🚚 Envío gratuito\n`;
+    }
+    
+    if (deliverySettings.deliveryRadius) {
+      response += `📍 Radio de entrega: ${deliverySettings.deliveryRadius} km\n`;
+    }
+
+    return response;
   }
 
   // Respuesta de fallback

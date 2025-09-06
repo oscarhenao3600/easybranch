@@ -2,15 +2,19 @@ const WhatsAppConnection = require('../models/WhatsAppConnection');
 const Business = require('../models/Business');
 const Branch = require('../models/Branch');
 const User = require('../models/User');
+const BranchAIConfig = require('../models/BranchAIConfig');
 const LoggerService = require('../services/LoggerService');
 const WhatsAppServiceSimple = require('../services/WhatsAppServiceSimple');
+const AIService = require('../services/AIService');
 const QRCode = require('qrcode');
 
 class WhatsAppController {
     constructor() {
         this.logger = new LoggerService('whatsapp');
         this.whatsappService = null;
+        this.aiService = new AIService();
         this.initializeService();
+        this.initializeAI();
     }
 
     async initializeService() {
@@ -21,6 +25,31 @@ class WhatsAppController {
         } catch (error) {
             this.logger.error('Failed to initialize WhatsApp service', { error: error.message });
             // Continue without WhatsApp service for now
+        }
+    }
+
+    async initializeAI() {
+        try {
+            // Configure HuggingFace if API key is available
+            const huggingFaceKey = process.env.HUGGINGFACE_API_KEY;
+            const huggingFaceModel = process.env.HUGGINGFACE_MODEL || 'microsoft/DialoGPT-medium';
+            const useHuggingFace = process.env.USE_HUGGINGFACE === 'true';
+
+            if (huggingFaceKey && useHuggingFace) {
+                this.aiService.configureHuggingFace(huggingFaceKey, huggingFaceModel);
+                console.log('🤖 ===== IA CONFIGURADA CON HUGGINGFACE =====');
+                console.log('🔑 API Key:', huggingFaceKey ? 'Configurada' : 'No configurada');
+                console.log('🤖 Modelo:', huggingFaceModel);
+                console.log('==========================================');
+            } else {
+                console.log('🤖 ===== IA CONFIGURADA EN MODO SIMULACIÓN =====');
+                console.log('⚠️ HuggingFace deshabilitado - usando respuestas inteligentes');
+                console.log('================================================');
+            }
+
+            this.logger.info('AI service initialized successfully');
+        } catch (error) {
+            this.logger.error('Failed to initialize AI service', { error: error.message });
         }
     }
 
@@ -139,37 +168,80 @@ class WhatsAppController {
 
             // Check if AI integration is enabled
             if (!connection.aiIntegration) {
+                console.log('⚠️ IA deshabilitada para esta conexión:', connectionId);
                 return;
             }
 
-            // Check if message is "Hola" or similar greetings
-            const greetings = ['hola', 'hello', 'buenos días', 'buenas tardes', 'buenas noches', 'hey', 'hi'];
-            const isGreeting = greetings.some(greeting => 
-                message.toLowerCase().includes(greeting.toLowerCase())
-            );
+            // Extract phone number from WhatsApp format (remove @c.us)
+            const phoneNumber = from.replace('@c.us', '');
+            
+            console.log('🤖 ===== PROCESANDO MENSAJE CON IA =====');
+            console.log('📱 Connection ID:', connectionId);
+            console.log('📞 From:', phoneNumber);
+            console.log('💬 Message:', message);
+            console.log('🏢 Business ID:', connection.businessId);
+            console.log('🏪 Branch ID:', connection.branchId);
+            console.log('========================================');
 
-            if (isGreeting) {
-                // Send welcome message
-                const welcomeMessage = connection.offHoursMessage || '¡Hola! 👋 Bienvenido a nuestro negocio. ¿En qué puedo ayudarte hoy?';
+            try {
+                // Get business and branch info for context
+                const business = await Business.findById(connection.businessId);
+                const branch = await Branch.findById(connection.branchId);
                 
-                // Extract phone number from WhatsApp format (remove @c.us)
-                const phoneNumber = from.replace('@c.us', '');
+                // Get AI configuration for this branch
+                const branchAIConfig = await BranchAIConfig.findOne({ branchId: connection.branchId });
                 
-                console.log('🤖 ===== ENVIANDO RESPUESTA AUTOMÁTICA =====');
+                // Determine business type
+                const businessType = business?.type || 'restaurant';
+                
+                console.log('🔍 ===== CONFIGURACIÓN DE IA ENCONTRADA =====');
+                console.log('🏪 Branch:', branch?.name || 'No encontrada');
+                console.log('🏢 Business:', business?.name || 'No encontrada');
+                console.log('🤖 AI Config:', branchAIConfig ? 'Disponible' : 'No disponible');
+                console.log('📋 Menu Content:', branchAIConfig?.menuContent ? 'Disponible' : 'No disponible');
+                console.log('🎯 Custom Prompt:', branchAIConfig?.customPrompt ? 'Disponible' : 'No disponible');
+                console.log('============================================');
+                
+                // Generate AI response with branch-specific configuration
+                const aiResponse = await this.aiService.generateResponse(
+                    connection.branchId,
+                    message,
+                    phoneNumber, // Use phone number as client ID
+                    businessType,
+                    branchAIConfig // Pass branch-specific configuration
+                );
+
+                console.log('🤖 ===== RESPUESTA IA GENERADA =====');
                 console.log('📱 Connection ID:', connectionId);
-                console.log('📞 From (original):', from);
-                console.log('📞 Phone Number (extracted):', phoneNumber);
-                console.log('💬 Welcome Message:', welcomeMessage);
-                console.log('==========================================');
-                
-                await this.whatsappService.sendMessage(connectionId, phoneNumber, welcomeMessage);
+                console.log('📞 To:', phoneNumber);
+                console.log('🤖 AI Response:', aiResponse);
+                console.log('====================================');
+
+                // Send AI response
+                await this.whatsappService.sendMessage(connectionId, phoneNumber, aiResponse);
 
                 // Update connection stats
                 connection.messagesToday = (connection.messagesToday || 0) + 1;
                 connection.totalMessages = (connection.totalMessages || 0) + 1;
                 await connection.save();
 
-                this.logger.info('Welcome message sent', { connectionId, to: from, message: welcomeMessage });
+                this.logger.info('AI response sent', { 
+                    connectionId, 
+                    to: phoneNumber, 
+                    message: aiResponse.substring(0, 100) + '...' 
+                });
+
+            } catch (aiError) {
+                console.error('❌ Error procesando con IA:', aiError);
+                
+                // Fallback to basic response
+                const fallbackMessage = '¡Hola! 👋 Gracias por contactarnos. ¿En qué puedo ayudarte hoy?';
+                await this.whatsappService.sendMessage(connectionId, phoneNumber, fallbackMessage);
+                
+                this.logger.error('AI processing failed, sent fallback', { 
+                    connectionId, 
+                    error: aiError.message 
+                });
             }
 
         } catch (error) {

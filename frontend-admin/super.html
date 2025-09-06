@@ -594,7 +594,43 @@
 
             async loadAI() {
                 const section = document.getElementById('aiSection');
-                section.innerHTML = '<div class="text-center"><h4>IA & PDFs</h4><p>Contenido en desarrollo...</p></div>';
+                section.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h4><i class="fas fa-robot me-2"></i>Configuración de IA por Sucursal</h4>
+                        <button class="btn btn-primary" onclick="dashboardApp.showBranchAIConfigModal()">
+                            <i class="fas fa-plus me-2"></i>Nueva Configuración
+                        </button>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Sucursal</th>
+                                            <th>Tipo de Negocio</th>
+                                            <th>Estado</th>
+                                            <th>Menú PDF</th>
+                                            <th>Prompt Personalizado</th>
+                                            <th>Última Actualización</th>
+                                            <th>Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="aiConfigTableBody">
+                                        <tr>
+                                            <td colspan="7" class="text-center">
+                                                <div class="spinner-border text-primary" role="status">
+                                                    <span class="visually-hidden">Cargando...</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                await this.loadBranchAIConfigs();
             }
 
             async loadBilling() {
@@ -978,12 +1014,281 @@
                     delete this.qrRefreshTimers[connectionId];
                 }
             }
+
+            // ===== MÉTODOS PARA CONFIGURACIÓN DE IA =====
+
+            // Cargar configuraciones de IA
+            async loadBranchAIConfigs() {
+                try {
+                    const response = await fetch(`${this.baseURL}/branch-ai-config`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        this.renderBranchAIConfigs(data.data || []);
+                    } else {
+                        console.error('Error loading AI configs:', response.statusText);
+                    }
+                } catch (error) {
+                    console.error('Error loading AI configs:', error);
+                }
+            }
+
+            // Renderizar configuraciones de IA
+            renderBranchAIConfigs(configs) {
+                const tbody = document.getElementById('aiConfigTableBody');
+                
+                if (!configs || configs.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="7" class="text-center text-muted">
+                                <i class="fas fa-robot fa-2x mb-2"></i><br>
+                                No hay configuraciones de IA configuradas
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tbody.innerHTML = configs.map(config => `
+                    <tr>
+                        <td>
+                            <strong>${config.branchId?.name || 'Sucursal'}</strong><br>
+                            <small class="text-muted">${config.branchId?.address || ''}</small>
+                        </td>
+                        <td>
+                            <span class="badge bg-primary">${this.getBusinessTypeLabel(config.businessSettings?.businessType || 'restaurant')}</span>
+                        </td>
+                        <td>
+                            <span class="badge ${config.isActive ? 'bg-success' : 'bg-secondary'}">
+                                ${config.isActive ? 'Activo' : 'Inactivo'}
+                            </span>
+                        </td>
+                        <td>
+                            ${config.files?.menuPDF?.filename ? 
+                                `<i class="fas fa-file-pdf text-danger"></i> ${config.files.menuPDF.filename}` : 
+                                '<span class="text-muted">No subido</span>'
+                            }
+                        </td>
+                        <td>
+                            ${config.customPrompt ? 
+                                `<i class="fas fa-check text-success"></i> Configurado` : 
+                                '<span class="text-muted">Por defecto</span>'
+                            }
+                        </td>
+                        <td>
+                            <small>${new Date(config.lastUpdated).toLocaleDateString()}</small>
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" onclick="dashboardApp.editBranchAIConfig('${config.branchId._id}')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-outline-danger" onclick="dashboardApp.deleteBranchAIConfig('${config.branchId._id}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            // Obtener etiqueta del tipo de negocio
+            getBusinessTypeLabel(type) {
+                const labels = {
+                    restaurant: 'Restaurante',
+                    cafe: 'Cafetería',
+                    pharmacy: 'Farmacia',
+                    grocery: 'Tienda',
+                    retail: 'Retail',
+                    service: 'Servicio'
+                };
+                return labels[type] || 'Restaurante';
+            }
+
+            // Mostrar modal de configuración de IA
+            showBranchAIConfigModal(branchId = null) {
+                const modal = new bootstrap.Modal(document.getElementById('branchAIConfigModal'));
+                this.currentEditingBranchId = branchId;
+                
+                if (branchId) {
+                    this.loadBranchAIConfigForEdit(branchId);
+                } else {
+                    this.resetBranchAIConfigForm();
+                }
+                
+                modal.show();
+            }
+
+            // Cargar configuración para editar
+            async loadBranchAIConfigForEdit(branchId) {
+                try {
+                    const response = await fetch(`${this.baseURL}/branch-ai-config/${branchId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const config = data.data;
+                        
+                        // Llenar formulario
+                        document.getElementById('configBranchId').value = config.branchId._id;
+                        document.getElementById('configBusinessType').value = config.businessSettings?.businessType || 'restaurant';
+                        document.getElementById('configCustomPrompt').value = config.customPrompt || '';
+                        document.getElementById('configWelcomeMessage').value = config.businessSettings?.messages?.welcome || '';
+                        document.getElementById('configOffHoursMessage').value = config.businessSettings?.messages?.offHours || '';
+                        document.getElementById('configOrderMessage').value = config.businessSettings?.messages?.orderConfirmation || '';
+                        document.getElementById('configDeliveryMessage').value = config.businessSettings?.messages?.deliveryInfo || '';
+                        
+                        // Configuración de delivery
+                        document.getElementById('configDeliveryEnabled').checked = config.businessSettings?.deliverySettings?.enabled || false;
+                        document.getElementById('configMinOrder').value = config.businessSettings?.deliverySettings?.minimumOrder || 0;
+                        document.getElementById('configDeliveryFee').value = config.businessSettings?.deliverySettings?.deliveryFee || 0;
+                        document.getElementById('configDeliveryTime').value = config.businessSettings?.deliverySettings?.deliveryTime || '';
+                    }
+                } catch (error) {
+                    console.error('Error loading AI config for edit:', error);
+                }
+            }
+
+            // Resetear formulario
+            resetBranchAIConfigForm() {
+                document.getElementById('branchAIConfigForm').reset();
+                document.getElementById('configBranchId').value = '';
+            }
+
+            // Guardar configuración de IA
+            async saveBranchAIConfig() {
+                try {
+                    const formData = new FormData();
+                    const branchId = document.getElementById('configBranchId').value;
+                    
+                    if (!branchId) {
+                        alert('Por favor selecciona una sucursal');
+                        return;
+                    }
+
+                    // Configuración básica
+                    const configData = {
+                        customPrompt: document.getElementById('configCustomPrompt').value,
+                        businessSettings: {
+                            businessType: document.getElementById('configBusinessType').value,
+                            messages: {
+                                welcome: document.getElementById('configWelcomeMessage').value,
+                                offHours: document.getElementById('configOffHoursMessage').value,
+                                orderConfirmation: document.getElementById('configOrderMessage').value,
+                                deliveryInfo: document.getElementById('configDeliveryMessage').value
+                            },
+                            deliverySettings: {
+                                enabled: document.getElementById('configDeliveryEnabled').checked,
+                                minimumOrder: parseFloat(document.getElementById('configMinOrder').value) || 0,
+                                deliveryFee: parseFloat(document.getElementById('configDeliveryFee').value) || 0,
+                                deliveryTime: document.getElementById('configDeliveryTime').value
+                            }
+                        }
+                    };
+
+                    // Subir archivo PDF si existe
+                    const pdfFile = document.getElementById('configMenuPDF').files[0];
+                    if (pdfFile) {
+                        formData.append('menuPDF', pdfFile);
+                    }
+
+                    // Hacer la petición
+                    const response = await fetch(`${this.baseURL}/branch-ai-config/${branchId}`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        },
+                        body: pdfFile ? formData : JSON.stringify(configData),
+                        headers: pdfFile ? {} : {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        alert('Configuración guardada exitosamente');
+                        bootstrap.Modal.getInstance(document.getElementById('branchAIConfigModal')).hide();
+                        await this.loadBranchAIConfigs();
+                    } else {
+                        const error = await response.json();
+                        alert('Error al guardar: ' + (error.error || 'Error desconocido'));
+                    }
+                } catch (error) {
+                    console.error('Error saving AI config:', error);
+                    alert('Error al guardar la configuración');
+                }
+            }
+
+            // Eliminar configuración de IA
+            async deleteBranchAIConfig(branchId) {
+                if (!confirm('¿Estás seguro de que quieres eliminar esta configuración?')) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`${this.baseURL}/branch-ai-config/${branchId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        alert('Configuración eliminada exitosamente');
+                        await this.loadBranchAIConfigs();
+                    } else {
+                        alert('Error al eliminar la configuración');
+                    }
+                } catch (error) {
+                    console.error('Error deleting AI config:', error);
+                    alert('Error al eliminar la configuración');
+                }
+            }
+
+            // Editar configuración de IA
+            editBranchAIConfig(branchId) {
+                this.showBranchAIConfigModal(branchId);
+            }
+
+            // Cargar sucursales para el modal de configuración
+            async loadBranchesForAIConfig() {
+                try {
+                    const response = await fetch(`${this.baseURL}/branch`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const select = document.getElementById('configBranchId');
+                        select.innerHTML = '<option value="">Seleccionar sucursal</option>';
+                        
+                        data.data.forEach(branch => {
+                            const option = document.createElement('option');
+                            option.value = branch._id;
+                            option.textContent = `${branch.name} - ${branch.address}`;
+                            select.appendChild(option);
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error loading branches for AI config:', error);
+                }
+            }
         }
 
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', () => {
             const dashboard = new SuperAdminDashboard();
-            // Make WhatsApp manager globally accessible
+            // Make dashboard globally accessible
+            window.dashboardApp = dashboard;
             window.whatsappManager = dashboard;
             
             // WhatsApp connection modal
@@ -1069,6 +1374,140 @@
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                     <button type="button" class="btn btn-primary" id="createConnectionBtn">
                         <i class="fas fa-plus me-2"></i>Crear Conexión
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Branch AI Configuration Modal -->
+    <div class="modal fade" id="branchAIConfigModal" tabindex="-1" aria-labelledby="branchAIConfigModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="branchAIConfigModalLabel">
+                        <i class="fas fa-robot me-2"></i>Configuración de IA
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="branchAIConfigForm">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Sucursal</label>
+                                    <select class="form-select" id="configBranchId" required>
+                                        <option value="">Seleccionar sucursal</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Tipo de Negocio</label>
+                                    <select class="form-select" id="configBusinessType">
+                                        <option value="restaurant">Restaurante</option>
+                                        <option value="cafe">Cafetería</option>
+                                        <option value="pharmacy">Farmacia</option>
+                                        <option value="grocery">Tienda</option>
+                                        <option value="retail">Retail</option>
+                                        <option value="service">Servicio</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Prompt Personalizado -->
+                        <div class="mb-3">
+                            <label class="form-label">Prompt Personalizado</label>
+                            <textarea class="form-control" id="configCustomPrompt" rows="4" 
+                                placeholder="Eres un asistente virtual especializado para esta sucursal específica..."></textarea>
+                            <div class="form-text">Define cómo debe comportarse la IA para esta sucursal específica.</div>
+                        </div>
+
+                        <!-- Subir Menú PDF -->
+                        <div class="mb-3">
+                            <label class="form-label">Menú PDF</label>
+                            <input type="file" class="form-control" id="configMenuPDF" accept=".pdf">
+                            <div class="form-text">Sube el menú en PDF para que la IA pueda responder sobre productos y precios.</div>
+                        </div>
+
+                        <!-- Mensajes Personalizados -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6><i class="fas fa-comments me-2"></i>Mensajes Personalizados</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Mensaje de Bienvenida</label>
+                                            <textarea class="form-control" id="configWelcomeMessage" rows="2"></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Mensaje Fuera de Horario</label>
+                                            <textarea class="form-control" id="configOffHoursMessage" rows="2"></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Confirmación de Pedido</label>
+                                            <textarea class="form-control" id="configOrderMessage" rows="2"></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Información de Delivery</label>
+                                            <textarea class="form-control" id="configDeliveryMessage" rows="2"></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Configuración de Delivery -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6><i class="fas fa-truck me-2"></i>Configuración de Delivery</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="configDeliveryEnabled">
+                                            <label class="form-check-label">Delivery Habilitado</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="mb-3">
+                                            <label class="form-label">Pedido Mínimo ($)</label>
+                                            <input type="number" class="form-control" id="configMinOrder" min="0" step="0.01">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="mb-3">
+                                            <label class="form-label">Costo de Envío ($)</label>
+                                            <input type="number" class="form-control" id="configDeliveryFee" min="0" step="0.01">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="mb-3">
+                                            <label class="form-label">Tiempo de Entrega</label>
+                                            <input type="text" class="form-control" id="configDeliveryTime" placeholder="30-45 minutos">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="dashboardApp.saveBranchAIConfig()">
+                        <i class="fas fa-save me-2"></i>Guardar Configuración
                     </button>
                 </div>
             </div>
