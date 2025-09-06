@@ -1,6 +1,7 @@
 const WhatsAppConnection = require('../models/WhatsAppConnection');
 const Business = require('../models/Business');
 const Branch = require('../models/Branch');
+const User = require('../models/User');
 const LoggerService = require('../services/LoggerService');
 const WhatsAppServiceSimple = require('../services/WhatsAppServiceSimple');
 const QRCode = require('qrcode');
@@ -128,7 +129,7 @@ class WhatsAppController {
     async handleMessageReceived(data) {
         try {
             const { connectionId, from, message, timestamp, messageId } = data;
-            
+
             // Find the connection
             const connection = await WhatsAppConnection.findById(connectionId);
             if (!connection) {
@@ -151,7 +152,17 @@ class WhatsAppController {
                 // Send welcome message
                 const welcomeMessage = connection.offHoursMessage || '¡Hola! 👋 Bienvenido a nuestro negocio. ¿En qué puedo ayudarte hoy?';
                 
-                await this.whatsappService.sendMessage(connectionId, from, welcomeMessage);
+                // Extract phone number from WhatsApp format (remove @c.us)
+                const phoneNumber = from.replace('@c.us', '');
+                
+                console.log('🤖 ===== ENVIANDO RESPUESTA AUTOMÁTICA =====');
+                console.log('📱 Connection ID:', connectionId);
+                console.log('📞 From (original):', from);
+                console.log('📞 Phone Number (extracted):', phoneNumber);
+                console.log('💬 Welcome Message:', welcomeMessage);
+                console.log('==========================================');
+                
+                await this.whatsappService.sendMessage(connectionId, phoneNumber, welcomeMessage);
 
                 // Update connection stats
                 connection.messagesToday = (connection.messagesToday || 0) + 1;
@@ -254,6 +265,91 @@ class WhatsAppController {
                 });
             }
 
+            // Handle string IDs by creating default business and branch if needed
+            let businessObjectId, branchObjectId;
+            
+            if (businessId === 'business1' || typeof businessId === 'string') {
+                // Create or find default business
+                const Business = require('../models/Business');
+                let business = await Business.findOne({ name: 'Restaurante El Sabor' });
+                if (!business) {
+                    business = new Business({
+                        name: 'Restaurante El Sabor',
+                        businessType: 'restaurant',
+                        contact: {
+                            email: 'info@elsabor.com',
+                            phone: '+573001234567'
+                        },
+                        address: {
+                            street: 'Calle 123 #45-67',
+                            city: 'Bogotá',
+                            state: 'Cundinamarca',
+                            country: 'Colombia',
+                            zipCode: '110111'
+                        },
+                        settings: {
+                            timezone: 'America/Bogota',
+                            currency: 'COP',
+                            language: 'es',
+                            autoReply: true,
+                            delivery: true
+                        }
+                    });
+                    await business.save();
+                }
+                businessObjectId = business._id;
+            } else {
+                businessObjectId = businessId;
+            }
+
+            if (branchId === 'branch1' || typeof branchId === 'string') {
+                // Create or find default branch
+                const Branch = require('../models/Branch');
+                let branch = await Branch.findOne({ name: 'Sucursal Centro' });
+                if (!branch) {
+                    branch = new Branch({
+                        branchId: `BR${Date.now()}`,
+                        businessId: businessObjectId,
+                        name: 'Sucursal Centro',
+                        description: 'Sucursal principal en el centro de la ciudad',
+                        address: {
+                            street: 'Calle 123 #45-67',
+                            city: 'Bogotá',
+                            state: 'Cundinamarca',
+                            zipCode: '110111',
+                            country: 'Colombia'
+                        },
+                        contact: {
+                            phone: '+573001234567',
+                            email: 'centro@elsabor.com'
+                        },
+                        whatsapp: {
+                            provider: 'whatsapp-web.js',
+                            phoneNumber: phoneNumber,
+                            isConnected: false,
+                            status: 'disconnected'
+                        },
+                        settings: {
+                            autoReply: true,
+                            delivery: true,
+                            businessHours: {
+                                monday: { open: '08:00', close: '22:00' },
+                                tuesday: { open: '08:00', close: '22:00' },
+                                wednesday: { open: '08:00', close: '22:00' },
+                                thursday: { open: '08:00', close: '22:00' },
+                                friday: { open: '08:00', close: '23:00' },
+                                saturday: { open: '09:00', close: '23:00' },
+                                sunday: { open: '10:00', close: '21:00' }
+                            }
+                        }
+                    });
+                    await branch.save();
+                }
+                branchObjectId = branch._id;
+            } else {
+                branchObjectId = branchId;
+            }
+
             // Check if phone number already exists
             const existingConnection = await WhatsAppConnection.findOne({ phoneNumber });
             if (existingConnection) {
@@ -263,10 +359,38 @@ class WhatsAppController {
                 });
             }
 
+            // Get or create a default user for createdBy
+            let createdByUser = null;
+            
+            if (req.user && req.user.userId) {
+                createdByUser = await User.findOne({ userId: req.user.userId });
+            }
+            
+            if (!createdByUser) {
+                // Create or find default admin user
+                createdByUser = await User.findOne({ email: 'admin@easybranch.com' });
+                if (!createdByUser) {
+                    createdByUser = new User({
+                        email: 'admin@easybranch.com',
+                        password: 'admin123',
+                        name: 'Super Administrador',
+                        role: 'super_admin',
+                        userId: 'USR' + Date.now(),
+                        isActive: true,
+                        profile: {
+                            phone: '+573001234567',
+                            timezone: 'America/Bogota',
+                            language: 'es'
+                        }
+                    });
+                    await createdByUser.save();
+                }
+            }
+
             // Create new connection
             const connection = new WhatsAppConnection({
-                businessId,
-                branchId,
+                businessId: businessObjectId,
+                branchId: branchObjectId,
                 phoneNumber,
                 connectionName,
                 customerServiceNumber,
@@ -274,14 +398,14 @@ class WhatsAppController {
                 aiIntegration: aiIntegration !== undefined ? aiIntegration : true,
                 businessHours: businessHours || { start: '08:00', end: '22:00' },
                 offHoursMessage: offHoursMessage || 'Gracias por contactarnos. Te responderemos pronto.',
-                createdBy: req.user.id
+                createdBy: createdByUser._id
             });
 
             await connection.save();
 
             // Get business and branch info for QR code
-            const business = await Business.findById(businessId);
-            const branch = await Branch.findById(branchId);
+            const business = await Business.findById(businessObjectId);
+            const branch = await Branch.findById(branchObjectId);
 
             // Generate QR code using WhatsApp service or fallback
             let qrCodeDataURL = null;
@@ -670,22 +794,70 @@ class WhatsAppController {
             const isExpired = connection.qrExpiresAt && connection.qrExpiresAt < now;
 
             if (isExpired || !connection.qrCodeDataURL) {
-                // Generate new QR code
+                // Generate new QR code by creating/restarting the client
                 if (this.whatsappService) {
-                    const qrCodeDataURL = await this.whatsappService.generateQRCode(connection._id, connection.phoneNumber);
+                    console.log('🔄 Generando nuevo QR para conexión:', connection._id);
                     
-                    // Update connection
+                    // First, try to get existing client
+                    let client = this.whatsappService.getClient(connection._id);
+                    
+                    if (!client) {
+                        console.log('📱 Cliente no existe, creando nuevo...');
+                        client = await this.whatsappService.createWhatsAppWebClient(connection._id, connection.phoneNumber);
+                    } else {
+                        console.log('🔄 Reiniciando cliente existente...');
+                        await client.destroy();
+                        client = await this.whatsappService.createWhatsAppWebClient(connection._id, connection.phoneNumber);
+                    }
+                    
+                    // Wait for QR generation
+                    const qrCodeDataURL = await new Promise((resolve, reject) => {
+                        const timeout = setTimeout(() => {
+                            reject(new Error('QR generation timeout'));
+                        }, 30000);
+                        
+                        client.on('qr', async (qr) => {
+                            clearTimeout(timeout);
+                            try {
+                                const QRCode = require('qrcode');
+                                const qrDataURL = await QRCode.toDataURL(qr, {
+                                    errorCorrectionLevel: 'M',
+                                    type: 'image/png',
+                                    quality: 0.92,
+                                    margin: 1,
+                                    color: {
+                                        dark: '#000000',
+                                        light: '#FFFFFF'
+                                    }
+                                });
+                                resolve(qrDataURL);
+                            } catch (error) {
+                                reject(error);
+                            }
+                        });
+                        
+                        client.on('ready', () => {
+                            clearTimeout(timeout);
+                            reject(new Error('Client ready - no QR needed'));
+                        });
+                    });
+                    
+                    // Update connection with new QR
                     await WhatsAppConnection.findByIdAndUpdate(id, {
                         qrCodeDataURL,
-                        qrExpiresAt: Date.now() + (60 * 1000)
+                        qrExpiresAt: Date.now() + (60 * 1000),
+                        status: 'connecting'
                     });
+
+                    console.log('✅ QR generado exitosamente para conexión:', connection._id);
 
                     res.json({
                         success: true,
                         data: {
                             qrCodeDataURL,
                             expiresAt: Date.now() + (60 * 1000),
-                            isExpired: false
+                            isExpired: false,
+                            connectionId: connection._id
                         }
                     });
                 } else {

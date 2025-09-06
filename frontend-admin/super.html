@@ -890,6 +890,9 @@
             }
 
             showQRCode(qrCodeDataURL) {
+                console.log('🖼️ Mostrando QR Code:', qrCodeDataURL ? 'Presente' : 'Ausente');
+                console.log('📏 Longitud del QR:', qrCodeDataURL ? qrCodeDataURL.length : 0);
+                
                 const qrContainer = document.getElementById('qrCodeContainer');
                 
                 if (qrCodeDataURL) {
@@ -944,9 +947,11 @@
             // Refresh QR code for a specific connection
             async refreshQRCode(connectionId) {
                 try {
+                    console.log('🔄 Refrescando QR para conexión:', connectionId);
                     const response = await this.authService.makeRequest(`/whatsapp/connections/${connectionId}/qr`);
                     
                     if (response.success && response.data.qrCodeDataURL) {
+                        console.log('✅ QR refrescado exitosamente');
                         // Update QR code in the UI
                         const qrImage = document.querySelector(`[data-connection-id="${connectionId}"] .qr-code-image`);
                         if (qrImage) {

@@ -71,7 +71,7 @@ app.post('/api/auth/login', async (req, res) => {
         role: user.role,
         name: user.name
       },
-      process.env.JWT_SECRET || 'test-secret',
+      '1357',
       { expiresIn: '24h' }
     );
     
@@ -105,7 +105,7 @@ app.get('/api/auth/me', (req, res) => {
   }
   
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'test-secret');
+    const decoded = jwt.verify(token, '1357');
     const user = testUsers.find(u => u.email === decoded.email);
     
     if (!user) {

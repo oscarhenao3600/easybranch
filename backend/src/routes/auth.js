@@ -32,7 +32,7 @@ const generateToken = (user) => {
       businessId: user.businessId,
       branchId: user.branchId
     },
-    process.env.JWT_SECRET,
+    '1357',
     { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
   );
 };

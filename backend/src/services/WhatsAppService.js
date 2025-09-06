@@ -122,11 +122,22 @@ class WhatsAppService {
             });
 
             client.on('ready', () => {
+                console.log('✅ ===== WHATSAPP CLIENT READY =====');
+                console.log('📱 Connection ID:', connectionId);
+                console.log('📞 Phone Number:', phoneNumber);
+                console.log('🎯 Client Info:', client.info);
+                console.log('💾 Session Path:', `./sessions/${connectionId}`);
+                console.log('====================================');
                 this.logger.info('WhatsApp Web client ready', { connectionId, phoneNumber });
                 this.emit('clientReady', { connectionId, phoneNumber });
             });
 
             client.on('authenticated', () => {
+                console.log('🔐 ===== WHATSAPP CLIENT AUTHENTICATED =====');
+                console.log('📱 Connection ID:', connectionId);
+                console.log('📞 Phone Number:', phoneNumber);
+                console.log('💾 Session saved to:', `./sessions/${connectionId}`);
+                console.log('==========================================');
                 this.logger.info('WhatsApp Web client authenticated', { connectionId, phoneNumber });
             });
 
@@ -353,6 +364,11 @@ class WhatsAppService {
         }
         
         return client.info ? 'ready' : 'initializing';
+    }
+
+    // Get client by connection ID
+    getClient(connectionId) {
+        return this.clients.get(connectionId);
     }
 
     // Event emitter functionality
