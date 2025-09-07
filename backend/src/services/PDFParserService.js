@@ -46,13 +46,22 @@ class PDFParserService {
       const sections = this.extractSections(text, businessType);
       const products = this.extractProducts(text, businessType);
       const prices = this.extractPrices(text);
+      const businessInfo = this.extractBusinessInfo(text);
+      const contactInfo = this.extractContactInfo(text);
       
       const processedContent = {
         sections: sections,
         products: products,
         prices: prices,
+        businessInfo: businessInfo,
+        contactInfo: contactInfo,
         rawText: text,
-        processedAt: new Date()
+        processedAt: new Date(),
+        summary: this.generateMenuSummary({
+          sections,
+          products,
+          prices
+        })
       };
       
       this.logger.info(`✅ Contenido procesado: ${sections.length} secciones, ${products.length} productos`);
@@ -142,19 +151,8 @@ class PDFParserService {
 
   // Extraer productos del texto
   extractProducts(text, businessType) {
-    const products = [];
-    const lines = text.split('\n').filter(line => line.trim());
-    
-    for (const line of lines) {
-      if (this.isProductLine(line, businessType)) {
-        const product = this.parseProductLine(line);
-        if (product) {
-          products.push(product);
-        }
-      }
-    }
-    
-    return products;
+    // Usar la versión mejorada por defecto
+    return this.extractProductsEnhanced(text, businessType);
   }
 
   // Parsear una línea de producto
@@ -240,6 +238,207 @@ class PDFParserService {
     return summary;
   }
 
+  // Extraer información del negocio
+  extractBusinessInfo(text) {
+    const businessInfo = {
+      name: null,
+      address: null,
+      phone: null,
+      email: null,
+      hours: null,
+      description: null
+    };
+
+    const lines = text.split('\n').filter(line => line.trim());
+    
+    // Buscar nombre del negocio (generalmente en las primeras líneas)
+    for (let i = 0; i < Math.min(5, lines.length); i++) {
+      const line = lines[i].trim();
+      if (line.length > 3 && line.length < 50 && !line.match(/\d/)) {
+        businessInfo.name = line;
+        break;
+      }
+    }
+
+    // Buscar dirección
+    const addressPatterns = [
+      /(?:dirección|address|ubicación)[:\s]*(.+)/i,
+      /(?:calle|street)[:\s]*(.+)/i,
+      /(?:avenida|av)[:\s]*(.+)/i
+    ];
+    
+    for (const pattern of addressPatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        businessInfo.address = match[1].trim();
+        break;
+      }
+    }
+
+    // Buscar teléfono
+    const phonePattern = /(?:tel|teléfono|phone|contacto)[:\s]*(\+?[\d\s\-\(\)]{8,})/i;
+    const phoneMatch = text.match(phonePattern);
+    if (phoneMatch) {
+      businessInfo.phone = phoneMatch[1].trim();
+    }
+
+    // Buscar email
+    const emailPattern = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/;
+    const emailMatch = text.match(emailPattern);
+    if (emailMatch) {
+      businessInfo.email = emailMatch[1];
+    }
+
+    // Buscar horarios
+    const hoursPattern = /(?:horario|horarios|hours|abierto)[:\s]*(.+?)(?:\n|$)/i;
+    const hoursMatch = text.match(hoursPattern);
+    if (hoursMatch) {
+      businessInfo.hours = hoursMatch[1].trim();
+    }
+
+    return businessInfo;
+  }
+
+  // Extraer información de contacto
+  extractContactInfo(text) {
+    const contactInfo = {
+      phones: [],
+      emails: [],
+      socialMedia: [],
+      websites: []
+    };
+
+    // Extraer todos los teléfonos
+    const phoneRegex = /(\+?[\d\s\-\(\)]{8,})/g;
+    let phoneMatch;
+    while ((phoneMatch = phoneRegex.exec(text)) !== null) {
+      const phone = phoneMatch[1].trim();
+      if (phone.length >= 8 && !contactInfo.phones.includes(phone)) {
+        contactInfo.phones.push(phone);
+      }
+    }
+
+    // Extraer todos los emails
+    const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
+    let emailMatch;
+    while ((emailMatch = emailRegex.exec(text)) !== null) {
+      if (!contactInfo.emails.includes(emailMatch[1])) {
+        contactInfo.emails.push(emailMatch[1]);
+      }
+    }
+
+    // Extraer redes sociales
+    const socialPatterns = [
+      /(?:facebook|fb)[:\s]*([^\s\n]+)/i,
+      /(?:instagram|ig)[:\s]*([^\s\n]+)/i,
+      /(?:twitter|tw)[:\s]*([^\s\n]+)/i,
+      /(?:whatsapp|wa)[:\s]*([^\s\n]+)/i
+    ];
+
+    for (const pattern of socialPatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        contactInfo.socialMedia.push({
+          platform: pattern.source.split('|')[0].replace(/[^\w]/g, ''),
+          handle: match[1].trim()
+        });
+      }
+    }
+
+    // Extraer sitios web
+    const websiteRegex = /(?:www\.|https?:\/\/)([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
+    let websiteMatch;
+    while ((websiteMatch = websiteRegex.exec(text)) !== null) {
+      if (!contactInfo.websites.includes(websiteMatch[0])) {
+        contactInfo.websites.push(websiteMatch[0]);
+      }
+    }
+
+    return contactInfo;
+  }
+
+  // Mejorar extracción de productos con más patrones
+  extractProductsEnhanced(text, businessType) {
+    const products = [];
+    const lines = text.split('\n').filter(line => line.trim());
+    
+    for (const line of lines) {
+      if (this.isProductLine(line, businessType)) {
+        const product = this.parseProductLineEnhanced(line);
+        if (product) {
+          products.push(product);
+        }
+      }
+    }
+    
+    return products;
+  }
+
+  // Parsear línea de producto mejorado
+  parseProductLineEnhanced(line) {
+    try {
+      // Patrones más específicos para productos
+      const patterns = [
+        // Patrón: Nombre - Descripción - $Precio
+        /^(.+?)\s*-\s*(.+?)\s*-\s*\$?(\d+(?:\.\d{2})?)$/,
+        // Patrón: Nombre $Precio
+        /^(.+?)\s*\$?(\d+(?:\.\d{2})?)$/,
+        // Patrón: Número. Nombre - Descripción $Precio
+        /^\d+\.?\s*(.+?)\s*-\s*(.+?)\s*\$?(\d+(?:\.\d{2})?)$/,
+        // Patrón: Nombre Descripción $Precio
+        /^(.+?)\s+(.+?)\s*\$?(\d+(?:\.\d{2})?)$/
+      ];
+
+      for (const pattern of patterns) {
+        const match = line.match(pattern);
+        if (match) {
+          const name = match[1].trim();
+          const description = match[2] ? match[2].trim() : '';
+          const price = match[3] ? parseFloat(match[3]) : null;
+
+          if (name.length > 0) {
+            return {
+              name: name,
+              description: description,
+              price: price,
+              available: true,
+              category: this.detectProductCategory(name, description)
+            };
+          }
+        }
+      }
+
+      // Fallback al método original
+      return this.parseProductLine(line);
+      
+    } catch (error) {
+      this.logger.error('Error parseando línea de producto mejorado:', error);
+      return null;
+    }
+  }
+
+  // Detectar categoría del producto
+  detectProductCategory(name, description) {
+    const text = `${name} ${description}`.toLowerCase();
+    
+    const categories = {
+      'bebidas': ['bebida', 'jugo', 'refresco', 'agua', 'cerveza', 'vino', 'café', 'té', 'smoothie'],
+      'entradas': ['entrada', 'aperitivo', 'antojito', 'botana', 'snack'],
+      'platos_principales': ['plato', 'principal', 'comida', 'almuerzo', 'cena', 'carne', 'pollo', 'pescado'],
+      'postres': ['postre', 'dulce', 'helado', 'pastel', 'torta', 'flan', 'mousse'],
+      'ensaladas': ['ensalada', 'salad', 'verde', 'vegetal'],
+      'sopas': ['sopa', 'caldo', 'consomé', 'crema']
+    };
+
+    for (const [category, keywords] of Object.entries(categories)) {
+      if (keywords.some(keyword => text.includes(keyword))) {
+        return category;
+      }
+    }
+
+    return 'general';
+  }
+
   // Validar contenido del PDF
   validatePDFContent(content) {
     const validation = {
@@ -259,6 +458,16 @@ class PDFParserService {
     
     if (content.text.length > 50000) {
       validation.warnings.push('El contenido es muy extenso, puede afectar el procesamiento');
+    }
+
+    // Validar que se extrajeron productos
+    if (content.products && content.products.length === 0) {
+      validation.warnings.push('No se detectaron productos en el PDF');
+    }
+
+    // Validar precios
+    if (content.prices && content.prices.length === 0) {
+      validation.warnings.push('No se detectaron precios en el PDF');
     }
     
     return validation;

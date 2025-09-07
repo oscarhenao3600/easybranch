@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test - Verificar Archivo</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f8f9fa; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .test-result { padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .code { background: #f8f9fa; padding: 10px; border-radius: 5px; font-family: monospace; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Test de Verificación del Archivo</h1>
+        
+        <div class="test-result info">
+            <h3>📋 Información del Archivo:</h3>
+            <p><strong>Archivo:</strong> business.html</p>
+            <p><strong>Ubicación:</strong> frontend-admin/business.html</p>
+            <p><strong>Servidor:</strong> http://localhost:3000</p>
+            <p><strong>Timestamp:</strong> <span id="timestamp"></span></p>
+        </div>
+
+        <div class="test-result success">
+            <h3>✅ Menú Correcto (Debería Mostrar):</h3>
+            <div class="code">
+📊 Dashboard<br>
+🏢 Mi Negocio ← UNIFICADO<br>
+🛒 Pedidos<br>
+📱 WhatsApp<br>
+🤖 IA & PDFs<br>
+📋 Productos<br>
+👥 Usuarios<br>
+📈 Reportes<br>
+💰 Facturación
+            </div>
+        </div>
+
+        <div class="test-result error">
+            <h3>❌ Menú Incorrecto (NO Debería Mostrar):</h3>
+            <div class="code">
+📊 Dashboard<br>
+🏢 Negocios ← SEPARADO<br>
+🏪 Sucursales ← SEPARADO<br>
+🛒 Pedidos<br>
+📱 WhatsApp<br>
+🤖 IA & PDFs<br>
+📋 Productos<br>
+👥 Usuarios<br>
+📈 Reportes<br>
+💰 Facturación
+            </div>
+        </div>
+
+        <div class="test-result warning">
+            <h3>🚨 Si Ves el Menú Incorrecto:</h3>
+            <p>1. <strong>Hard Refresh:</strong> Ctrl + Shift + R</p>
+            <p>2. <strong>Modo Incógnito:</strong> Nueva ventana privada</p>
+            <p>3. <strong>Verificar URL:</strong> Debe ser exactamente http://localhost:3000/business.html</p>
+            <p>4. <strong>Limpiar Cache:</strong> F12 → Application → Storage → Clear storage</p>
+        </div>
+
+        <div class="test-result info">
+            <h3>🔧 Comandos de Debug:</h3>
+            <p>Abre la consola del navegador (F12) y ejecuta:</p>
+            <div class="code">
+console.log('URL:', window.location.href);<br>
+console.log('Menú encontrado:', document.querySelectorAll('.nav-link').length);<br>
+console.log('Mi Negocio:', document.querySelector('[data-section="business-management"]')?.textContent);
+            </div>
+        </div>
+
+        <div class="test-result success">
+            <h3>🎯 Próximos Pasos:</h3>
+            <p>1. <strong>Ir a:</strong> <a href="business.html" target="_blank">http://localhost:3000/business.html</a></p>
+            <p>2. <strong>Login:</strong> admin@easybranch.com / admin123</p>
+            <p>3. <strong>Verificar:</strong> Menú debe mostrar "Mi Negocio" unificado</p>
+            <p>4. <strong>Click:</strong> En "Mi Negocio" debe mostrar contenido completo</p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('timestamp').textContent = new Date().toISOString();
+        console.log('🔍 Test de verificación cargado');
+        console.log('📍 URL actual:', window.location.href);
+        console.log('🕒 Timestamp:', new Date().toISOString());
+    </script>
+</body>
+</html>

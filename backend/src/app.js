@@ -15,6 +15,7 @@ const businessRoutes = require('./routes/business');
 const branchRoutes = require('./routes/branch');
 const whatsappRoutes = require('./routes/whatsapp');
 const aiRoutes = require('./routes/ai');
+const branchAIConfigRoutes = require('./routes/branchAIConfig');
 
 const app = express();
 
@@ -96,6 +97,7 @@ app.use('/api/business', businessRoutes);
 app.use('/api/branch', branchRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/branch-ai-config', branchAIConfigRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

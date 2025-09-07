@@ -5,6 +5,7 @@ const Business = require('../models/Business');
 const AIService = require('../services/AIService');
 const PDFParserService = require('../services/PDFParserService');
 const authMiddleware = require('../middleware/auth');
+const uploadMiddleware = require('../middleware/upload');
 const LoggerService = require('../services/LoggerService');
 
 const router = express.Router();
@@ -257,7 +258,7 @@ router.post('/:branchId/query', authMiddleware.requireRole(['super_admin', 'busi
 });
 
 // POST /api/ai/:branchId/upload-catalog - Upload and parse catalog PDF
-router.post('/:branchId/upload-catalog', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
+router.post('/:branchId/upload-catalog', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), uploadMiddleware.uploadPDF(), async (req, res) => {
     try {
         const { branchId } = req.params;
         
@@ -269,19 +270,87 @@ router.post('/:branchId/upload-catalog', authMiddleware.requireRole(['super_admi
             return res.status(404).json({ success: false, message: 'Sucursal no encontrada' });
         }
 
-        // This endpoint will be implemented when we add file upload middleware
-        // For now, return a placeholder response
+        const businessType = branch.businessId?.businessType || 'restaurant';
+        
+        // Validar archivo subido
+        const validation = await uploadMiddleware.validatePDF(req.uploadedFile.path);
+        if (!validation.isValid) {
+            uploadMiddleware.cleanupTempFiles(req.uploadedFile.path);
+            return res.status(400).json({
+                success: false,
+                message: 'Archivo PDF inválido',
+                errors: validation.errors
+            });
+        }
+
+        // Procesar PDF
+        const pdfParser = new PDFParserService();
+        const extractedContent = await pdfParser.extractTextFromPDF(req.uploadedFile.path);
+        
+        // Validar contenido extraído
+        const contentValidation = pdfParser.validatePDFContent(extractedContent);
+        if (!contentValidation.isValid) {
+            uploadMiddleware.cleanupTempFiles(req.uploadedFile.path);
+            return res.status(400).json({
+                success: false,
+                message: 'El PDF no contiene contenido válido',
+                errors: contentValidation.errors
+            });
+        }
+
+        // Procesar contenido del menú
+        const processedContent = await pdfParser.processMenuContent(extractedContent.text, businessType);
+        
+        // Actualizar información de la sucursal
+        const catalogUpdate = {
+            'catalog.hasPdf': true,
+            'catalog.pdfUrl': `/uploads/pdfs/${branchId}/${req.uploadedFile.filename}`,
+            'catalog.content': processedContent.rawText,
+            'catalog.lastUpdated': new Date(),
+            'catalog.sections': processedContent.sections
+        };
+
+        await Branch.findByIdAndUpdate(branchId, catalogUpdate);
+
+        // Actualizar contenido en el servicio de IA
+        aiService.setMenuContent(branchId, processedContent);
+
+        logger.info(`📄 PDF procesado exitosamente para sucursal ${branchId}: ${processedContent.products.length} productos encontrados`);
+
         res.json({
             success: true,
-            message: 'Endpoint para subir y procesar catálogo PDF - Pendiente de implementar',
+            message: 'PDF procesado exitosamente',
             data: {
                 branchId,
                 branchName: branch.name,
-                businessType: branch.businessId?.businessType
+                businessType: businessType,
+                fileInfo: {
+                    filename: req.uploadedFile.filename,
+                    size: req.uploadedFile.size,
+                    uploadedAt: req.uploadedFile.uploadedAt
+                },
+                processedContent: {
+                    sections: processedContent.sections.length,
+                    products: processedContent.products.length,
+                    prices: processedContent.prices.length,
+                    businessInfo: processedContent.businessInfo,
+                    contactInfo: processedContent.contactInfo,
+                    summary: processedContent.summary
+                },
+                validation: {
+                    warnings: contentValidation.warnings
+                }
             }
         });
+
     } catch (error) {
         logger.error('Error uploading catalog:', error);
+        
+        // Limpiar archivo en caso de error
+        if (req.uploadedFile && req.uploadedFile.path) {
+            uploadMiddleware.cleanupTempFiles(req.uploadedFile.path);
+        }
+        
         res.status(500).json({ success: false, message: 'Error interno del servidor' });
     }
 });
@@ -514,6 +583,237 @@ router.delete('/:branchId/conversation-history', authMiddleware.requireRole(['su
         });
     } catch (error) {
         logger.error('Error clearing conversation history:', error);
+        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+});
+
+// GET /api/ai/:branchId/prompt - Get current AI prompt for branch
+router.get('/:branchId/prompt', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
+    try {
+        const { branchId } = req.params;
+        
+        const branch = await Branch.findById(branchId)
+            .select('branchId name businessId ai')
+            .populate('businessId', 'name businessType ai');
+
+        if (!branch) {
+            return res.status(404).json({ success: false, message: 'Sucursal no encontrada' });
+        }
+
+        const businessType = branch.businessId?.businessType || 'restaurant';
+        const customPrompt = branch.ai?.prompt;
+        const businessPrompt = branch.businessId?.ai?.prompt;
+        const defaultPrompt = aiService.getPrompt(branchId, businessType);
+
+        res.json({
+            success: true,
+            data: {
+                branchId,
+                branchName: branch.name,
+                businessType: businessType,
+                prompt: {
+                    current: customPrompt || businessPrompt || defaultPrompt,
+                    source: customPrompt ? 'branch' : businessPrompt ? 'business' : 'default',
+                    custom: customPrompt,
+                    business: businessPrompt,
+                    default: defaultPrompt
+                },
+                aiSettings: {
+                    enabled: branch.ai?.enabled ?? true,
+                    model: branch.ai?.model || branch.businessId?.ai?.model || 'microsoft/DialoGPT-medium',
+                    useBusinessSettings: branch.ai?.useBusinessSettings ?? true
+                }
+            }
+        });
+
+    } catch (error) {
+        logger.error('Error getting AI prompt:', error);
+        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+});
+
+// PUT /api/ai/:branchId/prompt - Update AI prompt for branch
+router.put('/:branchId/prompt', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), [
+    body('prompt').trim().isLength({ min: 50, max: 2000 }).withMessage('Prompt debe tener entre 50 y 2000 caracteres'),
+    body('enabled').optional().isBoolean().withMessage('Enabled debe ser un valor booleano'),
+    body('useBusinessSettings').optional().isBoolean().withMessage('useBusinessSettings debe ser un valor booleano')
+], async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ success: false, errors: errors.array() });
+        }
+
+        const { branchId } = req.params;
+        const { prompt, enabled, useBusinessSettings } = req.body;
+        
+        const branch = await Branch.findById(branchId)
+            .select('branchId name businessId ai')
+            .populate('businessId', 'name businessType');
+
+        if (!branch) {
+            return res.status(404).json({ success: false, message: 'Sucursal no encontrada' });
+        }
+
+        // Actualizar configuración de IA
+        const aiUpdate = {
+            'ai.prompt': prompt,
+            'ai.enabled': enabled !== undefined ? enabled : branch.ai?.enabled ?? true,
+            'ai.useBusinessSettings': useBusinessSettings !== undefined ? useBusinessSettings : branch.ai?.useBusinessSettings ?? true
+        };
+
+        await Branch.findByIdAndUpdate(branchId, aiUpdate);
+
+        // Actualizar prompt en el servicio de IA
+        aiService.setAIPrompt(branchId, prompt);
+
+        logger.info(`🤖 Prompt de IA actualizado para sucursal ${branchId}`);
+
+        res.json({
+            success: true,
+            message: 'Prompt de IA actualizado exitosamente',
+            data: {
+                branchId,
+                branchName: branch.name,
+                businessType: branch.businessId?.businessType,
+                prompt: prompt,
+                enabled: enabled !== undefined ? enabled : branch.ai?.enabled ?? true,
+                useBusinessSettings: useBusinessSettings !== undefined ? useBusinessSettings : branch.ai?.useBusinessSettings ?? true
+            }
+        });
+
+    } catch (error) {
+        logger.error('Error updating AI prompt:', error);
+        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+});
+
+// DELETE /api/ai/:branchId/prompt - Reset AI prompt to default
+router.delete('/:branchId/prompt', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
+    try {
+        const { branchId } = req.params;
+        
+        const branch = await Branch.findById(branchId)
+            .select('branchId name businessId ai')
+            .populate('businessId', 'name businessType');
+
+        if (!branch) {
+            return res.status(404).json({ success: false, message: 'Sucursal no encontrada' });
+        }
+
+        const businessType = branch.businessId?.businessType || 'restaurant';
+        const defaultPrompt = aiService.getPrompt(branchId, businessType);
+
+        // Resetear prompt personalizado
+        await Branch.findByIdAndUpdate(branchId, {
+            $unset: { 'ai.prompt': 1 }
+        });
+
+        // Actualizar en el servicio de IA
+        aiService.setAIPrompt(branchId, null);
+
+        logger.info(`🔄 Prompt de IA reseteado para sucursal ${branchId}`);
+
+        res.json({
+            success: true,
+            message: 'Prompt de IA reseteado exitosamente',
+            data: {
+                branchId,
+                branchName: branch.name,
+                businessType: businessType,
+                prompt: defaultPrompt,
+                source: 'default'
+            }
+        });
+
+    } catch (error) {
+        logger.error('Error resetting AI prompt:', error);
+        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+});
+
+// GET /api/ai/:branchId/files - Get uploaded files for branch
+router.get('/:branchId/files', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
+    try {
+        const { branchId } = req.params;
+        
+        const branch = await Branch.findById(branchId)
+            .select('branchId name catalog');
+
+        if (!branch) {
+            return res.status(404).json({ success: false, message: 'Sucursal no encontrada' });
+        }
+
+        const uploadedFiles = uploadMiddleware.getUploadedFiles(branchId);
+
+        res.json({
+            success: true,
+            data: {
+                branchId,
+                branchName: branch.name,
+                files: uploadedFiles,
+                catalog: {
+                    hasPdf: branch.catalog?.hasPdf || false,
+                    pdfUrl: branch.catalog?.pdfUrl,
+                    lastUpdated: branch.catalog?.lastUpdated,
+                    sectionsCount: branch.catalog?.sections?.length || 0
+                }
+            }
+        });
+
+    } catch (error) {
+        logger.error('Error getting uploaded files:', error);
+        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+});
+
+// DELETE /api/ai/:branchId/files/:filename - Delete specific uploaded file
+router.delete('/:branchId/files/:filename', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
+    try {
+        const { branchId, filename } = req.params;
+        
+        const branch = await Branch.findById(branchId)
+            .select('branchId name catalog');
+
+        if (!branch) {
+            return res.status(404).json({ success: false, message: 'Sucursal no encontrada' });
+        }
+
+        const deleted = uploadMiddleware.deleteFile(branchId, filename);
+
+        if (!deleted) {
+            return res.status(404).json({ success: false, message: 'Archivo no encontrado' });
+        }
+
+        // Si era el PDF del catálogo, actualizar la sucursal
+        if (branch.catalog?.pdfUrl && branch.catalog.pdfUrl.includes(filename)) {
+            await Branch.findByIdAndUpdate(branchId, {
+                $unset: { 
+                    'catalog.hasPdf': 1,
+                    'catalog.pdfUrl': 1,
+                    'catalog.content': 1,
+                    'catalog.sections': 1
+                }
+            });
+
+            // Limpiar contenido del servicio de IA
+            aiService.clearMenuContent(branchId);
+        }
+
+        logger.info(`🗑️ Archivo eliminado: ${filename} de sucursal ${branchId}`);
+
+        res.json({
+            success: true,
+            message: 'Archivo eliminado exitosamente',
+            data: {
+                branchId,
+                branchName: branch.name,
+                filename: filename
+            }
+        });
+
+    } catch (error) {
+        logger.error('Error deleting file:', error);
         res.status(500).json({ success: false, message: 'Error interno del servidor' });
     }
 });

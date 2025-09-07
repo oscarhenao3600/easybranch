@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test - Verificar Mi Negocio</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: #f8f9fa; 
+            text-align: center;
+        }
+        .container { 
+            max-width: 800px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 40px; 
+            border-radius: 10px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+        }
+        .success { 
+            background-color: #d4edda; 
+            color: #155724; 
+            border: 1px solid #c3e6cb; 
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .error { 
+            background-color: #f8d7da; 
+            color: #721c24; 
+            border: 1px solid #f5c6cb; 
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .button { 
+            background: #007bff; 
+            color: white; 
+            padding: 15px 30px; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            margin: 10px; 
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+        }
+        .button:hover { 
+            background: #0056b3; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎉 ¡Menú Unificado Funcionando!</h1>
+        
+        <div class="success">
+            <h3>✅ Problema Solucionado</h3>
+            <p>El menú ahora muestra "Mi Negocio" correctamente.</p>
+            <p>Los cambios en <code>super.html</code> están funcionando.</p>
+        </div>
+
+        <div class="error">
+            <h3>🔧 Problema Actual</h3>
+            <p>Al hacer click en "Mi Negocio" aparece "Dashboard" en el título.</p>
+            <p>Esto indica que hay un problema con la función <code>showSection</code>.</p>
+        </div>
+
+        <div class="success">
+            <h3>✅ Solución Aplicada</h3>
+            <p>1. <strong>showSection()</strong> actualizada para manejar <code>business-management</code></p>
+            <p>2. <strong>Títulos</strong> actualizados para incluir "Mi Negocio"</p>
+            <p>3. <strong>Sección HTML</strong> correctamente mapeada</p>
+        </div>
+
+        <div>
+            <a href="super.html" class="button">🚀 Probar Super.html</a>
+            <a href="business.html" class="button">🏢 Probar Business.html</a>
+        </div>
+
+        <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 5px;">
+            <h3>📋 Instrucciones de Prueba:</h3>
+            <p>1. <strong>Ir a:</strong> <a href="super.html" target="_blank">http://localhost:3000/super.html</a></p>
+            <p>2. <strong>Login:</strong> admin@easybranch.com / admin123</p>
+            <p>3. <strong>Click:</strong> En "Mi Negocio" en el menú lateral</p>
+            <p>4. <strong>Verificar:</strong> Título debe mostrar "Mi Negocio" (NO "Dashboard")</p>
+            <p>5. <strong>Contenido:</strong> Debe mostrar información del negocio, sucursales y estadísticas</p>
+        </div>
+
+        <div style="margin-top: 20px; padding: 20px; background: #fff3cd; border-radius: 5px;">
+            <h3>🔍 Si Aún No Funciona:</h3>
+            <p>1. <strong>Hard Refresh:</strong> Ctrl + Shift + R</p>
+            <p>2. <strong>Modo Incógnito:</strong> Nueva ventana privada</p>
+            <p>3. <strong>Consola:</strong> F12 → Console → Buscar errores</p>
+        </div>
+    </div>
+
+    <script>
+        console.log('🧪 Test de verificación cargado');
+        console.log('📍 URL:', window.location.href);
+        console.log('🕒 Timestamp:', new Date().toISOString());
+    </script>
+</body>
+</html>
