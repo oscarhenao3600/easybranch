@@ -3,74 +3,148 @@ const EventEmitter = require('events');
 const LoggerService = require('./LoggerService');
 
 class WhatsAppQRManager extends EventEmitter {
-    constructor() {
+    constructor(whatsappService = null) {
         super();
+        this.whatsappService = whatsappService;
         this.qrCodes = new Map(); // connectionId -> qrData
         this.qrExpiryTimes = new Map(); // connectionId -> expiryTime
         this.refreshIntervals = new Map(); // connectionId -> intervalId
         this.qrExpiryDuration = 5 * 60 * 1000; // 5 minutos
-        this.refreshInterval = 4 * 60 * 1000; // 4 minutos (refrescar antes de expirar)
+        this.refreshInterval = 1 * 60 * 1000; // 1 minuto (refrescar cada minuto)
         this.logger = new LoggerService('whatsapp-qr-manager');
+    }
+
+    // Establecer el servicio de WhatsApp
+    setWhatsAppService(whatsappService) {
+        this.whatsappService = whatsappService;
+        this.logger.info('WhatsApp service set in QR Manager');
     }
 
     // Generar nuevo QR code para una conexión
     async generateQRCode(connectionId, connectionData) {
         try {
-            console.log('📱 ===== GENERANDO QR CODE =====');
+            console.log('📱 ===== GENERANDO QR CODE REAL DE WHATSAPP =====');
             console.log('🔗 Connection ID:', connectionId);
             console.log('📞 Phone:', connectionData.phoneNumber);
             console.log('🏪 Branch:', connectionData.branchName);
-            console.log('================================');
+            console.log('===============================================');
 
-            // Crear datos del QR (en una implementación real, esto vendría de WhatsApp Web)
-            const qrData = {
+            let qrCodeDataURL = null;
+            let expiresAt = new Date(Date.now() + this.qrExpiryDuration);
+
+            // Si tenemos el servicio de WhatsApp, usar la API real
+            if (this.whatsappService) {
+                try {
+                    console.log('🔄 Generando QR Code usando WhatsAppService...');
+                    
+                    // Usar el método generateQRCode del WhatsAppService
+                    const qrCodeDataURL = await this.whatsappService.generateQRCode(connectionId, connectionData.phoneNumber);
+                    
+                    if (qrCodeDataURL) {
+                        expiresAt = new Date(Date.now() + this.qrExpiryDuration);
+                        
+                        // Guardar QR code
+                        this.qrCodes.set(connectionId, {
+                            qrString: 'real-whatsapp-qr',
+                            imageDataURL: qrCodeDataURL,
+                            generatedAt: new Date(),
+                            expiresAt: expiresAt,
+                            isReal: true
+                        });
+
+                        // Programar expiración y refresh
+                        this.scheduleQRExpiry(connectionId);
+                        this.scheduleQRRefresh(connectionId);
+
+                        console.log('✅ QR Code real generado exitosamente');
+                        
+                        // Emitir evento
+                        this.emit('qrGenerated', {
+                            connectionId,
+                            qrCodeDataURL,
+                            expiresAt: expiresAt,
+                            connectionData,
+                            isReal: true
+                        });
+
+                        return {
+                            success: true,
+                            qrCodeDataURL,
+                            expiresAt,
+                            connectionData,
+                            isReal: true
+                        };
+                    }
+                } catch (error) {
+                    console.error('❌ Error generando QR code real:', error);
+                }
+            }
+
+            // Fallback: generar QR code de prueba si no hay servicio real
+            console.log('⚠️ Usando QR code de prueba (servicio WhatsApp no disponible)');
+            const testQRData = {
                 connectionId,
                 phoneNumber: connectionData.phoneNumber,
                 branchName: connectionData.branchName,
                 businessName: connectionData.businessName,
                 timestamp: new Date(),
-                expiresAt: new Date(Date.now() + this.qrExpiryDuration)
+                expiresAt: expiresAt,
+                type: 'test'
             };
 
-            // Generar QR code como imagen
-            const qrCodeDataURL = await this.createQRCodeImage(qrData);
-
-            // Guardar QR code
-            this.qrCodes.set(connectionId, {
-                data: qrData,
-                imageDataURL: qrCodeDataURL,
-                generatedAt: new Date(),
-                expiresAt: qrData.expiresAt
+            qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(testQRData), {
+                errorCorrectionLevel: 'M',
+                type: 'image/png',
+                quality: 0.92,
+                margin: 1,
+                color: {
+                    dark: '#000000',
+                    light: '#FFFFFF'
+                }
             });
 
-            // Programar expiración
-            this.scheduleQRExpiry(connectionId);
+            // Guardar QR code de prueba
+            this.qrCodes.set(connectionId, {
+                qrString: JSON.stringify(testQRData),
+                imageDataURL: qrCodeDataURL,
+                generatedAt: new Date(),
+                expiresAt: expiresAt,
+                isTest: true
+            });
 
-            // Programar refresh automático
+            // Programar expiración y refresh
+            this.scheduleQRExpiry(connectionId);
             this.scheduleQRRefresh(connectionId);
 
-            this.logger.info(`QR Code generado para conexión ${connectionId}`);
-            console.log('✅ QR Code generado exitosamente');
+            this.logger.info(`QR Code de prueba generado para conexión ${connectionId}`);
+            console.log('✅ QR Code de prueba generado exitosamente');
 
             // Emitir evento
             this.emit('qrGenerated', {
                 connectionId,
                 qrCodeDataURL,
-                expiresAt: qrData.expiresAt,
-                connectionData
+                expiresAt: expiresAt,
+                connectionData,
+                isTest: true
             });
 
             return {
                 success: true,
                 qrCodeDataURL,
-                expiresAt: qrData.expiresAt,
-                connectionId
+                expiresAt,
+                connectionData,
+                isTest: true
             };
 
         } catch (error) {
-            this.logger.error(`Error generando QR Code para ${connectionId}:`, error);
-            console.error('❌ Error generando QR Code:', error);
+            this.logger.error(`Error generando QR code para conexión ${connectionId}:`, error);
+            console.error('❌ Error generando QR code:', error);
             
+            this.emit('qrError', {
+                connectionId,
+                error: error.message
+            });
+
             return {
                 success: false,
                 error: error.message

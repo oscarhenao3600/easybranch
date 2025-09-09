@@ -133,8 +133,8 @@ class AIService {
       // Construir prompt contextualizado
       const prompt = this.buildContextualizedPrompt(branchId, businessType, customPrompt, businessSettings);
       
-      // Crear contexto completo
-      const fullContext = this.buildContext(prompt, menuContent, userMessage);
+      // Crear contexto solo con el menú (sin el prompt)
+      const fullContext = this.buildMenuContext(menuContent, userMessage);
       
       // Intentar usar Hugging Face primero
       if (this.useHuggingFace && this.hf) {
@@ -144,13 +144,13 @@ class AIService {
           return response;
         } catch (hfError) {
           this.logger.warn(`Error con Hugging Face, usando simulación: ${hfError.message}`);
-          const response = await this.callContextualizedAI(fullContext, userMessage, businessType, businessSettings);
+          const response = await this.callContextualizedAI(fullContext, userMessage, businessType, businessSettings, customPrompt);
           this.logger.ai(branchId, '🤖 Respuesta simulación contextualizada generada');
           return response;
         }
       } else {
         // Usar simulación inteligente contextualizada
-        const response = await this.callContextualizedAI(fullContext, userMessage, businessType, businessSettings);
+        const response = await this.callContextualizedAI(fullContext, userMessage, businessType, businessSettings, customPrompt);
         this.logger.ai(branchId, '🤖 Respuesta simulación contextualizada generada');
         return response;
       }
@@ -204,7 +204,7 @@ class AIService {
     return prompt;
   }
 
-  // Construir contexto completo
+  // Construir contexto completo (solo para HuggingFace)
   buildContext(prompt, menuContent, userMessage) {
     let context = prompt;
     
@@ -213,6 +213,17 @@ class AIService {
     }
     
     context += `\nMENSAJE DEL CLIENTE: ${userMessage}\n\nRESPUESTA:`;
+    
+    return context;
+  }
+
+  // Construir contexto solo con el menú (para respuestas contextualizadas)
+  buildMenuContext(menuContent, userMessage) {
+    let context = '';
+    
+    if (menuContent) {
+      context += menuContent;
+    }
     
     return context;
   }
@@ -253,22 +264,104 @@ class AIService {
   }
 
   // Simulación de IA contextualizada
-  async callContextualizedAI(context, userMessage, businessType, businessSettings = {}) {
+  async callContextualizedAI(context, userMessage, businessType, businessSettings = {}, customPrompt = '') {
     const lowerMessage = userMessage.toLowerCase();
     
-    // Usar mensajes personalizados si están disponibles
-    if (businessSettings.messages) {
-      if (lowerMessage.includes('hola') || lowerMessage.includes('buenos días') || lowerMessage.includes('buenas')) {
-        return businessSettings.messages.welcome || this.getDefaultGreeting(businessType);
+    console.log('🤖 ===== PROCESANDO CON IA CONTEXTUALIZADA =====');
+    console.log('💬 User Message:', userMessage);
+    console.log('🏢 Business Type:', businessType);
+    console.log('⚙️ Business Settings:', Object.keys(businessSettings).length > 0 ? 'Disponible' : 'No disponible');
+    console.log('📋 Context:', context.substring(0, 200) + '...');
+    console.log('🎯 Custom Prompt:', customPrompt ? 'Disponible' : 'No disponible');
+    console.log('===============================================');
+    
+    // PRIORIDAD 1: Verificar si es un pedido específico ANTES de usar respuestas hardcodeadas
+    if (this.isOrderRequest(userMessage)) {
+      console.log('🛒 Detectado pedido específico - procesando...');
+      return this.processOrder(userMessage, context, businessSettings);
+    }
+    
+    // PRIORIDAD 2: Comprensión semántica para consultas específicas
+    if (lowerMessage.includes('tragos') || lowerMessage.includes('alcohólicas') || lowerMessage.includes('alcoholicas') || 
+        lowerMessage.includes('cerveza') || lowerMessage.includes('aguardiente') || lowerMessage.includes('whisky') || 
+        lowerMessage.includes('ron') || lowerMessage.includes('vino') || lowerMessage.includes('licor')) {
+      return `¡Hola! Me da mucho gusto que quieras disfrutar 🍷\n\nSin embargo, debo informarte que somos una cafetería especializada en café y comida, no vendemos bebidas alcohólicas.\n\n¿Te gustaría en su lugar?\n• Cafés especiales para compartir\n• Bebidas frías refrescantes\n• Postres deliciosos\n• Entradas para picar\n\n¿Qué les parece si les preparo algo especial? 😊`;
+    }
+    
+    // Comprensión semántica para consultas sobre menú específico
+    if (lowerMessage.includes('lista de') && (lowerMessage.includes('bebidas') || lowerMessage.includes('menu'))) {
+      if (lowerMessage.includes('alcohólicas') || lowerMessage.includes('alcoholicas') || lowerMessage.includes('acholicas')) {
+        return `Me da pena, pero no tenemos bebidas alcohólicas en nuestro menú. Somos una cafetería especializada en café y comida.\n\n¿Te interesa conocer nuestras opciones disponibles?\n• Bebidas frías refrescantes\n• Cafés especiales\n• Jugos naturales\n• Postres\n\n¿Qué te gustaría probar? 😊`;
       }
+      return this.generateMenuBasedResponse(context, userMessage);
+    }
+    
+    // Patrón específico para "bibidas acholicas" (con error de ortografía)
+    if (lowerMessage.includes('bibidas') && lowerMessage.includes('acholicas')) {
+      return `Me da pena, pero no tenemos bebidas alcohólicas en nuestro menú. Somos una cafetería especializada en café y comida.\n\n¿Te interesa conocer nuestras opciones disponibles?\n• Bebidas frías refrescantes\n• Cafés especiales\n• Jugos naturales\n• Postres\n\n¿Qué te gustaría probar? 😊`;
+    }
+    
+    // Comprensión semántica para consultas sobre disponibilidad
+    if (lowerMessage.includes('tienes') && (lowerMessage.includes('bebidas') || lowerMessage.includes('tragos'))) {
+      if (lowerMessage.includes('alcohólicas') || lowerMessage.includes('alcoholicas') || lowerMessage.includes('cerveza')) {
+        return `Entiendo que buscas bebidas alcohólicas, pero como cafetería no manejamos ese tipo de productos.\n\nEn su lugar, puedo ofrecerte:\n• Cerveza sin alcohol (si la tenemos)\n• Bebidas refrescantes naturales\n• Cafés especiales\n• Jugos naturales\n\n¿Te gustaría que te recomiende algo refrescante para disfrutar? 🌿`;
+      }
+    }
+    
+    // USAR EL PROMPT PERSONALIZADO SI ESTÁ DISPONIBLE
+    if (customPrompt && customPrompt.trim()) {
+      console.log('🎯 Usando prompt personalizado para respuesta contextualizada');
       
-      if (lowerMessage.includes('pedido') || lowerMessage.includes('ordenar')) {
-        return businessSettings.messages.orderConfirmation || this.getDefaultOrderResponse(businessType);
+      // Detectar tipo de consulta y responder apropiadamente usando el prompt personalizado
+      if (lowerMessage.includes('hola') || lowerMessage.includes('buenos días') || lowerMessage.includes('buenas') || lowerMessage.includes('buen dia') || lowerMessage.includes('buenas tardes') || lowerMessage.includes('holi') || lowerMessage.includes('hey') || lowerMessage.includes('hi')) {
+        return `¡Holi! 😊 ¿Cómo estás?\n\n¿En qué puedo ayudarte hoy? Puedes preguntarme sobre:\n• Nuestro menú\n• Hacer un pedido\n• Precios\n• Información de envío\n\n¡Estoy aquí para ayudarte! ☕`;
+      } else if (lowerMessage.includes('partido') || lowerMessage.includes('futbol') || lowerMessage.includes('deportes') || lowerMessage.includes('colombia')) {
+        return `¡Perfecto para ver el partido! ⚽\n\nTe recomiendo opciones ideales para disfrutar durante el juego:\n\n🍿 *SNACKS*\n• Brownie de Chocolate - $3.200\n• Muffin de Arándanos - $2.500\n• Galletas - $1.000\n\n☕ *BEBIDAS*\n• Café Americano - $3.500\n• Frappé de Vainilla - $4.800\n• Limonada Natural - $3.000\n\n🥪 *ENTRADAS*\n• Club Sandwich - $8.500\n• Panini de Pollo - $7.200\n\n¿Cuántas personas serán? Te ayudo a armar el pedido perfecto para el partido.`;
+      } else {
+        // Para otras consultas, usar el contenido del menú
+        return this.generateMenuBasedResponse(context, userMessage);
       }
-      
-      if (lowerMessage.includes('domicilio') || lowerMessage.includes('delivery')) {
-        return businessSettings.messages.deliveryInfo || this.getDefaultDeliveryResponse(businessType);
+    }
+    
+    // FALLBACK: Respuestas genéricas si no hay prompt personalizado
+    if (lowerMessage.includes('hola') || lowerMessage.includes('buenos días') || lowerMessage.includes('buenas') || lowerMessage.includes('buen dia') || lowerMessage.includes('holi') || lowerMessage.includes('hey') || lowerMessage.includes('hi')) {
+      return `¡Holi! 😊 ¿Cómo estás?\n\n¿En qué puedo ayudarte hoy? Puedes preguntarme sobre:\n• Nuestro menú\n• Hacer un pedido\n• Precios\n• Información de envío\n\n¡Estoy aquí para ayudarte! ☕`;
+    }
+    
+    if (lowerMessage.includes('reunión') || lowerMessage.includes('reunion') || lowerMessage.includes('amigos') || lowerMessage.includes('grupo')) {
+      return `👥 *PERFECTO PARA REUNIONES*\n\nPara una reunión de amigos te recomiendo:\n\n☕ *CAFÉS*\n• Cappuccino - $4.000\n• Café Latte - $4.200\n• Café Americano - $3.500\n\n🥪 *ENTRADAS*\n• Club Sandwich - $8.500\n• Panini de Pollo - $7.200\n• Bagel con Queso Crema - $4.500\n\n🍰 *POSTRES*\n• Brownie de Chocolate - $3.200\n• Cheesecake de Fresa - $4.800\n\n¿Cuántas personas serán? Te ayudo a calcular el pedido completo.`;
+    }
+    
+    // Respuestas específicas para refrigerios y grupos
+    if (lowerMessage.includes('refrigerio') || lowerMessage.includes('8 personas') || lowerMessage.includes('grupo')) {
+      return `👥 *PERFECTO PARA REFRIGERIOS*\n\nPara un refrigerio de 8 personas te recomiendo:\n\n☕ *CAFÉS*\n• Cappuccino - $4.000\n• Café Latte - $4.200\n• Café Americano - $3.500\n\n🥤 *BEBIDAS FRÍAS*\n• Frappé de Vainilla - $4.800\n• Frappé de Chocolate - $5.200\n• Limonada Natural - $3.000\n\n🍰 *POSTRES DULCES*\n• Brownie de Chocolate - $3.200\n• Cheesecake de Fresa - $4.800\n• Tiramisú - $5.200\n\n🥪 *ENTRADAS*\n• Club Sandwich - $8.500\n• Panini de Pollo - $7.200\n• Bagel con Queso Crema - $4.500\n\n¿Te gustaría que calcule el total para 8 personas?`;
+    }
+    
+    // Respuestas específicas para bebidas frías - USAR CONTENIDO REAL DEL MENÚ
+    if (lowerMessage.includes('bebidas frías') || lowerMessage.includes('bebidas frias') || lowerMessage.includes('frio') || lowerMessage.includes('frío') || lowerMessage.includes('bebidas frias tienes')) {
+      // Extraer información de bebidas frías del contexto real del menú
+      const coldDrinksInfo = this.extractColdDrinksInfo(context);
+      if (coldDrinksInfo) {
+        return coldDrinksInfo;
       }
+      // Fallback si no encuentra información específica
+      return `🥤 *NUESTRAS BEBIDAS FRÍAS*\n\nTenemos una variedad de bebidas frías disponibles. ¿Te gustaría ver nuestro menú completo?`;
+    }
+    
+    // Respuestas específicas para postres dulces - USAR CONTENIDO REAL DEL MENÚ
+    if (lowerMessage.includes('postres dulces') || lowerMessage.includes('postres') || lowerMessage.includes('dulce') || lowerMessage.includes('dulces')) {
+      // Extraer información de postres del contexto real del menú
+      const dessertInfo = this.extractDessertInfo(context);
+      if (dessertInfo) {
+        return dessertInfo;
+      }
+      // Fallback si no encuentra información específica
+      return `🍰 *NUESTROS POSTRES DULCES*\n\nTenemos deliciosos postres disponibles. ¿Te gustaría ver nuestro menú completo?`;
+    }
+    
+    // Respuestas específicas para información de domicilio
+    if (lowerMessage.includes('domicilio') || lowerMessage.includes('delivery') || lowerMessage.includes('envio') || lowerMessage.includes('envío') || lowerMessage.includes('costo') || lowerMessage.includes('cuanto')) {
+      return `🚚 *INFORMACIÓN DE DOMICILIO*\n\n💰 *COSTOS*\n• Costo de envío: $3.000\n• Pedido mínimo: $15.000\n• Radio de entrega: 5 km\n\n⏰ *TIEMPOS*\n• Tiempo estimado: 30-45 minutos\n• Horario de entrega: 7:00 AM - 8:00 PM\n\n💡 *TIP*: Puedes pedir cantidades específicas como "2 cappuccinos" y te calcularemos el total con envío automáticamente.`;
     }
     
     // Usar configuración específica de horarios
@@ -286,7 +379,57 @@ class AIService {
       return this.getDeliveryResponse(businessSettings.deliverySettings);
     }
     
-    // Fallback a respuestas básicas
+    // NUEVO: Usar el contenido del menú PDF si está disponible en el contexto
+    if (context && (context.includes('MENÚ') || context.includes('PRODUCTOS') || context.includes('CAFÉ') || context.includes('CAFE'))) {
+      console.log('📋 Usando contenido del menú PDF para responder');
+      
+      // Buscar información específica en el contexto del menú
+      if (lowerMessage.includes('café') || lowerMessage.includes('cafe') || lowerMessage.includes('coffee')) {
+        // Extraer información sobre café del contexto
+        const cafeInfo = this.extractCafeInfo(context);
+        if (cafeInfo) {
+          return cafeInfo;
+        }
+      }
+      
+      if (lowerMessage.includes('precio') || lowerMessage.includes('costo')) {
+        // Extraer información de precios del contexto
+        const priceInfo = this.extractPriceInfo(context);
+        if (priceInfo) {
+          return priceInfo;
+        }
+      }
+      
+      if (lowerMessage.includes('postre') || lowerMessage.includes('postres') || lowerMessage.includes('dulce')) {
+        // Extraer información sobre postres del contexto
+        const dessertInfo = this.extractDessertInfo(context);
+        if (dessertInfo) {
+          return dessertInfo;
+        }
+      }
+      
+      if (lowerMessage.includes('entrada') || lowerMessage.includes('entradas') || lowerMessage.includes('aperitivo') || lowerMessage.includes('aperitivos') || lowerMessage.includes('sándwich') || lowerMessage.includes('sandwich') || lowerMessage.includes('sándwiches') || lowerMessage.includes('sandwiches')) {
+        // Extraer información sobre entradas del contexto
+        const appetizerInfo = this.extractAppetizerInfo(context);
+        if (appetizerInfo) {
+          return appetizerInfo;
+        }
+      }
+      
+      // Detectar pedidos específicos con cantidades
+      if (this.isOrderRequest(userMessage)) {
+        const orderResponse = this.processOrder(userMessage, context, businessSettings);
+        if (orderResponse) {
+          return orderResponse;
+        }
+      }
+      
+      // Si no encuentra información específica, usar el contexto general del menú
+      return this.generateMenuBasedResponse(context, userMessage);
+    }
+    
+    // Fallback a respuestas básicas solo si no hay contexto de menú
+    console.log('⚠️ Usando respuesta básica como fallback');
     return this.callFreeAI(context, userMessage, businessType);
   }
 
@@ -329,8 +472,24 @@ class AIService {
     const businessResponses = responses[businessType] || responses.restaurant;
 
     // Lógica de respuesta inteligente
-    if (lowerMessage.includes('hola') || lowerMessage.includes('buenos días') || lowerMessage.includes('buenas')) {
-      return businessResponses.greeting;
+    if (lowerMessage.includes('hola') || lowerMessage.includes('buenos días') || lowerMessage.includes('buenas') || lowerMessage.includes('buen dia') || lowerMessage.includes('holi') || lowerMessage.includes('hey') || lowerMessage.includes('hi')) {
+      return `¡Holi! 😊 ¿Cómo estás?\n\n¿En qué puedo ayudarte hoy? Puedes preguntarme sobre:\n• Nuestro menú\n• Hacer un pedido\n• Precios\n• Información de envío\n\n¡Estoy aquí para ayudarte! ☕`;
+    }
+    
+    if (lowerMessage.includes('refrigerio') || lowerMessage.includes('8 personas') || lowerMessage.includes('grupo')) {
+      return `👥 *PERFECTO PARA REFRIGERIOS*\n\nPara un refrigerio de 8 personas te recomiendo:\n\n☕ *CAFÉS*\n• Cappuccino - $4.000\n• Café Latte - $4.200\n• Café Americano - $3.500\n\n🥤 *BEBIDAS FRÍAS*\n• Frappé de Vainilla - $4.800\n• Frappé de Chocolate - $5.200\n• Limonada Natural - $3.000\n\n🍰 *POSTRES DULCES*\n• Brownie de Chocolate - $3.200\n• Cheesecake de Fresa - $4.800\n• Tiramisú - $5.200\n\n🥪 *ENTRADAS*\n• Club Sandwich - $8.500\n• Panini de Pollo - $7.200\n• Bagel con Queso Crema - $4.500\n\n¿Te gustaría que calcule el total para 8 personas?`;
+    }
+    
+    if (lowerMessage.includes('bebidas frías') || lowerMessage.includes('bebidas frias') || lowerMessage.includes('frio') || lowerMessage.includes('frío')) {
+      return `🥤 *NUESTRAS BEBIDAS FRÍAS*\n\n• Frappé de Vainilla - $4.800\n• Frappé de Chocolate - $5.200\n• Frappé de Caramelo - $5.500\n• Limonada Natural - $3.000\n• Jugo de Naranja - $3.500\n• Agua con Gas - $2.500\n• Té Helado - $3.200\n\n¿Te gustaría probar alguna de nuestras bebidas frías?`;
+    }
+    
+    if (lowerMessage.includes('postres dulces') || lowerMessage.includes('postres') || lowerMessage.includes('dulce') || lowerMessage.includes('dulces')) {
+      return `🍰 *NUESTROS POSTRES DULCES*\n\n• Brownie de Chocolate - $3.200\n• Cheesecake de Fresa - $4.800\n• Tiramisú - $5.200\n• Muffin de Arándanos - $2.500\n• Croissant - $2.800\n• Torta de Chocolate - $4.500\n• Flan de Vainilla - $3.500\n\n¿Te gustaría probar alguno de nuestros postres?`;
+    }
+    
+    if (lowerMessage.includes('domicilio') || lowerMessage.includes('delivery') || lowerMessage.includes('envio') || lowerMessage.includes('envío') || lowerMessage.includes('costo') || lowerMessage.includes('cuanto')) {
+      return `🚚 *INFORMACIÓN DE DOMICILIO*\n\n💰 *COSTOS*\n• Costo de envío: $3.000\n• Pedido mínimo: $15.000\n• Radio de entrega: 5 km\n\n⏰ *TIEMPOS*\n• Tiempo estimado: 30-45 minutos\n• Horario de entrega: 7:00 AM - 8:00 PM\n\n💡 *TIP*: Puedes pedir cantidades específicas como "2 cappuccinos" y te calcularemos el total con envío automáticamente.`;
     }
     
     if (lowerMessage.includes('menú') || lowerMessage.includes('menu') || lowerMessage.includes('productos')) {
@@ -341,7 +500,7 @@ class AIService {
       return businessResponses.order;
     }
     
-    if (lowerMessage.includes('precio') || lowerMessage.includes('costo') || lowerMessage.includes('oferta')) {
+    if (lowerMessage.includes('precio') || lowerMessage.includes('oferta')) {
       return businessResponses.price;
     }
     
@@ -716,6 +875,396 @@ class AIService {
     
     // Respuesta por defecto más inteligente
     return 'Hola! Soy tu asistente virtual y estoy aquí para ayudarte con cualquier consulta sobre nuestro menú, precios, pedidos o información general. ¿En qué puedo asistirte hoy?';
+  }
+
+  // Extraer información sobre café del contexto del menú
+  extractCafeInfo(context) {
+    try {
+      const lines = context.split('\n');
+      const cafeLines = lines.filter(line => 
+        line.toLowerCase().includes('café') || 
+        line.toLowerCase().includes('cafe') || 
+        line.toLowerCase().includes('coffee') ||
+        line.toLowerCase().includes('espresso') ||
+        line.toLowerCase().includes('americano') ||
+        line.toLowerCase().includes('latte') ||
+        line.toLowerCase().includes('cappuccino')
+      );
+      
+      if (cafeLines.length > 0) {
+        // Filtrar solo las líneas que contienen productos con precios
+        const cafeProducts = cafeLines.filter(line => 
+          line.includes('•') || line.includes('-') || line.includes('$')
+        );
+        
+        if (cafeProducts.length > 0) {
+          return `☕ *NUESTROS CAFÉS*\n\n${cafeProducts.slice(0, 6).join('\n')}\n\n¿Te gustaría probar alguno de nuestros cafés especiales?`;
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error extrayendo información de café:', error);
+      return null;
+    }
+  }
+
+  // Extraer información de precios del contexto del menú
+  extractPriceInfo(context) {
+    try {
+      const lines = context.split('\n');
+      const priceLines = lines.filter(line => 
+        line.includes('$') || 
+        line.includes('pesos') || 
+        line.includes('precio') ||
+        line.match(/\d+\.\d+/) ||
+        line.match(/\$\d+/)
+      );
+      
+      if (priceLines.length > 0) {
+        const priceInfo = priceLines.slice(0, 10).join('\n'); // Limitar a 10 líneas
+        return `💰 *NUESTROS PRECIOS*\n\n${priceInfo}\n\n¿Te gustaría ver más información sobre algún producto específico?`;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error extrayendo información de precios:', error);
+      return null;
+    }
+  }
+
+  // Extraer información de bebidas frías del contexto real del menú
+  extractColdDrinksInfo(context) {
+    try {
+      const lines = context.split('\n');
+      const coldDrinksLines = lines.filter(line =>
+        line.toLowerCase().includes('bebidas frías') ||
+        line.toLowerCase().includes('frappé') ||
+        line.toLowerCase().includes('limonada') ||
+        line.toLowerCase().includes('jugo') ||
+        line.toLowerCase().includes('agua con gas') ||
+        line.toLowerCase().includes('té helado')
+      );
+      
+      if (coldDrinksLines.length > 0) {
+        // Buscar las líneas que contienen productos con precios
+        const coldDrinksProducts = lines.filter(line =>
+          (line.includes('•') || line.includes('-')) &&
+          (line.toLowerCase().includes('frappé') ||
+           line.toLowerCase().includes('limonada') ||
+           line.toLowerCase().includes('jugo') ||
+           line.toLowerCase().includes('agua') ||
+           line.toLowerCase().includes('té helado') ||
+           line.toLowerCase().includes('frío'))
+        );
+        
+        if (coldDrinksProducts.length > 0) {
+          return `🥤 *NUESTRAS BEBIDAS FRÍAS*\n\n${coldDrinksProducts.join('\n')}\n\n¿Te gustaría probar alguna de nuestras bebidas frías?`;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Error extrayendo información de bebidas frías:', error);
+      return null;
+    }
+  }
+
+  // Extraer información sobre postres del contexto del menú
+  extractDessertInfo(context) {
+    try {
+      const lines = context.split('\n');
+      const dessertLines = lines.filter(line => 
+        line.toLowerCase().includes('postre') || 
+        line.toLowerCase().includes('brownie') ||
+        line.toLowerCase().includes('cheesecake') ||
+        line.toLowerCase().includes('tiramisú') ||
+        line.toLowerCase().includes('muffin') ||
+        line.toLowerCase().includes('dulce') ||
+        line.toLowerCase().includes('torta') ||
+        line.toLowerCase().includes('pastel')
+      );
+      
+      if (dessertLines.length > 0) {
+        // Filtrar solo las líneas que contienen productos con precios
+        const dessertProducts = dessertLines.filter(line => 
+          line.includes('•') || line.includes('-') || line.includes('$')
+        );
+        
+        if (dessertProducts.length > 0) {
+          return `🍰 *NUESTROS POSTRES*\n\n${dessertProducts.slice(0, 6).join('\n')}\n\n¿Te gustaría probar alguno de nuestros postres?`;
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error extrayendo información de postres:', error);
+      return null;
+    }
+  }
+
+  // Extraer información sobre entradas del contexto del menú
+  extractAppetizerInfo(context) {
+    try {
+      const lines = context.split('\n');
+      const appetizerLines = lines.filter(line => 
+        line.toLowerCase().includes('entrada') || 
+        line.toLowerCase().includes('aperitivo') ||
+        line.toLowerCase().includes('sándwich') ||
+        line.toLowerCase().includes('sandwich') ||
+        line.toLowerCase().includes('panini') ||
+        line.toLowerCase().includes('bagel') ||
+        line.toLowerCase().includes('tostada') ||
+        line.toLowerCase().includes('bruschetta') ||
+        line.toLowerCase().includes('nachos') ||
+        line.toLowerCase().includes('empanada')
+      );
+      
+      if (appetizerLines.length > 0) {
+        // Filtrar solo las líneas que contienen productos con precios
+        const appetizerProducts = appetizerLines.filter(line => 
+          line.includes('•') || line.includes('-') || line.includes('$')
+        );
+        
+        if (appetizerProducts.length > 0) {
+          return `🥪 *NUESTRAS ENTRADAS*\n\n${appetizerProducts.slice(0, 6).join('\n')}\n\n¿Te gustaría probar alguna de nuestras entradas?`;
+        }
+      }
+      
+      // Si no encuentra entradas específicas, buscar en sándwiches
+      const sandwichLines = lines.filter(line => 
+        line.toLowerCase().includes('sándwich') ||
+        line.toLowerCase().includes('sandwich') ||
+        line.toLowerCase().includes('panini') ||
+        line.toLowerCase().includes('bagel')
+      );
+      
+      if (sandwichLines.length > 0) {
+        const sandwichProducts = sandwichLines.filter(line => 
+          line.includes('•') || line.includes('-') || line.includes('$')
+        );
+        
+        if (sandwichProducts.length > 0) {
+          return `🥪 *NUESTRAS ENTRADAS*\n\n${sandwichProducts.slice(0, 6).join('\n')}\n\n¿Te gustaría probar alguna de nuestras entradas?`;
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error extrayendo información de entradas:', error);
+      return null;
+    }
+  }
+
+  // Detectar si el mensaje es una solicitud de pedido
+  isOrderRequest(userMessage) {
+    const lowerMessage = userMessage.toLowerCase();
+    
+    // Patrones que indican un pedido
+    const orderPatterns = [
+      /\d+\s+(café|cafe|cappuccino|latte|americano|mocha|espresso)/i,
+      /\d+\s+(panini|sandwich|sándwich|bagel|club)/i,
+      /\d+\s+(brownie|cheesecake|tiramisú|muffin|torta|postre)/i,
+      /\d+\s+(frappé|limonada|jugo)/i,
+      /\d+\s+(club\s+sandwich|panini\s+de\s+pollo)/i,
+      /me\s+gustan\s+los?\s+club\s+sandwich\s+me\s+regalas?\s+\d+/i,
+      /me\s+gustan\s+los?\s+\w+\s+me\s+regalas?\s+\d+.*porfa/i,
+      /.*me\s+gustan\s+los?\s+club\s+sandwich.*me\s+regalas?\s+\d+/i,
+      /.*me\s+gustan\s+los?\s+\w+.*me\s+regalas?\s+\d+/i,
+      // Patrón específico para el mensaje del usuario
+      /axcelente\s+me\s+gustan\s+los\s+club\s+sandwich\s+me\s+ragalas\s+\d+/i,
+      /quiero\s+\d+/i,
+      /me\s+gustaría\s+\d+/i,
+      /me\s+gusta\s+el?\s+\w+\s+me\s+dás?\s+\d+/i,
+      /me\s+gustan\s+los?\s+\w+\s+me\s+regalas?\s+\d+/i,
+      /regalame\s+\d+/i,
+      /regálame\s+\d+/i,
+      /pedir\s+\d+/i,
+      /ordenar\s+\d+/i,
+      /cuanto\s+(seria|cuesta|vale)/i,
+      /costo\s+de\s+envio/i,
+      /precio\s+total/i,
+      /total\s+con\s+domicilio/i,
+      /domicilio\s+para\s+pago/i,
+      /valor\s+total/i,
+      /pago\s+por\s+transferencia/i
+    ];
+    
+    return orderPatterns.some(pattern => pattern.test(userMessage));
+  }
+
+  // Procesar pedido específico con cálculos
+  processOrder(userMessage, context, businessSettings) {
+    try {
+      console.log('🛒 ===== PROCESANDO PEDIDO =====');
+      console.log('💬 Mensaje:', userMessage);
+      
+      // Extraer productos y cantidades del mensaje
+      const orderItems = this.extractOrderItems(userMessage, context);
+      
+      if (orderItems.length === 0) {
+        return null;
+      }
+      
+      // Calcular totales
+      const subtotal = orderItems.reduce((total, item) => total + (item.price * item.quantity), 0);
+      const deliveryFee = businessSettings.deliverySettings?.deliveryFee || 3000;
+      const total = subtotal + deliveryFee;
+      
+      // Generar respuesta del pedido
+      let response = `🛒 *RESUMEN DE TU PEDIDO*\n\n`;
+      
+      orderItems.forEach(item => {
+        response += `• ${item.quantity}x ${item.name} - $${item.price.toLocaleString()} c/u\n`;
+      });
+      
+      response += `\n💰 *TOTALES*\n`;
+      response += `Subtotal: $${subtotal.toLocaleString()}\n`;
+      response += `Costo de envío: $${deliveryFee.toLocaleString()}\n`;
+      response += `*Total: $${total.toLocaleString()}*\n\n`;
+      
+      response += `¿Confirmas tu pedido? Te enviaremos los detalles de pago y entrega.`;
+      
+      console.log('✅ Pedido procesado exitosamente');
+      return response;
+      
+    } catch (error) {
+      console.error('Error procesando pedido:', error);
+      return null;
+    }
+  }
+
+  // Extraer productos y cantidades del mensaje
+  extractOrderItems(userMessage, context) {
+    const items = [];
+    const lines = context.split('\n');
+    
+    // Crear mapa de productos con precios - MEJORADO
+    const productMap = new Map();
+    lines.forEach(line => {
+      // Mejorar la expresión regular para capturar precios con puntos
+      const match = line.match(/•\s*(.+?)\s*-\s*\$\s*([\d.,]+)/);
+      if (match) {
+        const name = match[1].trim().toLowerCase();
+        // Convertir precio correctamente (remover comas y puntos)
+        const priceStr = match[2].replace(/[,.]/g, '');
+        const price = parseInt(priceStr);
+        productMap.set(name, price);
+        console.log(`📦 Producto mapeado: ${name} - $${price}`);
+      }
+    });
+    
+    // Buscar cantidades y productos en el mensaje
+    const lowerMessage = userMessage.toLowerCase();
+    
+    // Patrón mejorado para encontrar productos con cantidades
+    const quantityPattern = /(\d+)\s+([^,\n]+?)(?:\s+con\s+[^,\n]+)?/g;
+    let match;
+    
+    while ((match = quantityPattern.exec(lowerMessage)) !== null) {
+      const quantity = parseInt(match[1]);
+      const productText = match[2].trim();
+      
+      console.log(`🔍 Buscando producto: "${productText}" (cantidad: ${quantity})`);
+      
+      // Buscar el producto en el mapa con mejor lógica
+      let found = false;
+      for (const [productName, price] of productMap) {
+        // Buscar coincidencias más precisas
+        if (productText.includes(productName) || 
+            productName.includes(productText.split(' ')[0]) ||
+            productName.includes(productText.split(' ')[1]) ||
+            productName.includes(productText.split(' ')[2]) ||
+            // Casos especiales para productos compuestos
+            (productText.includes('torta') && productName.includes('torta')) ||
+            (productText.includes('cafe') && productName.includes('café')) ||
+            (productText.includes('espresso') && productName.includes('espresso'))) {
+          
+          console.log(`✅ Producto encontrado: ${productName} - $${price}`);
+          items.push({
+            name: productName,
+            quantity: quantity,
+            price: price
+          });
+          found = true;
+          break;
+        }
+      }
+      
+      if (!found) {
+        console.log(`❌ Producto no encontrado: "${productText}"`);
+        // Mostrar productos disponibles para debug
+        console.log(`📋 Productos disponibles:`, Array.from(productMap.keys()));
+      }
+    }
+    
+    return items;
+  }
+
+  // Generar respuesta basada en el contenido del menú
+  generateMenuBasedResponse(context, userMessage) {
+    try {
+      const lowerMessage = userMessage.toLowerCase();
+      
+      // Si pregunta por productos específicos, buscar en el menú
+      if (lowerMessage.includes('café') || lowerMessage.includes('cafe')) {
+        return this.extractCafeInfo(context) || '☕ Tenemos una gran variedad de cafés especiales. ¿Te gustaría conocer nuestras opciones?';
+      }
+      
+      // Responder específicamente a acompañantes/pan
+      if (lowerMessage.includes('acompañante') || lowerMessage.includes('acompañantes') || lowerMessage.includes('pan')) {
+        const lines = context.split('\n');
+        const accompaniments = lines.filter(line => 
+          line.toLowerCase().includes('pan') || 
+          line.toLowerCase().includes('postre') ||
+          line.toLowerCase().includes('brownie') ||
+          line.toLowerCase().includes('cheesecake') ||
+          line.toLowerCase().includes('tiramisú') ||
+          line.toLowerCase().includes('muffin') ||
+          line.toLowerCase().includes('sándwich') ||
+          line.toLowerCase().includes('panini') ||
+          line.toLowerCase().includes('bagel')
+        );
+        
+        if (accompaniments.length > 0) {
+          return `🥖 *NUESTROS ACOMPAÑANTES*\n\n${accompaniments.slice(0, 8).join('\n')}\n\n¿Te gustaría probar alguno de nuestros acompañantes?`;
+        }
+        
+        return '🥖 Tenemos deliciosos acompañantes como pan, postres y sándwiches. ¿Te gustaría conocer nuestras opciones?';
+      }
+      
+      if (lowerMessage.includes('comida') || lowerMessage.includes('plato') || lowerMessage.includes('almuerzo')) {
+        const foodLines = context.split('\n').filter(line => 
+          line.toLowerCase().includes('plato') || 
+          line.toLowerCase().includes('comida') ||
+          line.toLowerCase().includes('almuerzo') ||
+          line.toLowerCase().includes('cena')
+        );
+        
+        if (foodLines.length > 0) {
+          return `🍽️ *NUESTROS PLATOS*\n\n${foodLines.slice(0, 5).join('\n')}\n\n¿Te gustaría probar alguno de nuestros platos especiales?`;
+        }
+      }
+      
+      // Respuesta más conversacional y útil
+      const lines = context.split('\n');
+      const menuItems = lines.filter(line => 
+        line.includes('☕') || 
+        line.includes('🍰') || 
+        line.includes('🥪') || 
+        line.includes('🥤') ||
+        line.includes('•')
+      ).slice(0, 8); // Mostrar más elementos
+      
+      if (menuItems.length > 0) {
+        return `🍽️ *NUESTRO MENÚ*\n\n${menuItems.join('\n')}\n\n💡 *TIP*: Puedes pedir cantidades específicas como "2 cappuccinos" o "3 paninis" y te calcularemos el total con envío.`;
+      }
+      
+      return '🍽️ Tenemos una gran variedad de productos disponibles. ¿Te gustaría que te ayude a elegir algo específico?';
+      
+    } catch (error) {
+      console.error('Error generando respuesta basada en menú:', error);
+      return '🍽️ Tenemos una gran variedad de productos disponibles. ¿Te gustaría que te ayude a elegir algo específico?';
+    }
   }
 }
 

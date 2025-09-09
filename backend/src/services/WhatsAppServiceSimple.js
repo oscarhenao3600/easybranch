@@ -1,11 +1,13 @@
 const QRCode = require('qrcode');
 const LoggerService = require('./LoggerService');
+const EventEmitter = require('events');
 
 // Lazy load whatsapp-web.js to avoid initialization issues
 let Client, LocalAuth, MessageMedia;
 
-class WhatsAppServiceSimple {
+class WhatsAppServiceSimple extends EventEmitter {
     constructor() {
+        super();
         this.logger = new LoggerService('whatsapp-service-simple');
         this.provider = process.env.WHATSAPP_PROVIDER || 'whatsapp-web';
         this.clients = new Map();

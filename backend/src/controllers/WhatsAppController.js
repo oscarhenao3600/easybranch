@@ -16,10 +16,37 @@ class WhatsAppController {
         this.whatsappService = null;
         this.aiService = new AIService();
         this.connectionMonitor = new WhatsAppConnectionMonitor();
-        this.qrManager = new WhatsAppQRManager();
+        this.qrManager = new WhatsAppQRManager(this.whatsappService);
         this.initializeService();
         this.initializeAI();
-        this.setupEventHandlers();
+        
+        // Cargar configuraciones de IA después de que la base de datos esté lista
+        this.loadAIConfigsAfterDBReady();
+    }
+
+    // Cargar configuraciones de IA después de que la base de datos esté lista
+    async loadAIConfigsAfterDBReady() {
+        // Esperar a que MongoDB esté conectado
+        const mongoose = require('mongoose');
+        
+        const checkConnection = () => {
+            return new Promise((resolve) => {
+                if (mongoose.connection.readyState === 1) {
+                    resolve();
+                } else {
+                    mongoose.connection.once('connected', resolve);
+                }
+            });
+        };
+        
+        try {
+            await checkConnection();
+            console.log('✅ MongoDB conectado, cargando configuraciones de IA...');
+            await this.loadExistingAIConfigs();
+        } catch (error) {
+            console.error('❌ Error cargando configuraciones de IA después de conectar DB:', error.message);
+            this.logger.error('Error loading AI configs after DB connection', { error: error.message });
+        }
     }
 
     // Configurar manejadores de eventos
@@ -49,11 +76,43 @@ class WhatsAppController {
             console.log('⏰ QR Code expirado:', data.connectionId);
             this.logger.info('QR Code expired', { connectionId: data.connectionId });
         });
+
+        // Eventos del servicio de WhatsApp
+        if (this.whatsappService) {
+            console.log('🔧 Configurando event handlers para WhatsAppService...');
+            
+            this.whatsappService.on('messageReceived', (data) => {
+                console.log('📨 ===== EVENTO MESSAGE RECEIVED CAPTURADO =====');
+                console.log('📱 Connection ID:', data.connectionId);
+                console.log('📞 From:', data.from);
+                console.log('💬 Message:', data.message);
+                console.log('===============================================');
+                this.handleMessageReceived(data);
+            });
+
+            this.whatsappService.on('clientReady', (data) => {
+                console.log('✅ Cliente WhatsApp listo:', data.connectionId);
+                this.handleClientReady(data);
+            });
+
+            this.whatsappService.on('clientDisconnected', (data) => {
+                console.log('❌ Cliente WhatsApp desconectado:', data.connectionId);
+                this.handleClientDisconnected(data);
+            });
+            
+            console.log('✅ Event handlers configurados correctamente');
+        } else {
+            console.log('❌ WhatsAppService no disponible para configurar event handlers');
+        }
     }
 
     async initializeService() {
         try {
             this.whatsappService = new WhatsAppServiceSimple();
+            
+            // Actualizar el QRManager con el servicio de WhatsApp
+            this.qrManager.setWhatsAppService(this.whatsappService);
+            
             this.setupEventHandlers();
             this.logger.info('WhatsApp service initialized successfully');
         } catch (error) {
@@ -80,9 +139,6 @@ class WhatsAppController {
                 console.log('⚠️ HuggingFace deshabilitado - usando respuestas inteligentes');
                 console.log('================================================');
             }
-
-            // Cargar configuraciones de IA existentes
-            await this.loadExistingAIConfigs();
 
             // Iniciar monitoreo de conexiones
             this.connectionMonitor.startMonitoring(30000); // Verificar cada 30 segundos
@@ -197,20 +253,28 @@ class WhatsAppController {
 
     async handleMessageReceived(data) {
         try {
+            console.log('🤖 ===== HANDLE MESSAGE RECEIVED INICIADO =====');
+            console.log('📊 Data recibida:', JSON.stringify(data, null, 2));
+            
             const { connectionId, from, message, timestamp, messageId } = data;
 
             // Find the connection
             const connection = await WhatsAppConnection.findById(connectionId);
             if (!connection) {
+                console.log('❌ Conexión no encontrada en BD:', connectionId);
                 this.logger.error('Connection not found for incoming message', { connectionId });
                 return;
             }
+
+            console.log('✅ Conexión encontrada:', connection.phoneNumber);
 
             // Check if AI integration is enabled
             if (!connection.aiIntegration) {
                 console.log('⚠️ IA deshabilitada para esta conexión:', connectionId);
                 return;
             }
+
+            console.log('✅ IA habilitada para esta conexión');
 
             // Extract phone number from WhatsApp format (remove @c.us)
             const phoneNumber = from.replace('@c.us', '');
@@ -514,14 +578,16 @@ class WhatsAppController {
                         branchId: `BR${Date.now()}`,
                         businessId: businessObjectId,
                         name: 'Sucursal Centro',
+                        razonSocial: 'Sucursal Centro',
+                        nit: '900123456-1',
+                        phone: '+573001234567',
+                        address: 'Calle 123 #45-67',
+                        city: 'Bogotá',
+                        department: 'Cundinamarca',
+                        country: 'Colombia',
                         description: 'Sucursal principal en el centro de la ciudad',
-                        address: {
-                            street: 'Calle 123 #45-67',
-                            city: 'Bogotá',
-                            state: 'Cundinamarca',
-                            zipCode: '110111',
-                            country: 'Colombia'
-                        },
+                        manager: 'Gerente Centro',
+                        email: 'centro@elsabor.com',
                         contact: {
                             phone: '+573001234567',
                             email: 'centro@elsabor.com'
@@ -529,12 +595,17 @@ class WhatsAppController {
                         whatsapp: {
                             provider: 'whatsapp-web.js',
                             phoneNumber: phoneNumber,
-                            isConnected: false,
-                            status: 'disconnected'
+                            connectionStatus: 'disconnected',
+                            qrCode: null,
+                            sessionData: null
                         },
                         settings: {
                             autoReply: true,
-                            delivery: true,
+                            delivery: {
+                                enabled: true,
+                                radius: 5,
+                                fee: 0
+                            },
                             businessHours: {
                                 monday: { open: '08:00', close: '22:00' },
                                 tuesday: { open: '08:00', close: '22:00' },
@@ -544,7 +615,11 @@ class WhatsAppController {
                                 saturday: { open: '09:00', close: '23:00' },
                                 sunday: { open: '10:00', close: '21:00' }
                             }
-                        }
+                        },
+                        status: 'active',
+                        isActive: true,
+                        createdAt: new Date(),
+                        updatedAt: new Date()
                     });
                     await branch.save();
                 }
