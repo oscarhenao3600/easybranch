@@ -138,7 +138,7 @@ class AuthMiddleware {
         }
         
         // Agregar usuario completo al request
-        req.userData = user;
+        req.user = user;
         next();
         
       } catch (error) {
@@ -207,7 +207,7 @@ class AuthMiddleware {
   requireBranchAccess() {
     return async (req, res, next) => {
       try {
-        if (!req.userData) {
+        if (!req.user) {
           return res.status(401).json({
             error: 'Usuario no autenticado',
             code: 'USER_NOT_AUTHENTICATED'
@@ -224,26 +224,26 @@ class AuthMiddleware {
         }
 
         // Super admin puede acceder a cualquier sucursal
-        if (req.userData.role === 'super_admin') {
+        if (req.user.role === 'super_admin') {
           return next();
         }
 
         // Business admin puede acceder a cualquier sucursal de su negocio
-        if (req.userData.role === 'business_admin') {
+        if (req.user.role === 'business_admin') {
           // Aquí deberías verificar que la sucursal pertenece al negocio del usuario
           // Por ahora, permitimos el acceso
           return next();
         }
 
         // Branch admin y staff solo pueden acceder a su sucursal específica
-        if (req.userData.branchId !== branchId) {
+        if (req.user.branchId !== branchId) {
           const logger = new LoggerService();
-          logger.auth(req.userData.userId, `Acceso denegado a la sucursal ${branchId}`);
+          logger.auth(req.user.userId, `Acceso denegado a la sucursal ${branchId}`);
           
           return res.status(403).json({
             error: 'Acceso denegado a la sucursal',
             code: 'BRANCH_ACCESS_DENIED',
-            userBranch: req.userData.branchId,
+            userBranch: req.user.branchId,
             requestedBranch: branchId
           });
         }

@@ -226,14 +226,17 @@ router.delete('/:branchId', authMiddleware.verifyToken, authMiddleware.requireRo
             });
         }
 
-        // Soft delete
-        branch.isActive = false;
-        branch.status = 'inactive';
-        branch.updatedAt = new Date();
-        await branch.save();
+        // Hard delete - Eliminar realmente de la base de datos
+        await Branch.findByIdAndDelete(req.params.branchId);
 
-        logger.info(`Branch deleted: ${branch.branchId} - ${branch.name}`);
-        res.json({ success: true, message: 'Sucursal eliminada correctamente' });
+        // También eliminar servicios asociados a la sucursal
+        await Service.deleteMany({ branchId: branch.branchId });
+
+        // También eliminar órdenes asociadas a la sucursal
+        await Order.deleteMany({ branchId: branch.branchId });
+
+        logger.info(`Branch permanently deleted: ${branch.branchId} - ${branch.name || branch.razonSocial}`);
+        res.json({ success: true, message: 'Sucursal eliminada permanentemente de la base de datos' });
     } catch (error) {
         logger.error('Error deleting branch:', error);
         res.status(500).json({ success: false, message: 'Error interno del servidor' });
