@@ -83,7 +83,7 @@ class WhatsAppConnectionMonitor extends EventEmitter {
     // Verificar una conexión específica
     async checkConnection(connectionId, connectionData) {
         try {
-            const WhatsAppConnection = require('./src/models/WhatsAppConnection');
+            const WhatsAppConnection = require('../models/WhatsAppConnection');
             const connection = await WhatsAppConnection.findById(connectionId);
 
             if (!connection) {
@@ -164,7 +164,7 @@ class WhatsAppConnectionMonitor extends EventEmitter {
     // Actualizar estado de conexión en la base de datos
     async updateConnectionStatus(connectionId, statusData) {
         try {
-            const WhatsAppConnection = require('./src/models/WhatsAppConnection');
+            const WhatsAppConnection = require('../models/WhatsAppConnection');
             
             await WhatsAppConnection.findByIdAndUpdate(connectionId, {
                 status: statusData.status,
