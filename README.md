@@ -14,9 +14,11 @@ EasyBranch es una plataforma completa de gestión empresarial diseñada para neg
 
 ### 🏢 **Gestión de Negocios**
 - ✅ CRUD completo de negocios
-- ✅ Gestión de sucursales
+- ✅ Gestión de sucursales con direcciones formateadas
 - ✅ Asignación de usuarios a sucursales
-- ✅ Dashboard administrativo
+- ✅ Dashboard administrativo centralizado
+- ✅ Eliminación permanente de negocios y sucursales
+- ✅ Validación completa de formularios
 
 ### 📱 **Integración WhatsApp (COMPLETAMENTE FUNCIONAL)**
 - ✅ **QR codes reales** de WhatsApp Web
@@ -27,6 +29,8 @@ EasyBranch es una plataforma completa de gestión empresarial diseñada para neg
 - ✅ **Múltiples conexiones** simultáneas
 - ✅ **Renovación automática** de QR codes
 - ✅ **Gestión de sesiones** persistentes
+- ✅ **Selección de sucursales** con direcciones completas
+- ✅ **Creación de conexiones** sin errores
 
 ### 🎨 **Interfaz de Usuario**
 - ✅ **Diseño moderno** con paleta de colores sobria
@@ -40,6 +44,9 @@ EasyBranch es una plataforma completa de gestión empresarial diseñada para neg
 - ✅ **Logging completo** con Winston
 - ✅ **Manejo de errores** robusto
 - ✅ **CORS** configurado correctamente
+- ✅ **CSP (Content Security Policy)** configurado
+- ✅ **Validación de datos** con express-validator
+- ✅ **Autenticación JWT** robusta
 
 ## 🚀 Instalación y Configuración
 
@@ -86,7 +93,12 @@ JWT_SECRET=your-super-secret-jwt-key-change-in-production
 WHATSAPP_PROVIDER=whatsapp-web
 
 # CORS
-CORS_ORIGIN=http://localhost:3000,http://127.0.0.1:3000
+ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:4000
+
+# IA Configuration
+HUGGINGFACE_API_KEY=your-huggingface-api-key
+HUGGINGFACE_MODEL=microsoft/DialoGPT-medium
+USE_HUGGINGFACE=false
 ```
 
 ## 📱 Uso de WhatsApp
@@ -96,18 +108,25 @@ CORS_ORIGIN=http://localhost:3000,http://127.0.0.1:3000
 1. **Accede** a `http://localhost:3000`
 2. **Haz login** con `admin@easybranch.com` / `admin123`
 3. **Ve a WhatsApp** en el menú lateral
-4. **Haz clic en "Conectar"** en la sucursal deseada
-5. **Escanea el QR code** con tu WhatsApp
-6. **¡Listo!** La conexión estará activa
+4. **Haz clic en "Nueva Conexión"**
+5. **Selecciona la sucursal** (con dirección completa)
+6. **Llena los campos** requeridos
+7. **Haz clic en "Crear Conexión"**
+8. **El QR code aparecerá** en la tarjeta de conexión
+9. **Escanea el QR code** con tu WhatsApp
+10. **¡Listo!** La conexión estará activa
 
 ### Funcionalidades de WhatsApp
 
 - ✅ **QR codes reales** que funcionan con WhatsApp
 - ✅ **Renovación automática** cada minuto
-- ✅ **Respuestas automáticas** a "Hola"
+- ✅ **Respuestas automáticas** con IA
 - ✅ **Envío de mensajes** programáticos
 - ✅ **Recepción de mensajes** en tiempo real
 - ✅ **Múltiples conexiones** por negocio
+- ✅ **Selección de sucursales** con direcciones formateadas
+- ✅ **Creación sin errores** de conexiones
+- ✅ **QR codes en tarjetas** (no en modales)
 
 ## 🏗️ Arquitectura del Proyecto
 
@@ -125,7 +144,8 @@ EasyBranch/
 │   └── uploads/           # Archivos subidos
 ├── frontend-admin/         # Interfaz administrativa
 │   ├── index.html         # Página de login
-│   ├── super.html         # Dashboard principal
+│   ├── super.html         # Dashboard principal centralizado
+│   ├── ai-management.html  # Gestión de IA y PDFs
 │   ├── styles.css         # Estilos personalizados
 │   └── frontend-server.js # Servidor frontend
 └── README.md              # Este archivo
@@ -167,11 +187,19 @@ npm run seed             # Pobla la base de datos con datos de prueba
 
 ### WhatsApp
 - `GET /api/whatsapp/connections` - Listar conexiones
-- `POST /api/whatsapp/connections` - Crear conexión
+- `POST /api/whatsapp/connections` - Crear conexión (con validación completa)
 - `GET /api/whatsapp/connections/:id/qr` - Obtener QR code
 - `POST /api/whatsapp/connections/:id/toggle` - Conectar/Desconectar
+- `DELETE /api/whatsapp/connections/:id` - Eliminar conexión
 - `POST /api/whatsapp/send-message` - Enviar mensaje
 - `POST /api/whatsapp/webhook` - Webhook para mensajes entrantes
+
+### IA y Configuración
+- `GET /api/branch-ai-config` - Listar configuraciones de IA
+- `POST /api/branch-ai-config` - Crear configuración de IA
+- `PUT /api/branch-ai-config/:id` - Actualizar configuración
+- `POST /api/ai/:branchId/upload-catalog` - Subir catálogo PDF
+- `POST /api/ai/:branchId/query` - Consultar IA
 
 ## 🎯 Próximas Funcionalidades
 
@@ -213,8 +241,9 @@ npm run seed             # Pobla la base de datos con datos de prueba
 3. Revisa los logs del backend
 
 ### CORS Errors
-1. Verifica que `CORS_ORIGIN` esté configurado correctamente
+1. Verifica que `ALLOWED_ORIGINS` esté configurado correctamente
 2. Asegúrate de que el frontend esté en el puerto 3000
+3. Verifica que el backend esté en el puerto 4000
 
 ## 📞 Soporte
 
@@ -231,4 +260,4 @@ Este proyecto está bajo la Licencia MIT. Ver `LICENSE` para más detalles.
 
 **¡EasyBranch está listo para producción! 🚀**
 
-*Versión actual: 2.0.0 - WhatsApp Integration Complete*
+*Versión actual: 2.1.0 - WhatsApp Integration & Business Management Complete*

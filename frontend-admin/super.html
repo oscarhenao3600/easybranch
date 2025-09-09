@@ -3008,34 +3008,39 @@
                 }
             }
 
-            showNewConnectionModal() {
-                // Show the modal
-                const modal = new bootstrap.Modal(document.getElementById('whatsappConnectionModal'));
-                modal.show();
-                
-                // Load branches for the select
-                this.loadBranchesForSelect();
+            async showNewConnectionModal() {
+                try {
+                    // Check available branches before showing modal
+                    const response = await this.authService.makeRequest('/whatsapp/available-branches');
+                    const data = response.data;
+                    
+                    if (!data.canCreateConnection) {
+                        this.showAlert(data.message, 'warning');
+                        return;
+                    }
+                    
+                    // Show the modal
+                    const modal = new bootstrap.Modal(document.getElementById('whatsappConnectionModal'));
+                    modal.show();
+                    
+                    // Load branches for the select
+                    this.loadBranchesForSelect();
+                } catch (error) {
+                    console.error('Error checking available branches:', error);
+                    this.showAlert('Error verificando sucursales disponibles: ' + error.message, 'danger');
+                }
             }
 
             async loadBranchesForSelect() {
                 try {
-                    console.log('🔄 Cargando sucursales para el selector...');
+                    console.log('🔄 Cargando sucursales disponibles para WhatsApp...');
                     
-                    // Obtener todas las sucursales de la API
-                    const response = await fetch(`${this.baseURL}/branch`, {
-                        headers: {
-                            'Authorization': `Bearer ${this.authService.getToken()}`
-                        }
-                    });
+                    // Get available branches from the WhatsApp API
+                    const response = await this.authService.makeRequest('/whatsapp/available-branches');
+                    const data = response.data;
+                    const branches = data.branches || [];
                     
-                    if (!response.ok) {
-                        throw new Error(`Error ${response.status}: ${response.statusText}`);
-                    }
-                    
-                    const result = await response.json();
-                    const branches = result.data || result;
-                    
-                    console.log('✅ Sucursales obtenidas:', branches.length);
+                    console.log('✅ Sucursales disponibles obtenidas:', branches.length);
                     
                     const select = document.getElementById('branchSelect');
                     select.innerHTML = '<option value="">Selecciona una sucursal</option>';
@@ -3050,19 +3055,27 @@
                         return;
                     }
                     
-                    // Capture this context and format address function
-                    const self = this;
-                    const formatAddress = (address) => self.formatAddress(address);
-                    
-                    branches.forEach((branch) => {
+                    // Add available branches to select with full information
+                    branches.forEach(branch => {
                         const option = document.createElement('option');
                         option.value = branch._id;
-                        const formattedAddress = formatAddress(branch.address);
-                        option.textContent = `${branch.name} - ${formattedAddress}`;
+                        
+                        // Format address information
+                        const addressParts = [];
+                        if (branch.address) addressParts.push(branch.address);
+                        if (branch.city) addressParts.push(branch.city);
+                        if (branch.department) addressParts.push(branch.department);
+                        const fullAddress = addressParts.join(', ');
+                        
+                        // Create descriptive text with name, business, and address
+                        const businessName = branch.businessId?.name || 'Sin negocio';
+                        const addressText = fullAddress ? ` - ${fullAddress}` : '';
+                        option.textContent = `${branch.name} (${businessName})${addressText}`;
+                        
                         select.appendChild(option);
                     });
                     
-                    console.log(`✅ ${branches.length} sucursales cargadas en el selector`);
+                    console.log(`✅ ${branches.length} sucursales disponibles cargadas en el selector`);
                     
                 } catch (error) {
                     console.error('❌ Error cargando sucursales:', error);
@@ -3417,20 +3430,22 @@
                     // Subir archivo PDF si existe
                     const pdfFile = document.getElementById('configMenuPDF').files[0];
                     if (pdfFile) {
+                        // Agregar todos los datos al FormData
+                        formData.append('customPrompt', configData.customPrompt);
+                        formData.append('businessSettings', JSON.stringify(configData.businessSettings));
                         formData.append('menuPDF', pdfFile);
                     }
 
                     // Hacer la petición
                     const response = await fetch(`${this.baseURL}/branch-ai-config/${branchId}`, {
                         method: 'POST',
-                        headers: {
+                        headers: pdfFile ? {
                             'Authorization': `Bearer ${this.authService.getToken()}`
-                        },
-                        body: pdfFile ? formData : JSON.stringify(configData),
-                        headers: pdfFile ? {} : {
+                        } : {
                             'Content-Type': 'application/json',
                             'Authorization': `Bearer ${this.authService.getToken()}`
-                        }
+                        },
+                        body: pdfFile ? formData : JSON.stringify(configData)
                     });
 
                     if (response.ok) {

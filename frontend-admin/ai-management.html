@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EasyBranch - Gestión de IA y PDFs</title>
+    <!-- Cache buster: 2025-09-09-10:40 -->
     <style>
         * {
             margin: 0;
@@ -76,11 +77,22 @@
             border-radius: 8px;
             font-size: 1rem;
             transition: border-color 0.3s ease;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .form-group select:focus, .form-group input:focus {
             outline: none;
             border-color: #667eea;
+        }
+
+        .form-group select option {
+            padding: 8px;
+            font-size: 14px;
+            white-space: normal;
+            word-wrap: break-word;
         }
 
         .main-content {
@@ -465,6 +477,20 @@
                     
                     if (data.success) {
                         this.branches = data.data;
+                        console.log('🔍 ===== DATOS DE SUCURSALES RECIBIDOS =====');
+                        console.log('📊 Total sucursales:', this.branches.length);
+                        console.log('📋 Datos completos:', this.branches);
+                        
+                        if (this.branches.length > 0) {
+                            console.log('🏢 Primera sucursal completa:', this.branches[0]);
+                            console.log('📍 Campos de dirección:');
+                            console.log('  - address:', this.branches[0].address);
+                            console.log('  - city:', this.branches[0].city);
+                            console.log('  - department:', this.branches[0].department);
+                            console.log('  - businessId:', this.branches[0].businessId);
+                        }
+                        console.log('==========================================');
+                        
                         this.populateBranchSelect();
                     } else {
                         this.showAlert('Error cargando sucursales: ' + data.message, 'error');
@@ -475,30 +501,52 @@
             }
 
             populateBranchSelect() {
+                console.log('🔄 ===== INICIANDO POPULATE BRANCH SELECT =====');
                 const select = document.getElementById('branchSelect');
                 select.innerHTML = '<option value="">Selecciona una sucursal...</option>';
                 
-                this.branches.forEach(branch => {
+                console.log('📊 Branches disponibles:', this.branches);
+                
+                this.branches.forEach((branch, index) => {
+                    console.log(`🔍 Procesando sucursal ${index + 1}:`, branch);
+                    
                     const option = document.createElement('option');
                     option.value = branch._id;
                     
-                    // Mostrar información más detallada
-                    let displayText = `${branch.name}`;
+                    // Debug: Mostrar todos los campos disponibles
+                    console.log('🔍 Campos disponibles en branch:', Object.keys(branch));
+                    
+                    // Format address information - versión simplificada
+                    let displayText = branch.name || 'Sin nombre';
+                    
+                    // Agregar negocio si existe
                     if (branch.businessId && branch.businessId.name) {
                         displayText += ` (${branch.businessId.name})`;
                     }
-                    if (branch.whatsapp && branch.whatsapp.phoneNumber) {
-                        displayText += ` - ${branch.whatsapp.phoneNumber}`;
+                    
+                    // Agregar dirección si existe
+                    const addressParts = [];
+                    if (branch.address && branch.address.trim()) {
+                        addressParts.push(branch.address.trim());
                     }
-                    if (branch.whatsapp && branch.whatsapp.isConnected) {
-                        displayText += ' ✅ Conectado';
-                    } else {
-                        displayText += ' ❌ Desconectado';
+                    if (branch.city && branch.city.trim()) {
+                        addressParts.push(branch.city.trim());
                     }
+                    if (branch.department && branch.department.trim()) {
+                        addressParts.push(branch.department.trim());
+                    }
+                    
+                    if (addressParts.length > 0) {
+                        displayText += ` - ${addressParts.join(', ')}`;
+                    }
+                    
+                    console.log(`📝 Texto final para sucursal ${index + 1}:`, displayText);
                     
                     option.textContent = displayText;
                     select.appendChild(option);
                 });
+                
+                console.log('✅ Select poblado con', this.branches.length, 'sucursales');
             }
 
             setupEventListeners() {

@@ -15,11 +15,12 @@ class BranchAIConfigController {
     async createOrUpdateConfig(req, res) {
         try {
             const { branchId } = req.params;
-            const configData = req.body;
-
+            
             console.log('🤖 ===== CONFIGURANDO IA PARA SUCURSAL =====');
             console.log('🏪 Branch ID:', branchId);
-            console.log('📊 Config Data:', JSON.stringify(configData, null, 2));
+            console.log('👤 User info:', req.user);
+            console.log('📁 File uploaded:', req.file ? req.file.filename : 'No file');
+            console.log('📊 Content-Type:', req.headers['content-type']);
             console.log('==========================================');
 
             // Verificar que la sucursal existe
@@ -31,6 +32,36 @@ class BranchAIConfigController {
                 });
             }
 
+            // Buscar el usuario real en la base de datos
+            const User = require('../models/User');
+            const user = await User.findOne({ userId: req.user.userId });
+            if (!user) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Usuario no encontrado'
+                });
+            }
+            
+            console.log('👤 Usuario encontrado:', user._id, user.name);
+
+            // Determinar si es FormData o JSON
+            let configData = {};
+            let pdfFile = null;
+
+            if (req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data')) {
+                // Es FormData - extraer datos del body
+                configData = {
+                    customPrompt: req.body.customPrompt || '',
+                    businessSettings: req.body.businessSettings ? JSON.parse(req.body.businessSettings) : {}
+                };
+                pdfFile = req.file;
+                console.log('📄 PDF File:', pdfFile ? pdfFile.filename : 'No PDF');
+            } else {
+                // Es JSON
+                configData = req.body;
+                console.log('📊 Config Data (JSON):', JSON.stringify(configData, null, 2));
+            }
+
             // Buscar configuración existente
             let config = await BranchAIConfig.findOne({ branchId });
             
@@ -38,7 +69,16 @@ class BranchAIConfigController {
                 // Actualizar configuración existente
                 Object.assign(config, configData);
                 config.lastUpdated = new Date();
+                
+                // Procesar PDF si se subió
+                if (pdfFile) {
+                    await this.processPDFFile(config, pdfFile);
+                }
+                
                 await config.save();
+                
+                // Actualizar el servicio de IA con la nueva configuración
+                await this.updateAIService(branchId, config);
                 
                 console.log('✅ Configuración actualizada para sucursal:', branchId);
             } else {
@@ -46,9 +86,18 @@ class BranchAIConfigController {
                 config = new BranchAIConfig({
                     branchId,
                     ...configData,
-                    createdBy: req.user.id
+                    createdBy: user._id
                 });
+                
+                // Procesar PDF si se subió
+                if (pdfFile) {
+                    await this.processPDFFile(config, pdfFile);
+                }
+                
                 await config.save();
+                
+                // Actualizar el servicio de IA con la nueva configuración
+                await this.updateAIService(branchId, config);
                 
                 console.log('✅ Nueva configuración creada para sucursal:', branchId);
             }
@@ -194,6 +243,42 @@ class BranchAIConfigController {
         }
     }
 
+    // Procesar archivo PDF subido
+    async processPDFFile(config, pdfFile) {
+        try {
+            console.log('📄 Procesando archivo PDF:', pdfFile.filename);
+            
+            // Guardar información del archivo
+            config.files.menuPDF = {
+                filename: pdfFile.filename,
+                path: pdfFile.path,
+                uploadedAt: new Date(),
+                processed: false
+            };
+
+            // Procesar el PDF para extraer contenido
+            try {
+                const pdfContent = await this.pdfParser.extractTextFromPDF(pdfFile.path);
+                
+                // Procesar contenido para crear estructura de menú
+                const menuContent = this.processMenuContent(pdfContent.text);
+                
+                config.menuContent = menuContent;
+                config.files.menuPDF.processed = true;
+                
+                console.log('✅ PDF procesado exitosamente');
+                console.log('📊 Contenido extraído:', menuContent.substring(0, 200) + '...');
+                
+            } catch (pdfError) {
+                console.error('❌ Error procesando PDF:', pdfError);
+                config.files.menuPDF.processed = false;
+            }
+            
+        } catch (error) {
+            console.error('❌ Error procesando archivo PDF:', error);
+        }
+    }
+
     // Procesar contenido del menú para crear estructura
     processMenuContent(pdfContent) {
         try {
@@ -307,6 +392,39 @@ class BranchAIConfigController {
                 success: false,
                 error: 'Error al eliminar la configuración'
             });
+        }
+    }
+
+    // Actualizar el servicio de IA con la configuración de la sucursal
+    async updateAIService(branchId, config) {
+        try {
+            console.log('🤖 ===== ACTUALIZANDO SERVICIO DE IA =====');
+            console.log('🏪 Branch ID:', branchId);
+            console.log('📋 Menu Content:', config.menuContent ? 'Disponible' : 'No disponible');
+            console.log('🎯 Custom Prompt:', config.customPrompt ? 'Disponible' : 'No disponible');
+            console.log('==========================================');
+
+            // Obtener el servicio de IA del WhatsAppController
+            const WhatsAppController = require('./WhatsAppController');
+            const whatsappController = new WhatsAppController();
+            
+            // Actualizar el contenido del menú en el servicio de IA
+            if (config.menuContent) {
+                whatsappController.aiService.setMenuContent(branchId, config.menuContent);
+                console.log('✅ Contenido del menú actualizado en IA');
+            }
+            
+            // Actualizar el prompt personalizado en el servicio de IA
+            if (config.customPrompt) {
+                whatsappController.aiService.setAIPrompt(branchId, config.customPrompt);
+                console.log('✅ Prompt personalizado actualizado en IA');
+            }
+            
+            console.log('✅ Servicio de IA actualizado exitosamente');
+            
+        } catch (error) {
+            console.error('❌ Error actualizando servicio de IA:', error);
+            // No lanzar error para no interrumpir el guardado de la configuración
         }
     }
 }
