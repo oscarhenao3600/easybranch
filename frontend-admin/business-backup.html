@@ -7,6 +7,34 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="styles.css" rel="stylesheet">
+    <style>
+        .stat-item {
+            padding: 20px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-item:hover {
+            transform: translateY(-5px);
+        }
+
+        .branch-item {
+            transition: all 0.3s ease;
+            background: #fff;
+        }
+
+        .branch-item:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+
+        .business-details {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 20px;
+            border-radius: 10px;
+        }
+    </style>
 </head>
 <body>
     <div class="container-fluid">
@@ -24,8 +52,8 @@
                         <a class="nav-link active" href="#" data-section="dashboard">
                             <i class="fas fa-tachometer-alt me-2"></i>Dashboard
                         </a>
-                        <a class="nav-link" href="#" data-section="branches">
-                            <i class="fas fa-store me-2"></i>Mis Sucursales
+                        <a class="nav-link" href="#" data-section="business-management">
+                            <i class="fas fa-building me-2"></i>Mi Negocio
                         </a>
                         <a class="nav-link" href="#" data-section="orders">
                             <i class="fas fa-shopping-cart me-2"></i>Pedidos
@@ -217,8 +245,8 @@
                     </div>
 
                     <!-- Other Sections (initially hidden) -->
-                    <div id="branchesSection" style="display: none;">
-                        <!-- Branches content will be loaded here -->
+                    <div id="businessManagementSection" style="display: none;">
+                        <!-- Business Management content will be loaded here -->
                     </div>
 
                     <div id="ordersSection" style="display: none;">
@@ -602,8 +630,8 @@
 
             async loadSectionData(sectionName) {
                 switch (sectionName) {
-                    case 'branches':
-                        await this.loadBranches();
+                    case 'business-management':
+                        await this.loadBusinessManagement();
                         break;
                     case 'orders':
                         await this.loadOrders();
@@ -629,26 +657,323 @@
                 }
             }
 
-            // Placeholder methods for other sections
-            async loadBranches() {
-                const section = document.getElementById('branchesSection');
+            // Gestión unificada de Negocio y Sucursales
+            async loadBusinessManagement() {
+                const section = document.getElementById('businessManagementSection');
                 section.innerHTML = `
-                    <div class="card">
-                        <div class="card-header d-flex justify-content-between align-items-center">
-                            <h5 class="mb-0">Mis Sucursales</h5>
-                            <button class="btn btn-primary btn-sm">
-                                <i class="fas fa-plus me-2"></i>Nueva Sucursal
-                            </button>
+                    <div class="row">
+                        <!-- Información del Negocio -->
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-building me-2"></i>Información del Negocio
+                                    </h5>
+                                    <button class="btn btn-outline-primary btn-sm" onclick="businessManager.editBusiness()">
+                                        <i class="fas fa-edit me-1"></i>Editar
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    <div id="businessInfo">
+                                        <div class="text-center text-muted">
+                                            <i class="fas fa-building fa-3x mb-3"></i>
+                                            <h5>Cargando información...</h5>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="card-body">
-                            <div class="text-center text-muted">
-                                <i class="fas fa-store fa-3x mb-3"></i>
-                                <h5>Gestión de Sucursales</h5>
-                                <p>Aquí podrás gestionar todas tus sucursales, conectar WhatsApp y configurar IA</p>
+
+                        <!-- Gestión de Sucursales -->
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-store me-2"></i>Mis Sucursales
+                                    </h5>
+                                    <button class="btn btn-primary btn-sm" onclick="businessManager.createBranch()">
+                                        <i class="fas fa-plus me-1"></i>Nueva Sucursal
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    <div id="branchesList">
+                                        <div class="text-center text-muted">
+                                            <i class="fas fa-store fa-3x mb-3"></i>
+                                            <h5>Cargando sucursales...</h5>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Estadísticas del Negocio -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-chart-bar me-2"></i>Estadísticas del Negocio
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row text-center" id="businessStats">
+                                        <div class="col-md-3">
+                                            <div class="stat-item">
+                                                <h3 class="text-primary" id="totalBranches">0</h3>
+                                                <p class="mb-0">Sucursales</p>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="stat-item">
+                                                <h3 class="text-success" id="connectedBranches">0</h3>
+                                                <p class="mb-0">Conectadas</p>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="stat-item">
+                                                <h3 class="text-info" id="totalOrders">0</h3>
+                                                <p class="mb-0">Pedidos Hoy</p>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="stat-item">
+                                                <h3 class="text-warning" id="aiEnabled">0</h3>
+                                                <p class="mb-0">IA Activa</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 `;
+                
+                // Cargar datos del negocio y sucursales
+                await this.loadBusinessInfo();
+                await this.loadBranchesList();
+                await this.loadBusinessStats();
+            }
+
+            // Cargar información del negocio
+            async loadBusinessInfo() {
+                try {
+                    const token = localStorage.getItem('token');
+                    const response = await fetch('/api/business', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    const businessInfo = document.getElementById('businessInfo');
+                    
+                    if (data.success && data.data.length > 0) {
+                        const business = data.data[0]; // Tomar el primer negocio
+                        businessInfo.innerHTML = `
+                            <div class="business-details">
+                                <h4 class="text-primary mb-3">${business.name}</h4>
+                                <div class="row">
+                                    <div class="col-12">
+                                        <p><strong>Tipo:</strong> ${business.businessType || 'No especificado'}</p>
+                                        <p><strong>Descripción:</strong> ${business.description || 'Sin descripción'}</p>
+                                        <p><strong>Estado:</strong> 
+                                            <span class="badge ${business.status === 'active' ? 'bg-success' : 'bg-warning'}">
+                                                ${business.status === 'active' ? 'Activo' : 'Inactivo'}
+                                            </span>
+                                        </p>
+                                        <p><strong>Creado:</strong> ${new Date(business.createdAt).toLocaleDateString()}</p>
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <small class="text-muted">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        ID del Negocio: ${business.businessId}
+                                    </small>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        businessInfo.innerHTML = `
+                            <div class="text-center text-muted">
+                                <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                                <h5>No se encontró información del negocio</h5>
+                                <p>Contacta al administrador para configurar tu negocio</p>
+                            </div>
+                        `;
+                    }
+                } catch (error) {
+                    console.error('Error cargando información del negocio:', error);
+                    document.getElementById('businessInfo').innerHTML = `
+                        <div class="text-center text-danger">
+                            <i class="fas fa-exclamation-circle fa-2x mb-3"></i>
+                            <h5>Error cargando información</h5>
+                            <p>No se pudo cargar la información del negocio</p>
+                        </div>
+                    `;
+                }
+            }
+
+            // Cargar lista de sucursales
+            async loadBranchesList() {
+                try {
+                    const token = localStorage.getItem('token');
+                    const response = await fetch('/api/branch', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    const branchesList = document.getElementById('branchesList');
+                    
+                    if (data.success && data.data.length > 0) {
+                        let branchesHtml = '';
+                        data.data.forEach(branch => {
+                            const statusClass = branch.whatsapp?.isConnected ? 'success' : 'secondary';
+                            const statusText = branch.whatsapp?.isConnected ? 'Conectado' : 'Desconectado';
+                            const statusIcon = branch.whatsapp?.isConnected ? 'check-circle' : 'times-circle';
+                            
+                            branchesHtml += `
+                                <div class="branch-item border rounded p-3 mb-3">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1">${branch.name}</h6>
+                                            <p class="text-muted mb-2 small">${branch.description || 'Sin descripción'}</p>
+                                            <div class="d-flex align-items-center mb-2">
+                                                <span class="badge bg-${statusClass} me-2">
+                                                    <i class="fas fa-${statusIcon} me-1"></i>${statusText}
+                                                </span>
+                                                ${branch.whatsapp?.phoneNumber ? 
+                                                    `<small class="text-muted">
+                                                        <i class="fab fa-whatsapp me-1"></i>${branch.whatsapp.phoneNumber}
+                                                    </small>` : ''
+                                                }
+                                            </div>
+                                            <small class="text-muted">
+                                                <i class="fas fa-map-marker-alt me-1"></i>
+                                                ${branch.address?.street || 'Sin dirección'} - ${branch.address?.city || 'Sin ciudad'}
+                                            </small>
+                                        </div>
+                                        <div class="dropdown">
+                                            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                <i class="fas fa-ellipsis-v"></i>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li><a class="dropdown-item" href="#" onclick="businessManager.editBranch('${branch._id}')">
+                                                    <i class="fas fa-edit me-2"></i>Editar
+                                                </a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="businessManager.connectWhatsApp('${branch._id}')">
+                                                    <i class="fab fa-whatsapp me-2"></i>Conectar WhatsApp
+                                                </a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="businessManager.configureAI('${branch._id}')">
+                                                    <i class="fas fa-robot me-2"></i>Configurar IA
+                                                </a></li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li><a class="dropdown-item text-danger" href="#" onclick="businessManager.deleteBranch('${branch._id}')">
+                                                    <i class="fas fa-trash me-2"></i>Eliminar
+                                                </a></li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        
+                        branchesList.innerHTML = branchesHtml;
+                    } else {
+                        branchesList.innerHTML = `
+                            <div class="text-center text-muted">
+                                <i class="fas fa-store fa-2x mb-3"></i>
+                                <h5>No hay sucursales</h5>
+                                <p>Crea tu primera sucursal para comenzar</p>
+                                <button class="btn btn-primary" onclick="businessManager.createBranch()">
+                                    <i class="fas fa-plus me-1"></i>Crear Sucursal
+                                </button>
+                            </div>
+                        `;
+                    }
+                } catch (error) {
+                    console.error('Error cargando sucursales:', error);
+                    document.getElementById('branchesList').innerHTML = `
+                        <div class="text-center text-danger">
+                            <i class="fas fa-exclamation-circle fa-2x mb-3"></i>
+                            <h5>Error cargando sucursales</h5>
+                            <p>No se pudieron cargar las sucursales</p>
+                        </div>
+                    `;
+                }
+            }
+
+            // Cargar estadísticas del negocio
+            async loadBusinessStats() {
+                try {
+                    const token = localStorage.getItem('token');
+                    const [branchesResponse, ordersResponse] = await Promise.all([
+                        fetch('/api/branch', {
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            }
+                        }),
+                        fetch('/api/orders', {
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            }
+                        })
+                    ]);
+                    
+                    const branchesData = await branchesResponse.json();
+                    const ordersData = await ordersResponse.json();
+                    
+                    // Calcular estadísticas
+                    const totalBranches = branchesData.success ? branchesData.data.length : 0;
+                    const connectedBranches = branchesData.success ? 
+                        branchesData.data.filter(branch => branch.whatsapp?.isConnected).length : 0;
+                    const totalOrders = ordersData.success ? ordersData.data.length : 0;
+                    const aiEnabled = branchesData.success ? 
+                        branchesData.data.filter(branch => branch.ai?.enabled).length : 0;
+                    
+                    // Actualizar estadísticas
+                    document.getElementById('totalBranches').textContent = totalBranches;
+                    document.getElementById('connectedBranches').textContent = connectedBranches;
+                    document.getElementById('totalOrders').textContent = totalOrders;
+                    document.getElementById('aiEnabled').textContent = aiEnabled;
+                    
+                } catch (error) {
+                    console.error('Error cargando estadísticas:', error);
+                }
+            }
+
+            // Funciones de gestión (placeholders)
+            editBusiness() {
+                this.showAlert('Función de editar negocio en desarrollo', 'info');
+            }
+
+            createBranch() {
+                this.showAlert('Función de crear sucursal en desarrollo', 'info');
+            }
+
+            editBranch(branchId) {
+                this.showAlert(`Función de editar sucursal ${branchId} en desarrollo`, 'info');
+            }
+
+            connectWhatsApp(branchId) {
+                this.showAlert(`Función de conectar WhatsApp para sucursal ${branchId} en desarrollo`, 'info');
+            }
+
+            configureAI(branchId) {
+                // Abrir la página de gestión de IA
+                window.open('ai-management.html', '_blank');
+            }
+
+            deleteBranch(branchId) {
+                if (confirm('¿Estás seguro de que quieres eliminar esta sucursal?')) {
+                    this.showAlert(`Función de eliminar sucursal ${branchId} en desarrollo`, 'info');
+                }
             }
 
             async loadOrders() {
@@ -699,19 +1024,88 @@
             async loadAI() {
                 const section = document.getElementById('aiSection');
                 section.innerHTML = `
-                    <div class="card">
-                        <div class="card-header">
-                            <h5 class="mb-0">IA & PDFs</h5>
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">IA & PDFs</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="text-center text-muted mb-4">
+                                        <i class="fas fa-robot fa-3x mb-3"></i>
+                                        <h5>Inteligencia Artificial</h5>
+                                        <p>Configura IA y sube PDFs de menús para respuestas automáticas</p>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="card border-primary">
+                                                <div class="card-body text-center">
+                                                    <i class="fas fa-file-pdf fa-2x text-primary mb-3"></i>
+                                                    <h6>Gestión de PDFs</h6>
+                                                    <p class="text-muted small">Sube y procesa catálogos PDF</p>
+                                                    <button class="btn btn-primary btn-sm" onclick="window.open('ai-management.html', '_blank')">
+                                                        <i class="fas fa-upload me-1"></i>Gestionar PDFs
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="card border-success">
+                                                <div class="card-body text-center">
+                                                    <i class="fas fa-brain fa-2x text-success mb-3"></i>
+                                                    <h6>Configuración de IA</h6>
+                                                    <p class="text-muted small">Personaliza prompts y respuestas</p>
+                                                    <button class="btn btn-success btn-sm" onclick="window.open('ai-management.html', '_blank')">
+                                                        <i class="fas fa-cog me-1"></i>Configurar IA
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="card-body">
-                            <div class="text-center text-muted">
-                                <i class="fas fa-robot fa-3x mb-3"></i>
-                                <h5>Inteligencia Artificial</h5>
-                                <p>Configura IA y sube PDFs de menús para respuestas automáticas</p>
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Estado de IA</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span>Estado:</span>
+                                        <span class="badge bg-success">Activa</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span>PDFs:</span>
+                                        <span id="aiPdfCount">0</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span>Prompts:</span>
+                                        <span id="aiPromptCount">0</span>
+                                    </div>
+                                    <hr>
+                                    <button class="btn btn-outline-primary btn-sm w-100" onclick="window.open('ai-management.html', '_blank')">
+                                        <i class="fas fa-external-link-alt me-1"></i>Abrir Gestión Completa
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
                 `;
+                
+                // Cargar estadísticas de IA
+                this.loadAIStats();
+            }
+            
+            async loadAIStats() {
+                try {
+                    // Aquí podrías cargar estadísticas reales de IA
+                    document.getElementById('aiPdfCount').textContent = '0';
+                    document.getElementById('aiPromptCount').textContent = '0';
+                } catch (error) {
+                    console.error('Error cargando estadísticas de IA:', error);
+                }
             }
 
             async loadServices() {
@@ -1050,8 +1444,9 @@
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', () => {
             const dashboard = new BusinessAdminDashboard();
-            // Make WhatsApp manager globally accessible
+            // Make managers globally accessible
             window.whatsappManager = dashboard;
+            window.businessManager = dashboard;
         });
     </script>
 </body>

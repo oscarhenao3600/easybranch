@@ -12,33 +12,42 @@ const logger = new LoggerService();
 
 // Validation rules
 const businessValidation = [
-    body('name').trim().isLength({ min: 2, max: 100 }).withMessage('Nombre debe tener entre 2 y 100 caracteres'),
-    body('businessType').isIn(['restaurant', 'coffee', 'pharmacy', 'grocery', 'beauty', 'other']).withMessage('Tipo de negocio inválido'),
-    body('contact.email').optional().isEmail().withMessage('Email inválido'),
-    body('contact.phone').optional().matches(/^\+?[\d\s\-\(\)]+$/).withMessage('Teléfono inválido'),
-    body('address').optional().isObject().withMessage('Dirección debe ser un objeto'),
-    body('settings.timezone').optional().isIn(['America/Bogota', 'America/New_York', 'UTC']).withMessage('Zona horaria inválida'),
-    body('settings.currency').optional().isIn(['COP', 'USD', 'EUR']).withMessage('Moneda inválida'),
-    body('billing.serviceFee').optional().isFloat({ min: 0, max: 50 }).withMessage('Comisión debe estar entre 0 y 50%'),
-    body('ai.enabled').optional().isBoolean().withMessage('AI enabled debe ser booleano'),
-    body('ai.provider').optional().isIn(['huggingface', 'deepseek', 'openai']).withMessage('Proveedor de IA inválido')
+    body('name').optional().trim().isLength({ min: 2, max: 100 }).withMessage('Nombre debe tener entre 2 y 100 caracteres'),
+    body('razonSocial').optional().trim().isLength({ min: 2, max: 100 }).withMessage('Razón social debe tener entre 2 y 100 caracteres'),
+    body('nit').trim().isLength({ min: 8, max: 20 }).withMessage('NIT debe tener entre 8 y 20 caracteres'),
+    body('phone').matches(/^\+?[\d\s\-\(\)]+$/).withMessage('Teléfono inválido'),
+    body('address').trim().isLength({ min: 5, max: 200 }).withMessage('Dirección debe tener entre 5 y 200 caracteres'),
+    body('city').trim().isLength({ min: 2, max: 50 }).withMessage('Ciudad debe tener entre 2 y 50 caracteres'),
+    body('department').trim().isLength({ min: 2, max: 50 }).withMessage('Departamento debe tener entre 2 y 50 caracteres'),
+    body('country').optional().trim().isLength({ min: 2, max: 50 }).withMessage('País debe tener entre 2 y 50 caracteres'),
+    body('description').optional().trim().isLength({ max: 500 }).withMessage('Descripción no puede exceder 500 caracteres'),
+    body('businessType').optional().isIn(['restaurant', 'cafe', 'pharmacy', 'grocery', 'fastfood', 'salon', 'gym', 'other']).withMessage('Tipo de negocio inválido'),
+    body('email').optional().isEmail().withMessage('Email inválido'),
+    body('website').optional().isURL().withMessage('Sitio web inválido'),
+    body('coordinates.lat').optional().isFloat({ min: -90, max: 90 }).withMessage('Latitud inválida'),
+    body('coordinates.lng').optional().isFloat({ min: -180, max: 180 }).withMessage('Longitud inválida'),
+    body('timezone').optional().isString().withMessage('Zona horaria inválida'),
+    body('currency').optional().isString().withMessage('Moneda inválida'),
+    body('language').optional().isString().withMessage('Idioma inválido'),
+    body('autoReply').optional().isBoolean().withMessage('AutoReply debe ser verdadero o falso'),
+    body('delivery').optional().isBoolean().withMessage('Delivery debe ser verdadero o falso')
 ];
 
 const updateBusinessValidation = [
     body('name').optional().trim().isLength({ min: 2, max: 100 }).withMessage('Nombre debe tener entre 2 y 100 caracteres'),
-    body('businessType').optional().isIn(['restaurant', 'coffee', 'pharmacy', 'grocery', 'beauty', 'other']).withMessage('Tipo de negocio inválido'),
-    body('contact.email').optional().isEmail().withMessage('Email inválido'),
-    body('contact.phone').optional().matches(/^\+?[\d\s\-\(\)]+$/).withMessage('Teléfono inválido'),
-    body('address').optional().isObject().withMessage('Dirección debe ser un objeto'),
-    body('settings.timezone').optional().isIn(['America/Bogota', 'America/New_York', 'UTC']).withMessage('Zona horaria inválida'),
-    body('settings.currency').optional().isIn(['COP', 'USD', 'EUR']).withMessage('Moneda inválida'),
-    body('billing.serviceFee').optional().isFloat({ min: 0, max: 50 }).withMessage('Comisión debe estar entre 0 y 50%'),
-    body('ai.enabled').optional().isBoolean().withMessage('AI enabled debe ser booleano'),
-    body('ai.provider').optional().isIn(['huggingface', 'deepseek', 'openai']).withMessage('Proveedor de IA inválido')
+    body('razonSocial').optional().trim().isLength({ min: 2, max: 100 }).withMessage('Razón social debe tener entre 2 y 100 caracteres'),
+    body('nit').optional().trim().isLength({ min: 8, max: 20 }).withMessage('NIT debe tener entre 8 y 20 caracteres'),
+    body('phone').optional().matches(/^\+?[\d\s\-\(\)]+$/).withMessage('Teléfono inválido'),
+    body('address').optional().trim().isLength({ min: 5, max: 200 }).withMessage('Dirección debe tener entre 5 y 200 caracteres'),
+    body('city').optional().trim().isLength({ min: 2, max: 50 }).withMessage('Ciudad debe tener entre 2 y 50 caracteres'),
+    body('department').optional().trim().isLength({ min: 2, max: 50 }).withMessage('Departamento debe tener entre 2 y 50 caracteres'),
+    body('country').optional().trim().isLength({ min: 2, max: 50 }).withMessage('País debe tener entre 2 y 50 caracteres'),
+    body('description').optional().trim().isLength({ max: 500 }).withMessage('Descripción no puede exceder 500 caracteres'),
+    body('businessType').optional().isIn(['restaurant', 'cafe', 'pharmacy', 'grocery', 'fastfood', 'salon', 'gym', 'other']).withMessage('Tipo de negocio inválido')
 ];
 
-// GET /api/business - List all businesses (Super Admin only)
-router.get('/', authMiddleware.requireRole(['super_admin']), async (req, res) => {
+// GET /api/business - List all businesses (Super Admin and Business Admin)
+router.get('/', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin']), async (req, res) => {
     try {
         const { page = 1, limit = 10, search, status, businessType } = req.query;
         
@@ -77,7 +86,7 @@ router.get('/', authMiddleware.requireRole(['super_admin']), async (req, res) =>
 });
 
 // GET /api/business/:businessId - Get specific business
-router.get('/:businessId', authMiddleware.requireRole(['super_admin', 'business_admin']), authMiddleware.requireBusinessAccess(), async (req, res) => {
+router.get('/:businessId', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin']), authMiddleware.requireBusinessAccess(), async (req, res) => {
     try {
         const business = await Business.findById(req.params.businessId)
             .select('-__v');
@@ -93,25 +102,124 @@ router.get('/:businessId', authMiddleware.requireRole(['super_admin', 'business_
     }
 });
 
+// GET /api/business/my - Get current user's business
+router.get('/my', authMiddleware.verifyToken, authMiddleware.requireRole(['business_admin', 'branch_admin']), async (req, res) => {
+    try {
+        const user = req.user;
+        
+        if (!user.businessId) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Usuario no tiene negocio asignado' 
+            });
+        }
+
+        const business = await Business.findOne({ businessId: user.businessId })
+            .select('-__v');
+
+        if (!business) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Negocio no encontrado' 
+            });
+        }
+
+        res.json({ 
+            success: true, 
+            data: [business] // Mantener formato de array para compatibilidad
+        });
+    } catch (error) {
+        logger.error('Error getting user business:', error);
+        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+});
+
 // POST /api/business - Create new business (Super Admin only)
-router.post('/', authMiddleware.requireRole(['super_admin']), businessValidation, async (req, res) => {
+router.post('/', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin']), businessValidation, async (req, res) => {
     try {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
             return res.status(400).json({ success: false, errors: errors.array() });
         }
 
+        const { 
+            name, razonSocial, nit, phone, address, city, department, country, description, businessType,
+            email, website, coordinates, timezone, currency, language, autoReply, delivery
+        } = req.body;
+
+        // Validar que al menos uno de name o razonSocial esté presente
+        if (!name && !razonSocial) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Debe especificar al menos el nombre del negocio o la razón social' 
+            });
+        }
+
+        // Verificar que el NIT no exista
+        const existingBusiness = await Business.findOne({ nit });
+        if (existingBusiness) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Ya existe un negocio con este NIT' 
+            });
+        }
+
         const businessData = {
-            ...req.body,
+            name: name || null,
+            razonSocial: razonSocial || null,
+            nit,
+            businessType: businessType || 'other',
+            description: description || null,
+            contact: {
+                phone,
+                email: email || null,
+                website: website || null
+            },
+            address,
+            city,
+            department,
+            country: country || 'Colombia',
+            coordinates: coordinates || null,
+            settings: {
+                timezone: timezone || 'America/Bogota',
+                currency: currency || 'COP',
+                language: language || 'es',
+                autoReply: autoReply !== undefined ? autoReply : true,
+                delivery: delivery !== undefined ? delivery : true,
+                businessHours: {
+                    monday: { open: '08:00', close: '22:00', closed: false },
+                    tuesday: { open: '08:00', close: '22:00', closed: false },
+                    wednesday: { open: '08:00', close: '22:00', closed: false },
+                    thursday: { open: '08:00', close: '22:00', closed: false },
+                    friday: { open: '08:00', close: '22:00', closed: false },
+                    saturday: { open: '08:00', close: '22:00', closed: false },
+                    sunday: { open: '08:00', close: '22:00', closed: false }
+                }
+            },
+            billing: {
+                serviceFee: 0.05,
+                billingActive: true,
+                plan: 'free'
+            },
+            ai: {
+                enabled: true,
+                provider: 'simulation',
+                model: 'microsoft/DialoGPT-medium',
+                prompt: null,
+                maxTokens: 150,
+                temperature: 0.7
+            },
             businessId: `BUS${Date.now()}${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
             status: 'active',
-            isActive: true
+            isActive: true,
+            createdAt: new Date(),
+            updatedAt: new Date()
         };
 
         const business = new Business(businessData);
         await business.save();
 
-        logger.info(`Business created: ${business.businessId} - ${business.name}`);
+        logger.info(`Business created: ${business.businessId} - ${business.name || business.razonSocial}`);
         res.status(201).json({ success: true, data: business });
     } catch (error) {
         logger.error('Error creating business:', error);
@@ -120,16 +228,54 @@ router.post('/', authMiddleware.requireRole(['super_admin']), businessValidation
 });
 
 // PUT /api/business/:businessId - Update business
-router.put('/:businessId', authMiddleware.requireRole(['super_admin', 'business_admin']), authMiddleware.requireBusinessAccess(), updateBusinessValidation, async (req, res) => {
+router.put('/:businessId', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin']), authMiddleware.requireBusinessAccess(), updateBusinessValidation, async (req, res) => {
     try {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
             return res.status(400).json({ success: false, errors: errors.array() });
         }
 
+        const { name, razonSocial, nit, phone, address, city, department, country, description, businessType } = req.body;
+
+        // Validar que al menos uno de name o razonSocial esté presente
+        if ((name === undefined && razonSocial === undefined) || (!name && !razonSocial)) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Debe especificar al menos el nombre del negocio o la razón social' 
+            });
+        }
+
+        // Si se está actualizando el NIT, verificar que no exista en otro negocio
+        if (nit) {
+            const existingBusiness = await Business.findOne({ 
+                nit, 
+                _id: { $ne: req.params.businessId } 
+            });
+            if (existingBusiness) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'Ya existe otro negocio con este NIT' 
+                });
+            }
+        }
+
+        const updateData = {
+            ...(name !== undefined && { name: name || null }),
+            ...(razonSocial !== undefined && { razonSocial: razonSocial || null }),
+            ...(nit && { nit }),
+            ...(phone && { phone }),
+            ...(address && { address }),
+            ...(city && { city }),
+            ...(department && { department }),
+            ...(country && { country }),
+            ...(description !== undefined && { description: description || null }),
+            ...(businessType && { businessType }),
+            updatedAt: new Date()
+        };
+
         const business = await Business.findByIdAndUpdate(
             req.params.businessId,
-            { ...req.body, updatedAt: new Date() },
+            updateData,
             { new: true, runValidators: true }
         ).select('-__v');
 
@@ -137,7 +283,7 @@ router.put('/:businessId', authMiddleware.requireRole(['super_admin', 'business_
             return res.status(404).json({ success: false, message: 'Negocio no encontrado' });
         }
 
-        logger.info(`Business updated: ${business.businessId} - ${business.name}`);
+        logger.info(`Business updated: ${business.businessId} - ${business.name || business.razonSocial}`);
         res.json({ success: true, data: business });
     } catch (error) {
         logger.error('Error updating business:', error);
@@ -145,8 +291,8 @@ router.put('/:businessId', authMiddleware.requireRole(['super_admin', 'business_
     }
 });
 
-// DELETE /api/business/:businessId - Delete business (Super Admin only)
-router.delete('/:businessId', authMiddleware.requireRole(['super_admin']), async (req, res) => {
+// DELETE /api/business/:businessId - Delete business (Super Admin and Business Admin)
+router.delete('/:businessId', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin']), async (req, res) => {
     try {
         const business = await Business.findById(req.params.businessId);
         if (!business) {
@@ -162,18 +308,21 @@ router.delete('/:businessId', authMiddleware.requireRole(['super_admin']), async
         if (activeBranches > 0) {
             return res.status(400).json({ 
                 success: false, 
-                message: `No se puede eliminar el negocio. Tiene ${activeBranches} sucursales activas` 
+                message: `No se puede eliminar el negocio. Tiene ${activeBranches} sucursales activas. Elimina primero las sucursales.` 
             });
         }
 
-        // Soft delete
-        business.isActive = false;
-        business.status = 'inactive';
-        business.updatedAt = new Date();
-        await business.save();
+        // Hard delete - Eliminar realmente de la base de datos
+        await Business.findByIdAndDelete(req.params.businessId);
 
-        logger.info(`Business deleted: ${business.businessId} - ${business.name}`);
-        res.json({ success: true, message: 'Negocio eliminado correctamente' });
+        // También eliminar usuarios asociados al negocio
+        await User.deleteMany({ businessId: business.businessId });
+
+        // También eliminar órdenes asociadas al negocio
+        await Order.deleteMany({ businessId: business.businessId });
+
+        logger.info(`Business permanently deleted: ${business.businessId} - ${business.name}`);
+        res.json({ success: true, message: 'Negocio eliminado permanentemente de la base de datos' });
     } catch (error) {
         logger.error('Error deleting business:', error);
         res.status(500).json({ success: false, message: 'Error interno del servidor' });
@@ -181,7 +330,7 @@ router.delete('/:businessId', authMiddleware.requireRole(['super_admin']), async
 });
 
 // GET /api/business/:businessId/stats - Get business statistics
-router.get('/:businessId/stats', authMiddleware.requireRole(['super_admin', 'business_admin']), authMiddleware.requireBusinessAccess(), async (req, res) => {
+router.get('/:businessId/stats', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin']), authMiddleware.requireBusinessAccess(), async (req, res) => {
     try {
         const { businessId } = req.params;
         const { period = '30d' } = req.query;
@@ -247,7 +396,7 @@ router.get('/:businessId/stats', authMiddleware.requireRole(['super_admin', 'bus
 });
 
 // GET /api/business/:businessId/branches - Get business branches
-router.get('/:businessId/branches', authMiddleware.requireRole(['super_admin', 'business_admin']), authMiddleware.requireBusinessAccess(), async (req, res) => {
+router.get('/:businessId/branches', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin']), authMiddleware.requireBusinessAccess(), async (req, res) => {
     try {
         const { page = 1, limit = 10, status } = req.query;
         
@@ -279,7 +428,7 @@ router.get('/:businessId/branches', authMiddleware.requireRole(['super_admin', '
 });
 
 // POST /api/business/:businessId/activate - Activate business
-router.post('/:businessId/activate', authMiddleware.requireRole(['super_admin']), async (req, res) => {
+router.post('/:businessId/activate', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin']), async (req, res) => {
     try {
         const business = await Business.findByIdAndUpdate(
             req.params.businessId,
@@ -300,7 +449,7 @@ router.post('/:businessId/activate', authMiddleware.requireRole(['super_admin'])
 });
 
 // POST /api/business/:businessId/deactivate - Deactivate business
-router.post('/:businessId/deactivate', authMiddleware.requireRole(['super_admin']), async (req, res) => {
+router.post('/:businessId/deactivate', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin']), async (req, res) => {
     try {
         const business = await Business.findByIdAndUpdate(
             req.params.businessId,

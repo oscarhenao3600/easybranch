@@ -12,44 +12,36 @@ const logger = new LoggerService();
 
 // Validation rules
 const branchValidation = [
-    body('name').trim().isLength({ min: 2, max: 100 }).withMessage('Nombre debe tener entre 2 y 100 caracteres'),
-    body('businessId').isMongoId().withMessage('ID de negocio inválido'),
-    body('address').isObject().withMessage('Dirección debe ser un objeto'),
-    body('address.street').notEmpty().withMessage('Calle es requerida'),
-    body('address.city').notEmpty().withMessage('Ciudad es requerida'),
-    body('contact.phone').matches(/^\+?[\d\s\-\(\)]+$/).withMessage('Teléfono inválido'),
-    body('contact.email').optional().isEmail().withMessage('Email inválido'),
-    body('whatsapp.phoneNumber').matches(/^\+?[\d\s\-\(\)]+$/).withMessage('Número de WhatsApp inválido'),
-    body('whatsapp.provider').isIn(['whatsapp-web.js', 'twilio', '360dialog']).withMessage('Proveedor de WhatsApp inválido'),
-    body('kitchen.phone').optional().matches(/^\+?[\d\s\-\(\)]+$/).withMessage('Teléfono de cocina inválido'),
-    body('settings.businessHours').optional().isObject().withMessage('Horarios de negocio deben ser un objeto'),
-    body('settings.delivery.enabled').optional().isBoolean().withMessage('Delivery enabled debe ser booleano'),
-    body('settings.delivery.radius').optional().isFloat({ min: 0 }).withMessage('Radio de delivery debe ser un número positivo'),
-    body('settings.delivery.fee').optional().isFloat({ min: 0 }).withMessage('Costo de delivery debe ser un número positivo'),
-    body('ai.prompt').optional().isLength({ max: 1000 }).withMessage('Prompt de IA no puede exceder 1000 caracteres'),
-    body('ai.model').optional().isIn(['huggingface', 'deepseek', 'openai']).withMessage('Modelo de IA inválido')
+    body('name').optional().trim().isLength({ min: 2, max: 100 }).withMessage('Nombre debe tener entre 2 y 100 caracteres'),
+    body('razonSocial').optional().trim().isLength({ min: 2, max: 100 }).withMessage('Razón social debe tener entre 2 y 100 caracteres'),
+    body('nit').trim().isLength({ min: 8, max: 20 }).withMessage('NIT debe tener entre 8 y 20 caracteres'),
+    body('phone').matches(/^\+?[\d\s\-\(\)]+$/).withMessage('Teléfono inválido'),
+    body('address').trim().isLength({ min: 5, max: 200 }).withMessage('Dirección debe tener entre 5 y 200 caracteres'),
+    body('city').trim().isLength({ min: 2, max: 50 }).withMessage('Ciudad debe tener entre 2 y 50 caracteres'),
+    body('department').trim().isLength({ min: 2, max: 50 }).withMessage('Departamento debe tener entre 2 y 50 caracteres'),
+    body('country').optional().trim().isLength({ min: 2, max: 50 }).withMessage('País debe tener entre 2 y 50 caracteres'),
+    body('description').optional().trim().isLength({ max: 500 }).withMessage('Descripción no puede exceder 500 caracteres'),
+    body('manager').optional().trim().isLength({ max: 100 }).withMessage('Gerente no puede exceder 100 caracteres'),
+    body('email').optional().isEmail().withMessage('Email inválido'),
+    body('businessId').isMongoId().withMessage('ID de negocio inválido')
 ];
 
 const updateBranchValidation = [
     body('name').optional().trim().isLength({ min: 2, max: 100 }).withMessage('Nombre debe tener entre 2 y 100 caracteres'),
-    body('address').optional().isObject().withMessage('Dirección debe ser un objeto'),
-    body('address.street').optional().notEmpty().withMessage('Calle es requerida'),
-    body('address.city').optional().notEmpty().withMessage('Ciudad es requerida'),
-    body('contact.phone').optional().matches(/^\+?[\d\s\-\(\)]+$/).withMessage('Teléfono inválido'),
-    body('contact.email').optional().isEmail().withMessage('Email inválido'),
-    body('whatsapp.phoneNumber').optional().matches(/^\+?[\d\s\-\(\)]+$/).withMessage('Número de WhatsApp inválido'),
-    body('whatsapp.provider').optional().isIn(['whatsapp-web.js', 'twilio', '360dialog']).withMessage('Proveedor de WhatsApp inválido'),
-    body('kitchen.phone').optional().matches(/^\+?[\d\s\-\(\)]+$/).withMessage('Teléfono de cocina inválido'),
-    body('settings.businessHours').optional().isObject().withMessage('Horarios de negocio deben ser un objeto'),
-    body('settings.delivery.enabled').optional().isBoolean().withMessage('Delivery enabled debe ser booleano'),
-    body('settings.delivery.radius').optional().isFloat({ min: 0 }).withMessage('Radio de delivery debe ser un número positivo'),
-    body('settings.delivery.fee').optional().isFloat({ min: 0 }).withMessage('Costo de delivery debe ser un número positivo'),
-    body('ai.prompt').optional().isLength({ max: 1000 }).withMessage('Prompt de IA no puede exceder 1000 caracteres'),
-    body('ai.model').optional().isIn(['huggingface', 'deepseek', 'openai']).withMessage('Modelo de IA inválido')
+    body('razonSocial').optional().trim().isLength({ min: 2, max: 100 }).withMessage('Razón social debe tener entre 2 y 100 caracteres'),
+    body('nit').optional().trim().isLength({ min: 8, max: 20 }).withMessage('NIT debe tener entre 8 y 20 caracteres'),
+    body('phone').optional().matches(/^\+?[\d\s\-\(\)]+$/).withMessage('Teléfono inválido'),
+    body('address').optional().trim().isLength({ min: 5, max: 200 }).withMessage('Dirección debe tener entre 5 y 200 caracteres'),
+    body('city').optional().trim().isLength({ min: 2, max: 50 }).withMessage('Ciudad debe tener entre 2 y 50 caracteres'),
+    body('department').optional().trim().isLength({ min: 2, max: 50 }).withMessage('Departamento debe tener entre 2 y 50 caracteres'),
+    body('country').optional().trim().isLength({ min: 2, max: 50 }).withMessage('País debe tener entre 2 y 50 caracteres'),
+    body('description').optional().trim().isLength({ max: 500 }).withMessage('Descripción no puede exceder 500 caracteres'),
+    body('manager').optional().trim().isLength({ max: 100 }).withMessage('Gerente no puede exceder 100 caracteres'),
+    body('email').optional().isEmail().withMessage('Email inválido')
 ];
 
 // GET /api/branch - List branches (with business access control)
-router.get('/', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), async (req, res) => {
+router.get('/', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), async (req, res) => {
     try {
         const { page = 1, limit = 10, search, status, businessId } = req.query;
         
@@ -99,7 +91,7 @@ router.get('/', authMiddleware.requireRole(['super_admin', 'business_admin', 'br
 });
 
 // GET /api/branch/:branchId - Get specific branch
-router.get('/:branchId', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
+router.get('/:branchId', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
     try {
         const branch = await Branch.findById(req.params.branchId)
             .populate('businessId', 'name businessType settings')
@@ -117,40 +109,68 @@ router.get('/:branchId', authMiddleware.requireRole(['super_admin', 'business_ad
 });
 
 // POST /api/branch - Create new branch
-router.post('/', authMiddleware.requireRole(['super_admin', 'business_admin']), branchValidation, async (req, res) => {
+router.post('/', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin']), branchValidation, async (req, res) => {
     try {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
             return res.status(400).json({ success: false, errors: errors.array() });
         }
 
+        const { name, razonSocial, nit, phone, address, city, department, country, description, manager, email, businessId } = req.body;
+
+        // Validar que al menos uno de name o razonSocial esté presente
+        if (!name && !razonSocial) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Debe especificar al menos el nombre de la sucursal o la razón social' 
+            });
+        }
+
         // Check if business exists and user has access
-        const business = await Business.findById(req.body.businessId);
+        const business = await Business.findById(businessId);
         if (!business) {
             return res.status(404).json({ success: false, message: 'Negocio no encontrado' });
         }
 
-        if (req.user.role === 'business_admin' && req.user.businessId !== req.body.businessId) {
+        if (req.user.role === 'business_admin' && req.user.businessId !== businessId) {
             return res.status(403).json({ success: false, message: 'No tienes permisos para crear sucursales en este negocio' });
         }
 
         const branchData = {
-            ...req.body,
+            name: name || null,
+            razonSocial: razonSocial || null,
+            nit,
+            phone,
+            address,
+            city,
+            department,
+            country: country || 'Colombia',
+            description: description || null,
+            manager: manager || null,
+            businessId,
             branchId: `BR${Date.now()}${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
             status: 'active',
             isActive: true,
+            contact: {
+                phone,
+                email: email || null,
+                whatsapp: null
+            },
             whatsapp: {
-                ...req.body.whatsapp,
+                provider: 'whatsapp-web.js',
+                phoneNumber: phone,
                 connectionStatus: 'disconnected',
                 qrCode: null,
                 sessionData: null
-            }
+            },
+            createdAt: new Date(),
+            updatedAt: new Date()
         };
 
         const branch = new Branch(branchData);
         await branch.save();
 
-        logger.info(`Branch created: ${branch.branchId} - ${branch.name} for business ${business.name}`);
+        logger.info(`Branch created: ${branch.branchId} - ${branch.name || branch.razonSocial} for business ${business.name || business.razonSocial}`);
         res.status(201).json({ success: true, data: branch });
     } catch (error) {
         logger.error('Error creating branch:', error);
@@ -159,7 +179,7 @@ router.post('/', authMiddleware.requireRole(['super_admin', 'business_admin']), 
 });
 
 // PUT /api/branch/:branchId - Update branch
-router.put('/:branchId', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), updateBranchValidation, async (req, res) => {
+router.put('/:branchId', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), updateBranchValidation, async (req, res) => {
     try {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
@@ -186,7 +206,7 @@ router.put('/:branchId', authMiddleware.requireRole(['super_admin', 'business_ad
 });
 
 // DELETE /api/branch/:branchId - Delete branch
-router.delete('/:branchId', authMiddleware.requireRole(['super_admin', 'business_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
+router.delete('/:branchId', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
     try {
         const branch = await Branch.findById(req.params.branchId);
         if (!branch) {
@@ -206,14 +226,17 @@ router.delete('/:branchId', authMiddleware.requireRole(['super_admin', 'business
             });
         }
 
-        // Soft delete
-        branch.isActive = false;
-        branch.status = 'inactive';
-        branch.updatedAt = new Date();
-        await branch.save();
+        // Hard delete - Eliminar realmente de la base de datos
+        await Branch.findByIdAndDelete(req.params.branchId);
 
-        logger.info(`Branch deleted: ${branch.branchId} - ${branch.name}`);
-        res.json({ success: true, message: 'Sucursal eliminada correctamente' });
+        // También eliminar servicios asociados a la sucursal
+        await Service.deleteMany({ branchId: branch.branchId });
+
+        // También eliminar órdenes asociadas a la sucursal
+        await Order.deleteMany({ branchId: branch.branchId });
+
+        logger.info(`Branch permanently deleted: ${branch.branchId} - ${branch.name || branch.razonSocial}`);
+        res.json({ success: true, message: 'Sucursal eliminada permanentemente de la base de datos' });
     } catch (error) {
         logger.error('Error deleting branch:', error);
         res.status(500).json({ success: false, message: 'Error interno del servidor' });
@@ -221,7 +244,7 @@ router.delete('/:branchId', authMiddleware.requireRole(['super_admin', 'business
 });
 
 // GET /api/branch/:branchId/stats - Get branch statistics
-router.get('/:branchId/stats', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
+router.get('/:branchId/stats', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
     try {
         const { branchId } = req.params;
         const { period = '30d' } = req.query;
@@ -295,7 +318,7 @@ router.get('/:branchId/stats', authMiddleware.requireRole(['super_admin', 'busin
 });
 
 // GET /api/branch/:branchId/services - Get branch services
-router.get('/:branchId/services', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
+router.get('/:branchId/services', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
     try {
         const { page = 1, limit = 10, category, available } = req.query;
         
@@ -328,7 +351,7 @@ router.get('/:branchId/services', authMiddleware.requireRole(['super_admin', 'bu
 });
 
 // GET /api/branch/:branchId/orders - Get branch orders
-router.get('/:branchId/orders', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
+router.get('/:branchId/orders', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
     try {
         const { page = 1, limit = 10, status, date } = req.query;
         
@@ -366,7 +389,7 @@ router.get('/:branchId/orders', authMiddleware.requireRole(['super_admin', 'busi
 });
 
 // POST /api/branch/:branchId/activate - Activate branch
-router.post('/:branchId/activate', authMiddleware.requireRole(['super_admin', 'business_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
+router.post('/:branchId/activate', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
     try {
         const branch = await Branch.findByIdAndUpdate(
             req.params.branchId,
@@ -387,7 +410,7 @@ router.post('/:branchId/activate', authMiddleware.requireRole(['super_admin', 'b
 });
 
 // POST /api/branch/:branchId/deactivate - Deactivate branch
-router.post('/:branchId/deactivate', authMiddleware.requireRole(['super_admin', 'business_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
+router.post('/:branchId/deactivate', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
     try {
         const branch = await Branch.findByIdAndUpdate(
             req.params.branchId,
@@ -408,7 +431,7 @@ router.post('/:branchId/deactivate', authMiddleware.requireRole(['super_admin', 
 });
 
 // POST /api/branch/:branchId/upload-catalog - Upload catalog PDF
-router.post('/:branchId/upload-catalog', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
+router.post('/:branchId/upload-catalog', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
     try {
         // This endpoint will be implemented when we add file upload middleware
         res.json({ success: true, message: 'Endpoint para subir catálogo PDF - Pendiente de implementar' });

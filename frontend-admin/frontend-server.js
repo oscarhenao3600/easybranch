@@ -12,7 +12,9 @@ app.get('/', (req, res) => {
 
 // Handle all other routes by serving the requested file
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, req.path));
+    const filePath = path.join(__dirname, req.path);
+    console.log('Requested file:', filePath);
+    res.sendFile(filePath);
 });
 
 const PORT = process.env.PORT || 3000;

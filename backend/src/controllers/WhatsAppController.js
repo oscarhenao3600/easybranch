@@ -2,15 +2,53 @@ const WhatsAppConnection = require('../models/WhatsAppConnection');
 const Business = require('../models/Business');
 const Branch = require('../models/Branch');
 const User = require('../models/User');
+const BranchAIConfig = require('../models/BranchAIConfig');
 const LoggerService = require('../services/LoggerService');
 const WhatsAppServiceSimple = require('../services/WhatsAppServiceSimple');
+const AIService = require('../services/AIService');
+const WhatsAppConnectionMonitor = require('../services/WhatsAppConnectionMonitor');
+const WhatsAppQRManager = require('../services/WhatsAppQRManager');
 const QRCode = require('qrcode');
 
 class WhatsAppController {
     constructor() {
         this.logger = new LoggerService('whatsapp');
         this.whatsappService = null;
+        this.aiService = new AIService();
+        this.connectionMonitor = new WhatsAppConnectionMonitor();
+        this.qrManager = new WhatsAppQRManager();
         this.initializeService();
+        this.initializeAI();
+        this.setupEventHandlers();
+    }
+
+    // Configurar manejadores de eventos
+    setupEventHandlers() {
+        // Eventos del monitor de conexiones
+        this.connectionMonitor.on('connectionStatusChanged', (data) => {
+            console.log('📊 Estado de conexión cambiado:', data);
+            this.logger.info('Connection status changed', data);
+        });
+
+        this.connectionMonitor.on('connectionsChecked', (data) => {
+            console.log('🔍 Conexiones verificadas:', data.totalConnections);
+        });
+
+        // Eventos del gestor de QR codes
+        this.qrManager.on('qrGenerated', (data) => {
+            console.log('📱 QR Code generado:', data.connectionId);
+            this.logger.info('QR Code generated', { connectionId: data.connectionId });
+        });
+
+        this.qrManager.on('qrRefreshed', (data) => {
+            console.log('🔄 QR Code refrescado:', data.connectionId);
+            this.logger.info('QR Code refreshed', { connectionId: data.connectionId });
+        });
+
+        this.qrManager.on('qrExpired', (data) => {
+            console.log('⏰ QR Code expirado:', data.connectionId);
+            this.logger.info('QR Code expired', { connectionId: data.connectionId });
+        });
     }
 
     async initializeService() {
@@ -21,6 +59,37 @@ class WhatsAppController {
         } catch (error) {
             this.logger.error('Failed to initialize WhatsApp service', { error: error.message });
             // Continue without WhatsApp service for now
+        }
+    }
+
+    async initializeAI() {
+        try {
+            // Configure HuggingFace if API key is available
+            const huggingFaceKey = process.env.HUGGINGFACE_API_KEY;
+            const huggingFaceModel = process.env.HUGGINGFACE_MODEL || 'microsoft/DialoGPT-medium';
+            const useHuggingFace = process.env.USE_HUGGINGFACE === 'true';
+
+            if (huggingFaceKey && useHuggingFace) {
+                this.aiService.configureHuggingFace(huggingFaceKey, huggingFaceModel);
+                console.log('🤖 ===== IA CONFIGURADA CON HUGGINGFACE =====');
+                console.log('🔑 API Key:', huggingFaceKey ? 'Configurada' : 'No configurada');
+                console.log('🤖 Modelo:', huggingFaceModel);
+                console.log('==========================================');
+            } else {
+                console.log('🤖 ===== IA CONFIGURADA EN MODO SIMULACIÓN =====');
+                console.log('⚠️ HuggingFace deshabilitado - usando respuestas inteligentes');
+                console.log('================================================');
+            }
+
+            // Cargar configuraciones de IA existentes
+            await this.loadExistingAIConfigs();
+
+            // Iniciar monitoreo de conexiones
+            this.connectionMonitor.startMonitoring(30000); // Verificar cada 30 segundos
+
+            this.logger.info('AI service initialized successfully');
+        } catch (error) {
+            this.logger.error('Failed to initialize AI service', { error: error.message });
         }
     }
 
@@ -139,37 +208,80 @@ class WhatsAppController {
 
             // Check if AI integration is enabled
             if (!connection.aiIntegration) {
+                console.log('⚠️ IA deshabilitada para esta conexión:', connectionId);
                 return;
             }
 
-            // Check if message is "Hola" or similar greetings
-            const greetings = ['hola', 'hello', 'buenos días', 'buenas tardes', 'buenas noches', 'hey', 'hi'];
-            const isGreeting = greetings.some(greeting => 
-                message.toLowerCase().includes(greeting.toLowerCase())
-            );
+            // Extract phone number from WhatsApp format (remove @c.us)
+            const phoneNumber = from.replace('@c.us', '');
+            
+            console.log('🤖 ===== PROCESANDO MENSAJE CON IA =====');
+            console.log('📱 Connection ID:', connectionId);
+            console.log('📞 From:', phoneNumber);
+            console.log('💬 Message:', message);
+            console.log('🏢 Business ID:', connection.businessId);
+            console.log('🏪 Branch ID:', connection.branchId);
+            console.log('========================================');
 
-            if (isGreeting) {
-                // Send welcome message
-                const welcomeMessage = connection.offHoursMessage || '¡Hola! 👋 Bienvenido a nuestro negocio. ¿En qué puedo ayudarte hoy?';
+            try {
+                // Get business and branch info for context
+                const business = await Business.findById(connection.businessId);
+                const branch = await Branch.findById(connection.branchId);
                 
-                // Extract phone number from WhatsApp format (remove @c.us)
-                const phoneNumber = from.replace('@c.us', '');
+                // Get AI configuration for this branch
+                const branchAIConfig = await BranchAIConfig.findOne({ branchId: connection.branchId });
                 
-                console.log('🤖 ===== ENVIANDO RESPUESTA AUTOMÁTICA =====');
+                // Determine business type
+                const businessType = business?.type || 'restaurant';
+                
+                console.log('🔍 ===== CONFIGURACIÓN DE IA ENCONTRADA =====');
+                console.log('🏪 Branch:', branch?.name || 'No encontrada');
+                console.log('🏢 Business:', business?.name || 'No encontrada');
+                console.log('🤖 AI Config:', branchAIConfig ? 'Disponible' : 'No disponible');
+                console.log('📋 Menu Content:', branchAIConfig?.menuContent ? 'Disponible' : 'No disponible');
+                console.log('🎯 Custom Prompt:', branchAIConfig?.customPrompt ? 'Disponible' : 'No disponible');
+                console.log('============================================');
+                
+                // Generate AI response with branch-specific configuration
+                const aiResponse = await this.aiService.generateResponse(
+                    connection.branchId,
+                    message,
+                    phoneNumber, // Use phone number as client ID
+                    businessType,
+                    branchAIConfig // Pass branch-specific configuration
+                );
+
+                console.log('🤖 ===== RESPUESTA IA GENERADA =====');
                 console.log('📱 Connection ID:', connectionId);
-                console.log('📞 From (original):', from);
-                console.log('📞 Phone Number (extracted):', phoneNumber);
-                console.log('💬 Welcome Message:', welcomeMessage);
-                console.log('==========================================');
-                
-                await this.whatsappService.sendMessage(connectionId, phoneNumber, welcomeMessage);
+                console.log('📞 To:', phoneNumber);
+                console.log('🤖 AI Response:', aiResponse);
+                console.log('====================================');
+
+                // Send AI response
+                await this.whatsappService.sendMessage(connectionId, phoneNumber, aiResponse);
 
                 // Update connection stats
                 connection.messagesToday = (connection.messagesToday || 0) + 1;
                 connection.totalMessages = (connection.totalMessages || 0) + 1;
                 await connection.save();
 
-                this.logger.info('Welcome message sent', { connectionId, to: from, message: welcomeMessage });
+                this.logger.info('AI response sent', { 
+                    connectionId, 
+                    to: phoneNumber, 
+                    message: aiResponse.substring(0, 100) + '...' 
+                });
+
+            } catch (aiError) {
+                console.error('❌ Error procesando con IA:', aiError);
+                
+                // Fallback to basic response
+                const fallbackMessage = '¡Hola! 👋 Gracias por contactarnos. ¿En qué puedo ayudarte hoy?';
+                await this.whatsappService.sendMessage(connectionId, phoneNumber, fallbackMessage);
+                
+                this.logger.error('AI processing failed, sent fallback', { 
+                    connectionId, 
+                    error: aiError.message 
+                });
             }
 
         } catch (error) {
@@ -242,6 +354,68 @@ class WhatsAppController {
         }
     }
 
+    // Get available branches for WhatsApp connection
+    async getAvailableBranches(req, res) {
+        try {
+            // Get all active branches with full information
+            const availableBranches = await Branch.find({ 
+                isActive: true,
+                status: 'active'
+            }).select('_id branchId name businessId address city department').populate('businessId', 'name');
+
+            if (availableBranches.length === 0) {
+                return res.json({
+                    success: true,
+                    data: {
+                        branches: [],
+                        canCreateConnection: false,
+                        message: 'No existen sucursales creadas para vincular. Por favor, crea una sucursal antes de configurar WhatsApp.'
+                    }
+                });
+            }
+
+            // Get existing WhatsApp connections
+            const existingConnections = await WhatsAppConnection.find({});
+            const connectedBranchIds = existingConnections.map(conn => conn.branchId.toString());
+            
+            // Filter out branches that already have WhatsApp connections
+            const unconnectedBranches = availableBranches.filter(branch => 
+                !connectedBranchIds.includes(branch._id.toString())
+            );
+
+            const canCreateConnection = unconnectedBranches.length > 0;
+            const message = canCreateConnection 
+                ? `${unconnectedBranches.length} sucursal(es) disponible(s) para vincular WhatsApp`
+                : 'Todas las sucursales ya tienen conexiones de WhatsApp vinculadas. No hay sucursales disponibles para crear nuevas conexiones.';
+
+            this.logger.info('Available branches retrieved', { 
+                userId: req.user.id,
+                totalBranches: availableBranches.length,
+                unconnectedBranches: unconnectedBranches.length
+            });
+
+            res.json({
+                success: true,
+                data: {
+                    branches: unconnectedBranches,
+                    canCreateConnection,
+                    message,
+                    stats: {
+                        totalBranches: availableBranches.length,
+                        connectedBranches: connectedBranchIds.length,
+                        availableBranches: unconnectedBranches.length
+                    }
+                }
+            });
+        } catch (error) {
+            this.logger.error('Error getting available branches', { error: error.message });
+            res.status(500).json({
+                success: false,
+                error: 'Error al obtener sucursales disponibles'
+            });
+        }
+    }
+
     // Create new WhatsApp connection
     async createConnection(req, res) {
         try {
@@ -262,6 +436,35 @@ class WhatsAppController {
                 return res.status(400).json({
                     success: false,
                     error: 'Todos los campos son requeridos'
+                });
+            }
+
+            // Check if there are any branches available for WhatsApp connection
+            const availableBranches = await Branch.find({ 
+                isActive: true,
+                status: 'active'
+            });
+
+            if (availableBranches.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'No existen sucursales creadas para vincular. Por favor, crea una sucursal antes de configurar WhatsApp.'
+                });
+            }
+
+            // Check which branches already have WhatsApp connections
+            const existingConnections = await WhatsAppConnection.find({});
+            const connectedBranchIds = existingConnections.map(conn => conn.branchId.toString());
+            
+            // Filter out branches that already have WhatsApp connections
+            const unconnectedBranches = availableBranches.filter(branch => 
+                !connectedBranchIds.includes(branch._id.toString())
+            );
+
+            if (unconnectedBranches.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Todas las sucursales ya tienen conexiones de WhatsApp vinculadas. No hay sucursales disponibles para crear nuevas conexiones.'
                 });
             }
 
@@ -407,21 +610,37 @@ class WhatsAppController {
             const business = await Business.findById(businessObjectId);
             const branch = await Branch.findById(branchObjectId);
 
-            // Generate QR code using WhatsApp service or fallback
+            // Generate QR code using the new QR manager
             let qrCodeDataURL = null;
+            let qrExpiresAt = null;
+            
             try {
-                if (this.whatsappService) {
-                    qrCodeDataURL = await this.whatsappService.generateQRCode(connection._id, phoneNumber);
+                const qrResult = await this.qrManager.generateQRCode(connection._id, {
+                    phoneNumber,
+                    branchName: branch.name,
+                    businessName: business.name
+                });
+                
+                if (qrResult.success) {
+                    qrCodeDataURL = qrResult.qrCodeDataURL;
+                    qrExpiresAt = qrResult.expiresAt;
                     connection.status = 'connecting';
-                } else {
-                    throw new Error('WhatsApp service not available');
+                    
+                    // Update connection with QR code
+                    connection.qrCodeDataURL = qrCodeDataURL;
+                    connection.qrExpiresAt = qrExpiresAt;
+                    await connection.save();
+                    
+                    // Registrar conexión para monitoreo
+                    this.connectionMonitor.registerConnection(connection._id, {
+                        phoneNumber,
+                        branchName: branch.name,
+                        businessName: business.name,
+                        status: 'connecting'
+                    });
+                    
+                    this.logger.info('QR code generated successfully', { connectionId: connection._id });
                 }
-                
-                // Update connection with QR code
-                connection.qrCodeDataURL = qrCodeDataURL;
-                await connection.save();
-                
-                this.logger.info('QR code generated successfully', { connectionId: connection._id });
             } catch (error) {
                 this.logger.error('Failed to generate QR code', { 
                     connectionId: connection._id, 
@@ -885,7 +1104,185 @@ class WhatsAppController {
             });
         }
     }
+
+    // Cargar configuraciones de IA existentes al iniciar el servidor
+    async loadExistingAIConfigs() {
+        try {
+            console.log('🤖 ===== CARGANDO CONFIGURACIONES DE IA EXISTENTES =====');
+            
+            const configs = await BranchAIConfig.find({ isActive: true });
+            console.log(`📊 Configuraciones encontradas: ${configs.length}`);
+            
+            for (const config of configs) {
+                const branchId = config.branchId.toString();
+                
+                // Cargar contenido del menú
+                if (config.menuContent) {
+                    this.aiService.setMenuContent(branchId, config.menuContent);
+                    console.log(`✅ Menú cargado para sucursal: ${branchId}`);
+                }
+                
+                // Cargar prompt personalizado
+                if (config.customPrompt) {
+                    this.aiService.setAIPrompt(branchId, config.customPrompt);
+                    console.log(`✅ Prompt cargado para sucursal: ${branchId}`);
+                }
+            }
+            
+            console.log('✅ Configuraciones de IA cargadas exitosamente');
+            console.log('===============================================');
+            
+        } catch (error) {
+            console.error('❌ Error cargando configuraciones de IA:', error);
+            this.logger.error('Error loading existing AI configs', { error: error.message });
+        }
+    }
+
+    // Obtener estadísticas del sistema de WhatsApp
+    async getSystemStats(req, res) {
+        try {
+            const connections = await WhatsAppConnection.find({});
+            const monitorStats = this.connectionMonitor.getMonitoringStats();
+            const qrStats = this.qrManager.getQRStats();
+
+            const stats = {
+                connections: {
+                    total: connections.length,
+                    connected: connections.filter(c => c.isConnected).length,
+                    connecting: connections.filter(c => c.status === 'connecting').length,
+                    disconnected: connections.filter(c => c.status === 'disconnected').length,
+                    error: connections.filter(c => c.status === 'error').length
+                },
+                monitoring: monitorStats,
+                qrCodes: qrStats,
+                aiService: this.aiService.getStats()
+            };
+
+            res.json({
+                success: true,
+                data: stats
+            });
+
+        } catch (error) {
+            this.logger.error('Error getting system stats', { error: error.message });
+            res.status(500).json({
+                success: false,
+                error: 'Error obteniendo estadísticas del sistema'
+            });
+        }
+    }
+
+    // Refrescar QR code manualmente
+    async refreshQRCode(req, res) {
+        try {
+            const { id } = req.params;
+            
+            const connection = await WhatsAppConnection.findById(id);
+            if (!connection) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Conexión no encontrada'
+                });
+            }
+
+            const qrResult = await this.qrManager.refreshQRCode(id);
+            
+            if (qrResult) {
+                // Actualizar conexión en BD
+                connection.qrCodeDataURL = qrResult.qrCodeDataURL;
+                connection.qrExpiresAt = qrResult.expiresAt;
+                await connection.save();
+
+                res.json({
+                    success: true,
+                    data: {
+                        qrCodeDataURL: qrResult.qrCodeDataURL,
+                        expiresAt: qrResult.expiresAt
+                    },
+                    message: 'QR Code refrescado exitosamente'
+                });
+            } else {
+                res.status(400).json({
+                    success: false,
+                    error: 'No se pudo refrescar el QR Code'
+                });
+            }
+
+        } catch (error) {
+            this.logger.error('Error refreshing QR code', { 
+                connectionId: req.params.id, 
+                error: error.message 
+            });
+            res.status(500).json({
+                success: false,
+                error: 'Error refrescando QR Code'
+            });
+        }
+    }
+
+    // Forzar verificación de conexión
+    async forceCheckConnection(req, res) {
+        try {
+            const { id } = req.params;
+            
+            await this.connectionMonitor.forceCheckConnection(id);
+            
+            const connection = await WhatsAppConnection.findById(id);
+            
+            res.json({
+                success: true,
+                data: {
+                    status: connection.status,
+                    isConnected: connection.isConnected,
+                    lastStatusUpdate: connection.lastStatusUpdate
+                },
+                message: 'Verificación de conexión completada'
+            });
+
+        } catch (error) {
+            this.logger.error('Error forcing connection check', { 
+                connectionId: req.params.id, 
+                error: error.message 
+            });
+            res.status(500).json({
+                success: false,
+                error: 'Error verificando conexión'
+            });
+        }
+    }
+
+    // Limpiar QR code
+    async clearQRCode(req, res) {
+        try {
+            const { id } = req.params;
+            
+            this.qrManager.clearQRCode(id);
+            
+            const connection = await WhatsAppConnection.findById(id);
+            if (connection) {
+                connection.qrCodeDataURL = null;
+                connection.qrExpiresAt = null;
+                await connection.save();
+            }
+
+            res.json({
+                success: true,
+                message: 'QR Code limpiado exitosamente'
+            });
+
+        } catch (error) {
+            this.logger.error('Error clearing QR code', { 
+                connectionId: req.params.id, 
+                error: error.message 
+            });
+            res.status(500).json({
+                success: false,
+                error: 'Error limpiando QR Code'
+            });
+        }
+    }
 }
 
 module.exports = WhatsAppController;
+
 

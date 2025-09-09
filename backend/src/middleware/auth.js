@@ -1,10 +1,12 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const LoggerService = require('../services/LoggerService');
+const TokenService = require('../services/TokenService');
 
 class AuthMiddleware {
   constructor() {
     this.logger = new LoggerService();
+    this.tokenService = new TokenService();
   }
 
   // Verificar token JWT
@@ -13,18 +15,32 @@ class AuthMiddleware {
       const token = req.headers.authorization?.split(' ')[1];
       
       if (!token) {
+        console.log('❌ No token provided');
         return res.status(401).json({
           error: 'Token de acceso requerido',
           code: 'TOKEN_REQUIRED'
         });
       }
 
-      const decoded = jwt.verify(token, '1357');
-      req.user = decoded;
+      console.log('🔍 Verifying token:', token.substring(0, 50) + '...');
+      
+      // Usar TokenService para verificar el token
+      const tokenService = new TokenService();
+      const verification = tokenService.verifyToken(token);
+      
+      if (!verification.success) {
+        console.log('❌ Token verification failed:', verification.error);
+        throw new Error(verification.error);
+      }
+      
+      console.log('✅ Token decoded successfully:', verification.payload);
+      req.user = verification.payload;
       next();
       
     } catch (error) {
-      this.logger.error('Error verificando token:', error);
+      console.log('❌ Token verification failed:', error.message);
+      const logger = new LoggerService();
+      logger.error('Error verificando token:', error);
       
       if (error.name === 'TokenExpiredError') {
         return res.status(401).json({
@@ -61,7 +77,8 @@ class AuthMiddleware {
       const allowedRoles = Array.isArray(roles) ? roles : [roles];
       
       if (!allowedRoles.includes(userRole)) {
-        this.logger.auth(req.user.userId, `Acceso denegado - Rol requerido: ${roles}, Rol actual: ${userRole}`);
+        const logger = new LoggerService();
+        logger.auth(req.user.userId, `Acceso denegado - Rol requerido: ${roles}, Rol actual: ${userRole}`);
         
         return res.status(403).json({
           error: 'Acceso denegado - Permisos insuficientes',
@@ -109,7 +126,8 @@ class AuthMiddleware {
         );
         
         if (!hasAllPermissions) {
-          this.logger.auth(user.userId, `Permisos insuficientes - Requeridos: ${requiredPermissions.join(', ')}`);
+          const logger = new LoggerService();
+          logger.auth(user.userId, `Permisos insuficientes - Requeridos: ${requiredPermissions.join(', ')}`);
           
           return res.status(403).json({
             error: 'Permisos insuficientes',
@@ -120,11 +138,12 @@ class AuthMiddleware {
         }
         
         // Agregar usuario completo al request
-        req.userData = user;
+        req.user = user;
         next();
         
       } catch (error) {
-        this.logger.error('Error verificando permisos:', error);
+        const logger = new LoggerService();
+        logger.error('Error verificando permisos:', error);
         return res.status(500).json({
           error: 'Error interno del servidor',
           code: 'INTERNAL_ERROR'
@@ -137,7 +156,7 @@ class AuthMiddleware {
   requireBusinessAccess() {
     return async (req, res, next) => {
       try {
-        if (!req.userData) {
+        if (!req.user) {
           return res.status(401).json({
             error: 'Usuario no autenticado',
             code: 'USER_NOT_AUTHENTICATED'
@@ -154,18 +173,19 @@ class AuthMiddleware {
         }
 
         // Super admin puede acceder a cualquier negocio
-        if (req.userData.role === 'super_admin') {
+        if (req.user.role === 'super_admin') {
           return next();
         }
 
         // Verificar si el usuario tiene acceso al negocio
-        if (req.userData.businessId !== businessId) {
-          this.logger.auth(req.userData.userId, `Acceso denegado al negocio ${businessId}`);
+        if (req.user.businessId !== businessId) {
+          const logger = new LoggerService();
+          logger.auth(req.user.userId, `Acceso denegado al negocio ${businessId}`);
           
           return res.status(403).json({
             error: 'Acceso denegado al negocio',
             code: 'BUSINESS_ACCESS_DENIED',
-            userBusiness: req.userData.businessId,
+            userBusiness: req.user.businessId,
             requestedBusiness: businessId
           });
         }
@@ -173,7 +193,8 @@ class AuthMiddleware {
         next();
         
       } catch (error) {
-        this.logger.error('Error verificando acceso al negocio:', error);
+        const logger = new LoggerService();
+        logger.error('Error verificando acceso al negocio:', error);
         return res.status(500).json({
           error: 'Error interno del servidor',
           code: 'INTERNAL_ERROR'
@@ -186,7 +207,7 @@ class AuthMiddleware {
   requireBranchAccess() {
     return async (req, res, next) => {
       try {
-        if (!req.userData) {
+        if (!req.user) {
           return res.status(401).json({
             error: 'Usuario no autenticado',
             code: 'USER_NOT_AUTHENTICATED'
@@ -203,25 +224,26 @@ class AuthMiddleware {
         }
 
         // Super admin puede acceder a cualquier sucursal
-        if (req.userData.role === 'super_admin') {
+        if (req.user.role === 'super_admin') {
           return next();
         }
 
         // Business admin puede acceder a cualquier sucursal de su negocio
-        if (req.userData.role === 'business_admin') {
+        if (req.user.role === 'business_admin') {
           // Aquí deberías verificar que la sucursal pertenece al negocio del usuario
           // Por ahora, permitimos el acceso
           return next();
         }
 
         // Branch admin y staff solo pueden acceder a su sucursal específica
-        if (req.userData.branchId !== branchId) {
-          this.logger.auth(req.userData.userId, `Acceso denegado a la sucursal ${branchId}`);
+        if (req.user.branchId !== branchId) {
+          const logger = new LoggerService();
+          logger.auth(req.user.userId, `Acceso denegado a la sucursal ${branchId}`);
           
           return res.status(403).json({
             error: 'Acceso denegado a la sucursal',
             code: 'BRANCH_ACCESS_DENIED',
-            userBranch: req.userData.branchId,
+            userBranch: req.user.branchId,
             requestedBranch: branchId
           });
         }
@@ -229,7 +251,8 @@ class AuthMiddleware {
         next();
         
       } catch (error) {
-        this.logger.error('Error verificando acceso a la sucursal:', error);
+        const logger = new LoggerService();
+        logger.error('Error verificando acceso a la sucursal:', error);
         return res.status(500).json({
           error: 'Error interno del servidor',
           code: 'INTERNAL_ERROR'
@@ -246,7 +269,8 @@ class AuthMiddleware {
       const duration = Date.now() - startTime;
       const userId = req.user?.userId || 'anonymous';
       
-      this.logger.auth(userId, `${req.method} ${req.path}`, {
+      const logger = new LoggerService();
+      logger.auth(userId, `${req.method} ${req.path}`, {
         statusCode: res.statusCode,
         duration: duration,
         userAgent: req.get('User-Agent'),
@@ -276,7 +300,8 @@ class AuthMiddleware {
       const currentRequests = requests.get(key) || [];
       
       if (currentRequests.length >= max) {
-        this.logger.warn(`Rate limit excedido para IP: ${key}`);
+        const logger = new LoggerService();
+        logger.warn(`Rate limit excedido para IP: ${key}`);
         
         return res.status(429).json({
           error: 'Demasiadas solicitudes',
