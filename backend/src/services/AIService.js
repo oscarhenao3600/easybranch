@@ -130,12 +130,7 @@ class AIService {
   // Generar respuesta usando IA con configuración específica de sucursal
   async generateResponse(branchId, userMessage, clientId = null, businessType = 'restaurant', branchConfig = null) {
     try {
-      console.log('🤖 ===== GENERANDO RESPUESTA IA CONTEXTUALIZADA =====');
-      console.log('🏪 Branch ID:', branchId);
-      console.log('💬 User Message:', userMessage);
-      console.log('🏢 Business Type:', businessType);
-      console.log('⚙️ Branch Config:', branchConfig ? 'Disponible' : 'No disponible');
-      console.log('=================================================');
+      // Generando respuesta IA contextualizada
 
       // Analizar intención del usuario
       const intent = this.analyzeUserIntent(userMessage);
@@ -308,13 +303,7 @@ class AIService {
   async callContextualizedAI(context, userMessage, businessType, businessSettings = {}, customPrompt = '', clientId = null, branchId = null) {
     const lowerMessage = userMessage.toLowerCase();
     
-    console.log('🤖 ===== PROCESANDO CON IA CONTEXTUALIZADA MEJORADA =====');
-    console.log('💬 User Message:', userMessage);
-    console.log('🏢 Business Type:', businessType);
-    console.log('⚙️ Business Settings:', Object.keys(businessSettings).length > 0 ? 'Disponible' : 'No disponible');
-    console.log('📋 Context:', context.substring(0, 200) + '...');
-    console.log('🎯 Custom Prompt:', customPrompt ? 'Disponible' : 'No disponible');
-    console.log('===============================================');
+      // Procesando con IA contextualizada mejorada
     
     // Generar respuesta más inteligente basada en el contexto
     const contextualResponse = await this.generateContextualResponse(userMessage, businessType, context, businessSettings, branchId, clientId);
@@ -331,16 +320,12 @@ class AIService {
       const intent = this.analyzeUserIntent(userMessage);
       await this.updateAdvancedClientContext(clientId, branchId, userMessage, personalizedResponse, intent);
       
-      console.log('🤖 ===== RESPUESTA CONTEXTUAL GENERADA =====');
-      console.log('💬 Respuesta:', personalizedResponse.substring(0, 100) + '...');
-      console.log('==========================================');
+      // Respuesta contextual generada
       
       return personalizedResponse;
     }
     
-    console.log('🤖 ===== RESPUESTA CONTEXTUAL GENERADA =====');
-    console.log('💬 Respuesta:', contextualResponse.substring(0, 100) + '...');
-    console.log('==========================================');
+    // Respuesta contextual generada
     
     return contextualResponse;
   }

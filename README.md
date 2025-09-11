@@ -32,6 +32,17 @@ EasyBranch es una plataforma completa de gestión empresarial diseñada para neg
 - ✅ **Selección de sucursales** con direcciones completas
 - ✅ **Creación de conexiones** sin errores
 
+### 🤖 **IA Avanzada y Procesamiento Inteligente**
+- ✅ **Sistema de recomendaciones estilo Akinator** (5 preguntas inteligentes)
+- ✅ **Lectura automática de menús PDF** por sucursal
+- ✅ **Tolerancia a errores de escritura** y dislexia
+- ✅ **Procesamiento automático de pedidos** con cálculos
+- ✅ **Análisis de intención** (saludo, pedido, consulta, etc.)
+- ✅ **Contexto avanzado** con historial de conversaciones
+- ✅ **Respuestas personalizadas** basadas en el menú de cada sucursal
+- ✅ **Detección inteligente** de productos y cantidades
+- ✅ **Cálculo automático** de totales con delivery
+
 ### 🎨 **Interfaz de Usuario**
 - ✅ **Diseño moderno** con paleta de colores sobria
 - ✅ **Cards verticales** para mejor visualización de QR codes
@@ -120,13 +131,38 @@ USE_HUGGINGFACE=false
 
 - ✅ **QR codes reales** que funcionan con WhatsApp
 - ✅ **Renovación automática** cada minuto
-- ✅ **Respuestas automáticas** con IA
+- ✅ **Respuestas automáticas** con IA avanzada
 - ✅ **Envío de mensajes** programáticos
 - ✅ **Recepción de mensajes** en tiempo real
 - ✅ **Múltiples conexiones** por negocio
 - ✅ **Selección de sucursales** con direcciones formateadas
 - ✅ **Creación sin errores** de conexiones
 - ✅ **QR codes en tarjetas** (no en modales)
+
+### 🤖 Sistema de IA Inteligente
+
+#### **Recomendaciones Estilo Akinator**
+1. **Envía**: `recomendación`
+2. **Responde** 5 preguntas sobre tus preferencias
+3. **Recibe** recomendaciones personalizadas del menú PDF
+
+#### **Procesamiento Inteligente de Pedidos**
+- **Detección automática** de productos y cantidades
+- **Cálculo de totales** con delivery incluido
+- **Tolerancia a errores** de escritura y dislexia
+- **Respuestas contextuales** basadas en el menú de la sucursal
+
+#### **Ejemplos de Uso**
+```
+Usuario: "quiero un capuchino" (mal escrito)
+IA: Detecta como "cappuccino" y procesa el pedido
+
+Usuario: "recomendación"
+IA: Te hace 5 preguntas inteligentes y recomienda productos del menú PDF
+
+Usuario: "quiero un Frappé de Vainilla 2 Café Helado y Brownie de Chocolate"
+IA: Calcula automáticamente: Subtotal + Delivery = Total
+```
 
 ## 🏗️ Arquitectura del Proyecto
 
@@ -209,11 +245,14 @@ npm run seed             # Pobla la base de datos con datos de prueba
 - [ ] Gestión de inventario
 - [ ] Procesamiento de pagos
 
-### 🤖 **IA Avanzada**
-- [ ] Respuestas automáticas más inteligentes
-- [ ] Análisis de sentimientos
-- [ ] Recomendaciones de productos
-- [ ] Chatbot conversacional
+### 🤖 **IA Avanzada** ✅ COMPLETADO
+- ✅ Respuestas automáticas inteligentes
+- ✅ Análisis de sentimientos
+- ✅ Recomendaciones de productos (Akinator)
+- ✅ Chatbot conversacional
+- ✅ Procesamiento automático de pedidos
+- ✅ Lectura de menús PDF
+- ✅ Tolerancia a errores de escritura
 
 ### 📊 **Analytics y Reportes**
 - [ ] Dashboard de métricas
@@ -260,4 +299,26 @@ Este proyecto está bajo la Licencia MIT. Ver `LICENSE` para más detalles.
 
 **¡EasyBranch está listo para producción! 🚀**
 
-*Versión actual: 2.1.0 - WhatsApp Integration & Business Management Complete*
+*Versión actual: 2.2.0 - AI-Powered WhatsApp Integration Complete*
+
+## 🎉 **NUEVAS FUNCIONALIDADES v2.2.0**
+
+### 🤖 **Sistema de IA Avanzado**
+- **Recomendaciones estilo Akinator** con 5 preguntas inteligentes
+- **Lectura automática de menús PDF** por sucursal
+- **Tolerancia a errores de escritura** y dislexia
+- **Procesamiento automático de pedidos** con cálculos
+- **Análisis de intención** avanzado
+- **Contexto de conversación** persistente
+
+### 📱 **WhatsApp Inteligente**
+- **Respuestas automáticas** basadas en el menú de cada sucursal
+- **Detección inteligente** de productos y cantidades
+- **Cálculo automático** de totales con delivery
+- **Manejo de errores** de escritura comunes
+- **Recomendaciones personalizadas** del menú PDF
+
+### 🧹 **Optimizaciones**
+- **Código limpio** sin logs innecesarios
+- **Archivos de test** eliminados
+- **Proyecto optimizado** para producción
