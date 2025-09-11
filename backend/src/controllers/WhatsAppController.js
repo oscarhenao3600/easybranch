@@ -14,7 +14,7 @@ class WhatsAppController {
     constructor() {
         this.logger = new LoggerService('whatsapp');
         this.whatsappService = null;
-        this.aiService = new AIService();
+        this.aiService = WhatsAppController.getSharedAIService();
         this.connectionMonitor = new WhatsAppConnectionMonitor();
         this.qrManager = new WhatsAppQRManager(this.whatsappService);
         this.initializeService();
@@ -22,6 +22,14 @@ class WhatsAppController {
         
         // Cargar configuraciones de IA después de que la base de datos esté lista
         this.loadAIConfigsAfterDBReady();
+    }
+
+    // Singleton para el servicio de IA
+    static getSharedAIService() {
+        if (!WhatsAppController.sharedAIService) {
+            WhatsAppController.sharedAIService = new AIService();
+        }
+        return WhatsAppController.sharedAIService;
     }
 
     // Cargar configuraciones de IA después de que la base de datos esté lista
@@ -1210,6 +1218,30 @@ class WhatsAppController {
         } catch (error) {
             console.error('❌ Error cargando configuraciones de IA:', error);
             this.logger.error('Error loading existing AI configs', { error: error.message });
+        }
+    }
+
+    // Recargar configuraciones de IA manualmente
+    async reloadAIConfigs(req, res) {
+        try {
+            console.log('🔄 ===== RECARGANDO CONFIGURACIONES DE IA MANUALMENTE =====');
+            
+            await this.loadExistingAIConfigs();
+            
+            res.json({
+                success: true,
+                message: 'Configuraciones de IA recargadas exitosamente',
+                timestamp: new Date()
+            });
+            
+        } catch (error) {
+            console.error('❌ Error recargando configuraciones de IA:', error);
+            this.logger.error('Error reloading AI configs', { error: error.message });
+            
+            res.status(500).json({
+                success: false,
+                error: 'Error al recargar las configuraciones de IA'
+            });
         }
     }
 

@@ -45,4 +45,7 @@ router.post('/connections/:id/refresh-qr', whatsappController.refreshQRCode.bind
 router.post('/connections/:id/force-check', whatsappController.forceCheckConnection.bind(whatsappController));
 router.delete('/connections/:id/clear-qr', whatsappController.clearQRCode.bind(whatsappController));
 
+// Reload AI configurations
+router.post('/reload-ai-configs', whatsappController.reloadAIConfigs.bind(whatsappController));
+
 module.exports = router;
