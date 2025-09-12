@@ -49,6 +49,17 @@ EasyBranch es una plataforma completa de gestión empresarial diseñada para neg
 - ✅ **Responsive design** para móviles y desktop
 - ✅ **Bootstrap 5** con componentes personalizados
 
+### ⚙️ **Sistema de Configuración Centralizada** 🆕
+- ✅ **Panel de configuración del sistema** completo
+- ✅ **Gestión de variables de entorno** con interfaz visual
+- ✅ **Configuración de IA centralizada** y proveedores
+- ✅ **Configuración de WhatsApp** y proveedores de API
+- ✅ **Configuración de tipos de negocio** personalizables
+- ✅ **Gestión de usuarios y roles** con permisos granulares
+- ✅ **Asignación de funcionalidades** por medio de checkboxes
+- ✅ **Pruebas de conexión** para base de datos y servicios
+- ✅ **Interfaz de tabs** para navegación intuitiva
+
 ### 🔧 **Backend Robusto**
 - ✅ **Node.js/Express.js** con arquitectura modular
 - ✅ **MongoDB** con Mongoose ODM
@@ -111,6 +122,52 @@ HUGGINGFACE_API_KEY=your-huggingface-api-key
 HUGGINGFACE_MODEL=microsoft/DialoGPT-medium
 USE_HUGGINGFACE=false
 ```
+
+## ⚙️ Sistema de Configuración
+
+### Acceder a la Configuración del Sistema
+
+1. **Accede** a `http://localhost:4000`
+2. **Haz login** con `admin@easybranch.com` / `admin123`
+3. **Ve a "Configuración"** en el menú lateral
+4. **Explora las 5 pestañas** disponibles:
+   - **Sistema**: Variables de entorno, base de datos, puertos
+   - **IA & Proveedores**: Configuración de IA, modelos, temperatura
+   - **WhatsApp**: Configuración de conexiones y auto-reconexión
+   - **Tipos de Negocio**: Gestión de categorías de negocios
+   - **Usuarios & Roles**: Permisos granulares por rol
+
+### Funcionalidades de Configuración
+
+#### 🔧 **Panel del Sistema**
+- ✅ **Gestión visual** de variables de entorno
+- ✅ **Pruebas de conexión** a base de datos
+- ✅ **Configuración de puertos** backend/frontend
+- ✅ **Estado del sistema** en tiempo real
+
+#### 🤖 **Configuración de IA**
+- ✅ **Selección de proveedores** (Hugging Face, OpenAI, Anthropic)
+- ✅ **Configuración de modelos** y parámetros
+- ✅ **Pruebas de conectividad** de APIs
+- ✅ **Modo de aprendizaje** automático
+
+#### 📱 **Configuración de WhatsApp**
+- ✅ **Gestión de proveedores** (WhatsApp Web, Twilio, Meta)
+- ✅ **Auto-reconexión** configurable
+- ✅ **Intervalos de reconexión** personalizables
+- ✅ **Estado del servicio** en tiempo real
+
+#### 🏢 **Tipos de Negocio**
+- ✅ **Gestión de categorías** (Restaurante, Café, Farmacia, etc.)
+- ✅ **Configuración por tipo** de negocio
+- ✅ **Iconos personalizados** para cada categoría
+- ✅ **Estados de configuración** visuales
+
+#### 👥 **Usuarios y Roles**
+- ✅ **4 roles predefinidos**: Super Admin, Business Admin, Branch Admin, Usuario
+- ✅ **Permisos granulares** con checkboxes
+- ✅ **Asignación visual** de funcionalidades
+- ✅ **Gestión de accesos** por rol
 
 ## 📱 Uso de WhatsApp
 
@@ -237,6 +294,19 @@ npm run seed             # Pobla la base de datos con datos de prueba
 - `POST /api/ai/:branchId/upload-catalog` - Subir catálogo PDF
 - `POST /api/ai/:branchId/query` - Consultar IA
 
+### Sistema de Configuración 🆕
+- `GET /api/system/config` - Obtener configuración del sistema
+- `POST /api/system/config` - Guardar configuración del sistema
+- `POST /api/system/test-db` - Probar conexión a base de datos
+- `GET /api/ai/config` - Obtener configuración de IA
+- `POST /api/ai/config` - Guardar configuración de IA
+- `GET /api/whatsapp/config` - Obtener configuración de WhatsApp
+- `POST /api/whatsapp/config` - Guardar configuración de WhatsApp
+- `GET /api/business-types` - Listar tipos de negocio
+- `POST /api/business-types` - Crear tipo de negocio
+- `GET /api/roles` - Listar roles de usuario
+- `PUT /api/roles/:role/permissions` - Actualizar permisos de rol
+
 ## 🎯 Próximas Funcionalidades
 
 ### 📋 **Gestión de Pedidos**
@@ -253,6 +323,14 @@ npm run seed             # Pobla la base de datos con datos de prueba
 - ✅ Procesamiento automático de pedidos
 - ✅ Lectura de menús PDF
 - ✅ Tolerancia a errores de escritura
+
+### ⚙️ **Sistema de Configuración** ✅ COMPLETADO
+- ✅ Panel de configuración del sistema
+- ✅ Gestión de variables de entorno
+- ✅ Configuración de IA centralizada
+- ✅ Configuración de WhatsApp
+- ✅ Gestión de tipos de negocio
+- ✅ Sistema de roles y permisos
 
 ### 📊 **Analytics y Reportes**
 - [ ] Dashboard de métricas
@@ -281,8 +359,20 @@ npm run seed             # Pobla la base de datos con datos de prueba
 
 ### CORS Errors
 1. Verifica que `ALLOWED_ORIGINS` esté configurado correctamente
-2. Asegúrate de que el frontend esté en el puerto 3000
-3. Verifica que el backend esté en el puerto 4000
+2. Asegúrate de que el frontend esté en el puerto 4000
+3. Verifica que el backend esté en el puerto 3000
+
+### Error "this.setupConfigTabs is not a function"
+1. **Verifica** que el sistema esté ejecutándose correctamente
+2. **Reinicia** el servidor con `npm run dev`
+3. **Limpia** la caché del navegador (Ctrl+F5)
+4. **Verifica** que no haya errores en la consola del navegador
+
+### La sección de Configuración no carga
+1. **Verifica** que el archivo `config-section.html` existe en `frontend-admin/`
+2. **Comprueba** que todos los métodos están dentro de la clase `SuperAdminDashboard`
+3. **Revisa** los logs del navegador para errores de JavaScript
+4. **Asegúrate** de estar logueado como Super Admin
 
 ## 📞 Soporte
 
@@ -299,9 +389,27 @@ Este proyecto está bajo la Licencia MIT. Ver `LICENSE` para más detalles.
 
 **¡EasyBranch está listo para producción! 🚀**
 
-*Versión actual: 2.2.0 - AI-Powered WhatsApp Integration Complete*
+*Versión actual: 2.3.0 - Sistema de Configuración Centralizada Complete*
 
-## 🎉 **NUEVAS FUNCIONALIDADES v2.2.0**
+## 🎉 **NUEVAS FUNCIONALIDADES v2.3.0**
+
+### ⚙️ **Sistema de Configuración Centralizada** 🆕
+- **Panel de configuración completo** con 5 secciones especializadas
+- **Gestión visual de variables de entorno** con interfaz intuitiva
+- **Configuración de IA centralizada** con múltiples proveedores
+- **Gestión de WhatsApp** con auto-reconexión configurable
+- **Tipos de negocio personalizables** con iconos y configuraciones
+- **Sistema de roles y permisos granulares** con checkboxes
+- **Pruebas de conectividad** en tiempo real
+- **Interfaz de tabs** para navegación intuitiva
+
+### 🔧 **Mejoras en la Arquitectura**
+- **Métodos de configuración** integrados en la clase principal
+- **Eliminación de código duplicado** y optimización
+- **Manejo de errores** mejorado en configuración
+- **Interfaz responsive** para todas las secciones de configuración
+
+## 🎉 **FUNCIONALIDADES v2.2.0**
 
 ### 🤖 **Sistema de IA Avanzado**
 - **Recomendaciones estilo Akinator** con 5 preguntas inteligentes

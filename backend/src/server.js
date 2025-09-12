@@ -2,7 +2,7 @@ const app = require('./app');
 const DatabaseService = require('./services/DatabaseService');
 const LoggerService = require('./services/LoggerService');
 
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 3000;
 const logger = new LoggerService();
 const databaseService = new DatabaseService();
 
@@ -12,6 +12,9 @@ async function startServer() {
     logger.info('🔄 Conectando a la base de datos...');
     await databaseService.connect();
     logger.info('✅ Base de datos conectada');
+
+    // Pasar la instancia del databaseService al app
+    app.setDatabaseService(databaseService);
 
     // Iniciar servidor
     app.listen(PORT, () => {

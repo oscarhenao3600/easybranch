@@ -1,0 +1,608 @@
+<!-- Configuración del Sistema - Sección Completa -->
+<div class="whatsapp-header">
+    <div class="header-content">
+        <div class="header-left">
+            <h4 class="header-title">
+                <i class="fas fa-cog me-2"></i>
+                Configuración del Sistema
+            </h4>
+            <p class="header-subtitle">Gestiona la configuración global del sistema</p>
+        </div>
+        <div class="header-right">
+            <button class="btn btn-outline-light btn-sm" onclick="dashboardApp.refreshSystemConfig()">
+                <i class="fas fa-sync-alt me-1"></i>Actualizar
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Configuración Tabs -->
+<div class="card mt-4">
+    <div class="card-header">
+        <ul class="nav nav-tabs card-header-tabs" id="configTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="system-tab" data-bs-toggle="tab" data-bs-target="#system-config" type="button" role="tab">
+                    <i class="fas fa-server me-2"></i>Sistema
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="ai-tab" data-bs-toggle="tab" data-bs-target="#ai-config" type="button" role="tab">
+                    <i class="fas fa-robot me-2"></i>IA & Proveedores
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="whatsapp-tab" data-bs-toggle="tab" data-bs-target="#whatsapp-config" type="button" role="tab">
+                    <i class="fab fa-whatsapp me-2"></i>WhatsApp
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="business-tab" data-bs-toggle="tab" data-bs-target="#business-config" type="button" role="tab">
+                    <i class="fas fa-building me-2"></i>Tipos de Negocio
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="users-tab" data-bs-toggle="tab" data-bs-target="#users-config" type="button" role="tab">
+                    <i class="fas fa-users me-2"></i>Usuarios & Roles
+                </button>
+            </li>
+        </ul>
+    </div>
+    <div class="card-body">
+        <div class="tab-content" id="configTabContent">
+            <!-- Sistema Config -->
+            <div class="tab-pane fade show active" id="system-config" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-server me-2"></i>Configuración del Servidor</h6>
+                        <div class="mb-3">
+                            <label class="form-label">Puerto Backend</label>
+                            <input type="number" class="form-control" id="backendPort" value="3000" readonly>
+                            <div class="form-text">Puerto del servidor backend</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Puerto Frontend</label>
+                            <input type="number" class="form-control" id="frontendPort" value="4000" readonly>
+                            <div class="form-text">Puerto del servidor frontend</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Entorno</label>
+                            <select class="form-select" id="environment">
+                                <option value="development">Desarrollo</option>
+                                <option value="production">Producción</option>
+                                <option value="testing">Testing</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-database me-2"></i>Base de Datos</h6>
+                        <div class="mb-3">
+                            <label class="form-label">MongoDB URI</label>
+                            <input type="text" class="form-control" id="mongoUri" placeholder="mongodb://localhost:27017/easybranch">
+                            <div class="form-text">URI de conexión a MongoDB</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Estado de Conexión</label>
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-success me-2" id="dbStatus">Conectado</span>
+                                <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.testDatabaseConnection()">
+                                    <i class="fas fa-plug me-1"></i>Probar Conexión
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <h6><i class="fas fa-key me-2"></i>Variables de Entorno</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Variable</th>
+                                        <th>Valor</th>
+                                        <th>Tipo</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="envVarsTable">
+                                    <tr>
+                                        <td>JWT_SECRET</td>
+                                        <td><input type="password" class="form-control form-control-sm" value="••••••••"></td>
+                                        <td><span class="badge bg-warning">Secreto</span></td>
+                                        <td>
+                                            <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.editEnvVar('JWT_SECRET')">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>HUGGINGFACE_API_KEY</td>
+                                        <td><input type="password" class="form-control form-control-sm" value="••••••••"></td>
+                                        <td><span class="badge bg-warning">Secreto</span></td>
+                                        <td>
+                                            <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.editEnvVar('HUGGINGFACE_API_KEY')">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>ALLOWED_ORIGINS</td>
+                                        <td><input type="text" class="form-control form-control-sm" value="http://localhost:4000"></td>
+                                        <td><span class="badge bg-info">Público</span></td>
+                                        <td>
+                                            <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.editEnvVar('ALLOWED_ORIGINS')">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <button class="btn btn-primary" onclick="dashboardApp.saveSystemConfig()">
+                            <i class="fas fa-save me-2"></i>Guardar Configuración del Sistema
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- IA Config -->
+            <div class="tab-pane fade" id="ai-config" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-robot me-2"></i>Configuración de IA</h6>
+                        <div class="mb-3">
+                            <label class="form-label">Proveedor Principal</label>
+                            <select class="form-select" id="aiProvider">
+                                <option value="huggingface">Hugging Face</option>
+                                <option value="openai">OpenAI</option>
+                                <option value="anthropic">Anthropic</option>
+                                <option value="local">Modelo Local</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Modelo por Defecto</label>
+                            <input type="text" class="form-control" id="aiModel" value="microsoft/DialoGPT-small">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Temperatura</label>
+                            <input type="range" class="form-range" id="aiTemperature" min="0" max="1" step="0.1" value="0.7">
+                            <div class="d-flex justify-content-between">
+                                <small>0.0 (Determinístico)</small>
+                                <small>1.0 (Creativo)</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-cogs me-2"></i>Configuración Avanzada</h6>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="aiEnabled" checked>
+                                <label class="form-check-label">IA Habilitada Globalmente</label>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="aiAutoResponse" checked>
+                                <label class="form-check-label">Respuestas Automáticas</label>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="aiLearningMode">
+                                <label class="form-check-label">Modo de Aprendizaje</label>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Límite de Tokens</label>
+                            <input type="number" class="form-control" id="aiTokenLimit" value="1000">
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <h6><i class="fas fa-key me-2"></i>API Keys por Proveedor</h6>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0"><i class="fab fa-hugging-face me-2"></i>Hugging Face</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label class="form-label">API Key</label>
+                                            <input type="password" class="form-control" id="hfApiKey" placeholder="hf_...">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Modelo</label>
+                                            <input type="text" class="form-control" id="hfModel" value="microsoft/DialoGPT-small">
+                                        </div>
+                                        <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.testAIProvider('huggingface')">
+                                            <i class="fas fa-play me-1"></i>Probar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0"><i class="fas fa-brain me-2"></i>OpenAI</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label class="form-label">API Key</label>
+                                            <input type="password" class="form-control" id="openaiApiKey" placeholder="sk-...">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Modelo</label>
+                                            <select class="form-select" id="openaiModel">
+                                                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                                                <option value="gpt-4">GPT-4</option>
+                                                <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                                            </select>
+                                        </div>
+                                        <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.testAIProvider('openai')">
+                                            <i class="fas fa-play me-1"></i>Probar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0"><i class="fas fa-robot me-2"></i>Anthropic</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label class="form-label">API Key</label>
+                                            <input type="password" class="form-control" id="anthropicApiKey" placeholder="sk-ant-...">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Modelo</label>
+                                            <select class="form-select" id="anthropicModel">
+                                                <option value="claude-3-sonnet">Claude 3 Sonnet</option>
+                                                <option value="claude-3-opus">Claude 3 Opus</option>
+                                                <option value="claude-3-haiku">Claude 3 Haiku</option>
+                                            </select>
+                                        </div>
+                                        <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.testAIProvider('anthropic')">
+                                            <i class="fas fa-play me-1"></i>Probar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary mt-3" onclick="dashboardApp.saveAIConfig()">
+                            <i class="fas fa-save me-2"></i>Guardar Configuración de IA
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- WhatsApp Config -->
+            <div class="tab-pane fade" id="whatsapp-config" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="fab fa-whatsapp me-2"></i>Configuración de WhatsApp</h6>
+                        <div class="mb-3">
+                            <label class="form-label">Proveedor de API</label>
+                            <select class="form-select" id="whatsappProvider">
+                                <option value="whatsapp-web">WhatsApp Web (Gratuito)</option>
+                                <option value="twilio">Twilio</option>
+                                <option value="meta">Meta Business API</option>
+                                <option value="360dialog">360Dialog</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="whatsappEnabled" checked>
+                                <label class="form-check-label">WhatsApp Habilitado</label>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="whatsappAutoReconnect" checked>
+                                <label class="form-check-label">Reconexión Automática</label>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Intervalo de Reconexión (ms)</label>
+                            <input type="number" class="form-control" id="whatsappReconnectInterval" value="30000">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-qrcode me-2"></i>Configuración de Sesiones</h6>
+                        <div class="mb-3">
+                            <label class="form-label">Directorio de Sesiones</label>
+                            <input type="text" class="form-control" id="whatsappSessionDir" value="./sessions">
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="whatsappSaveSession" checked>
+                                <label class="form-check-label">Guardar Sesiones</label>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Tiempo de Vida del QR (minutos)</label>
+                            <input type="number" class="form-control" id="whatsappQRTimeout" value="5">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Estado del Servicio</label>
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-success me-2" id="whatsappStatus">Activo</span>
+                                <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.testWhatsAppConnection()">
+                                    <i class="fas fa-plug me-1"></i>Probar Conexión
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <h6><i class="fas fa-key me-2"></i>API Keys por Proveedor</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0"><i class="fas fa-comments me-2"></i>Twilio</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label class="form-label">Account SID</label>
+                                            <input type="text" class="form-control" id="twilioAccountSid" placeholder="AC...">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Auth Token</label>
+                                            <input type="password" class="form-control" id="twilioAuthToken" placeholder="...">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Phone Number SID</label>
+                                            <input type="text" class="form-control" id="twilioPhoneSid" placeholder="PN...">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0"><i class="fab fa-facebook me-2"></i>Meta Business API</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label class="form-label">Access Token</label>
+                                            <input type="password" class="form-control" id="metaAccessToken" placeholder="...">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Phone Number ID</label>
+                                            <input type="text" class="form-control" id="metaPhoneId" placeholder="...">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Business Account ID</label>
+                                            <input type="text" class="form-control" id="metaBusinessId" placeholder="...">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary mt-3" onclick="dashboardApp.saveWhatsAppConfig()">
+                            <i class="fas fa-save me-2"></i>Guardar Configuración de WhatsApp
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Business Types Config -->
+            <div class="tab-pane fade" id="business-config" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-8">
+                        <h6><i class="fas fa-building me-2"></i>Tipos de Negocio Disponibles</h6>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Tipo</th>
+                                        <th>Nombre</th>
+                                        <th>Descripción</th>
+                                        <th>Configuración</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="businessTypesTable">
+                                    <tr>
+                                        <td><i class="fas fa-utensils text-primary"></i></td>
+                                        <td>Restaurante</td>
+                                        <td>Negocio de comida y bebida</td>
+                                        <td>
+                                            <span class="badge bg-success">Configurado</span>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.editBusinessType('restaurant')">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><i class="fas fa-coffee text-warning"></i></td>
+                                        <td>Café</td>
+                                        <td>Establecimiento de café y bebidas</td>
+                                        <td>
+                                            <span class="badge bg-success">Configurado</span>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.editBusinessType('cafe')">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><i class="fas fa-pills text-success"></i></td>
+                                        <td>Farmacia</td>
+                                        <td>Establecimiento farmacéutico</td>
+                                        <td>
+                                            <span class="badge bg-success">Configurado</span>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.editBusinessType('pharmacy')">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><i class="fas fa-shopping-cart text-info"></i></td>
+                                        <td>Tienda</td>
+                                        <td>Comercio de productos generales</td>
+                                        <td>
+                                            <span class="badge bg-secondary">Sin configurar</span>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.editBusinessType('store')">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <button class="btn btn-primary" onclick="dashboardApp.addBusinessType()">
+                            <i class="fas fa-plus me-2"></i>Agregar Tipo de Negocio
+                        </button>
+                    </div>
+                    <div class="col-md-4">
+                        <h6><i class="fas fa-cogs me-2"></i>Configuración por Defecto</h6>
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label class="form-label">Horarios por Defecto</label>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <input type="time" class="form-control" id="defaultOpenTime" value="08:00">
+                                        </div>
+                                        <div class="col-6">
+                                            <input type="time" class="form-control" id="defaultCloseTime" value="22:00">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="defaultDeliveryEnabled" checked>
+                                        <label class="form-check-label">Delivery Habilitado</label>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Costo de Delivery</label>
+                                    <input type="number" class="form-control" id="defaultDeliveryFee" value="5000" step="100">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Pedido Mínimo</label>
+                                    <input type="number" class="form-control" id="defaultMinOrder" value="20000" step="1000">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Users & Roles Config -->
+            <div class="tab-pane fade" id="users-config" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-8">
+                        <h6><i class="fas fa-users me-2"></i>Roles del Sistema</h6>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Rol</th>
+                                        <th>Descripción</th>
+                                        <th>Usuarios</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rolesTable">
+                                    <tr>
+                                        <td><span class="badge bg-danger">Super Admin</span></td>
+                                        <td>Acceso completo al sistema</td>
+                                        <td>1 usuario</td>
+                                        <td>
+                                            <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.editRole('super_admin')">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><span class="badge bg-warning">Business Admin</span></td>
+                                        <td>Administración de negocios</td>
+                                        <td>2 usuarios</td>
+                                        <td>
+                                            <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.editRole('business_admin')">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><span class="badge bg-info">Branch Admin</span></td>
+                                        <td>Administración de sucursales</td>
+                                        <td>3 usuarios</td>
+                                        <td>
+                                            <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.editRole('branch_admin')">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><span class="badge bg-secondary">Usuario</span></td>
+                                        <td>Usuario básico</td>
+                                        <td>5 usuarios</td>
+                                        <td>
+                                            <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.editRole('user')">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <h6><i class="fas fa-shield-alt me-2"></i>Permisos por Rol</h6>
+                        <div id="rolePermissions">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Super Admin</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="perm-system-config" checked disabled>
+                                        <label class="form-check-label">Configuración del Sistema</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="perm-business-management" checked disabled>
+                                        <label class="form-check-label">Gestión de Negocios</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="perm-user-management" checked disabled>
+                                        <label class="form-check-label">Gestión de Usuarios</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="perm-whatsapp-config" checked disabled>
+                                        <label class="form-check-label">Configuración WhatsApp</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="perm-ai-config" checked disabled>
+                                        <label class="form-check-label">Configuración IA</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="perm-reports" checked disabled>
+                                        <label class="form-check-label">Reportes</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="perm-billing" checked disabled>
+                                        <label class="form-check-label">Facturación</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

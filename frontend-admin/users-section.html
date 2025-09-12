@@ -1,0 +1,312 @@
+<!-- Sección de Gestión de Usuarios -->
+<div class="container-fluid">
+    <!-- Header con estadísticas -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0">
+                            <i class="fas fa-users me-2"></i>
+                            Gestión de Usuarios
+                        </h4>
+                        <button class="btn btn-light" onclick="dashboardApp.openCreateUserModal()">
+                            <i class="fas fa-plus me-2"></i>
+                            Nuevo Usuario
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Estadísticas -->
+                    <div class="row" id="userStats">
+                        <div class="col-md-3">
+                            <div class="card stat-card">
+                                <div class="card-body text-center">
+                                    <h3 id="totalUsersCount" class="text-primary">0</h3>
+                                    <p class="mb-0">Total Usuarios</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card stat-card">
+                                <div class="card-body text-center">
+                                    <h3 id="activeUsersCount" class="text-success">0</h3>
+                                    <p class="mb-0">Usuarios Activos</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card stat-card">
+                                <div class="card-body text-center">
+                                    <h3 id="inactiveUsersCount" class="text-warning">0</h3>
+                                    <p class="mb-0">Usuarios Inactivos</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card stat-card">
+                                <div class="card-body text-center">
+                                    <h3 id="adminUsersCount" class="text-info">0</h3>
+                                    <p class="mb-0">Administradores</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros y búsqueda -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Buscar Usuario</label>
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="fas fa-search"></i>
+                                </span>
+                                <input type="text" class="form-control" id="userSearch" placeholder="Nombre, email o ID...">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Rol</label>
+                            <select class="form-select" id="userRoleFilter">
+                                <option value="">Todos los roles</option>
+                                <option value="super_admin">Super Admin</option>
+                                <option value="business_admin">Business Admin</option>
+                                <option value="branch_admin">Branch Admin</option>
+                                <option value="staff">Staff</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Estado</label>
+                            <select class="form-select" id="userStatusFilter">
+                                <option value="">Todos</option>
+                                <option value="true">Activos</option>
+                                <option value="false">Inactivos</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Negocio</label>
+                            <select class="form-select" id="userBusinessFilter">
+                                <option value="">Todos los negocios</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <div class="d-grid">
+                                <button class="btn btn-outline-primary" onclick="dashboardApp.filterUsers()">
+                                    <i class="fas fa-filter me-2"></i>
+                                    Filtrar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de usuarios -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Lista de Usuarios</h5>
+                        <div class="btn-group">
+                            <button class="btn btn-outline-success btn-sm" onclick="dashboardApp.refreshUsers()">
+                                <i class="fas fa-sync me-1"></i>
+                                Refrescar
+                            </button>
+                            <button class="btn btn-outline-info btn-sm" onclick="dashboardApp.exportUsers()">
+                                <i class="fas fa-download me-1"></i>
+                                Exportar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Usuario</th>
+                                    <th>Email</th>
+                                    <th>Rol</th>
+                                    <th>Negocio/Sucursal</th>
+                                    <th>Estado</th>
+                                    <th>Último Login</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <tr>
+                                    <td colspan="7" class="text-center py-4">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Cargando...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <!-- Paginación -->
+                    <nav aria-label="Paginación de usuarios">
+                        <ul class="pagination pagination-sm justify-content-center mb-0" id="usersPagination">
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para crear/editar usuario -->
+<div class="modal fade" id="userModal" tabindex="-1" aria-labelledby="userModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="userModalLabel">Crear Usuario</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="userForm">
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <!-- Información básica -->
+                        <div class="col-md-6">
+                            <label for="userName" class="form-label">Nombre Completo *</label>
+                            <input type="text" class="form-control" id="userName" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="userEmail" class="form-label">Email *</label>
+                            <input type="email" class="form-control" id="userEmail" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="userPassword" class="form-label">Contraseña *</label>
+                            <input type="password" class="form-control" id="userPassword" required>
+                            <div class="form-text">Mínimo 6 caracteres</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="userRole" class="form-label">Rol *</label>
+                            <select class="form-select" id="userRole" required>
+                                <option value="">Seleccionar rol</option>
+                                <option value="super_admin">Super Administrador</option>
+                                <option value="business_admin">Business Admin</option>
+                                <option value="branch_admin">Branch Admin</option>
+                                <option value="staff">Staff</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Asignación de negocio/sucursal -->
+                        <div class="col-md-6">
+                            <label for="userBusiness" class="form-label">Negocio</label>
+                            <select class="form-select" id="userBusiness">
+                                <option value="">Seleccionar negocio</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="userBranch" class="form-label">Sucursal</label>
+                            <select class="form-select" id="userBranch">
+                                <option value="">Seleccionar sucursal</option>
+                            </select>
+                        </div>
+
+                        <!-- Información de perfil -->
+                        <div class="col-md-6">
+                            <label for="userPhone" class="form-label">Teléfono</label>
+                            <input type="tel" class="form-control" id="userPhone">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="userTimezone" class="form-label">Zona Horaria</label>
+                            <select class="form-select" id="userTimezone">
+                                <option value="America/Bogota">Bogotá (GMT-5)</option>
+                                <option value="America/Mexico_City">México (GMT-6)</option>
+                                <option value="America/New_York">Nueva York (GMT-5)</option>
+                                <option value="America/Los_Angeles">Los Ángeles (GMT-8)</option>
+                                <option value="Europe/Madrid">Madrid (GMT+1)</option>
+                            </select>
+                        </div>
+
+                        <!-- Permisos -->
+                        <div class="col-12">
+                            <label class="form-label">Permisos</label>
+                            <div class="row" id="permissionsContainer">
+                                <!-- Los permisos se generarán dinámicamente -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>
+                        Guardar Usuario
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para gestionar permisos -->
+<div class="modal fade" id="permissionsModal" tabindex="-1" aria-labelledby="permissionsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="permissionsModalLabel">Gestionar Permisos</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="permissionsContent">
+                    <!-- Los permisos se generarán dinámicamente -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="dashboardApp.saveUserPermissions()">
+                    <i class="fas fa-save me-2"></i>
+                    Guardar Permisos
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para resetear contraseña -->
+<div class="modal fade" id="resetPasswordModal" tabindex="-1" aria-labelledby="resetPasswordModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="resetPasswordModalLabel">Resetear Contraseña</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="resetPasswordForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="newPassword" class="form-label">Nueva Contraseña *</label>
+                        <input type="password" class="form-control" id="newPassword" required>
+                        <div class="form-text">Mínimo 6 caracteres</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirmPassword" class="form-label">Confirmar Contraseña *</label>
+                        <input type="password" class="form-control" id="confirmPassword" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-key me-2"></i>
+                        Resetear Contraseña
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
