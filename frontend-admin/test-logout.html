@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Logout - EasyBranch</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        button { padding: 10px 15px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .log { background: #f8f9fa; padding: 10px; margin: 10px 0; border-radius: 3px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>Test de Logout - EasyBranch</h1>
+    
+    <div class="test-section">
+        <h3>Estado Actual</h3>
+        <div id="status">Verificando...</div>
+        <button onclick="checkStatus()">Verificar Estado</button>
+    </div>
+
+    <div class="test-section">
+        <h3>Pruebas</h3>
+        <button onclick="testLogin()">Probar Login</button>
+        <button onclick="testLogout()">Probar Logout</button>
+        <button onclick="testBackend()">Probar Backend</button>
+        <button onclick="clearStorage()">Limpiar Storage</button>
+    </div>
+
+    <div class="test-section">
+        <h3>Logs</h3>
+        <div id="logs" class="log"></div>
+        <button onclick="clearLogs()">Limpiar Logs</button>
+    </div>
+
+    <script>
+        const baseURL = 'http://localhost:3000/api';
+        
+        function log(message) {
+            const logs = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            logs.innerHTML += `[${timestamp}] ${message}\n`;
+            console.log(message);
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+
+        function checkStatus() {
+            const token = localStorage.getItem('token');
+            const user = localStorage.getItem('user');
+            
+            let status = 'No autenticado';
+            if (token && user) {
+                try {
+                    const userData = JSON.parse(user);
+                    status = `Autenticado como: ${userData.name} (${userData.role})`;
+                } catch (e) {
+                    status = 'Token presente pero datos de usuario inválidos';
+                }
+            }
+            
+            document.getElementById('status').innerHTML = `
+                <strong>Estado:</strong> ${status}<br>
+                <strong>Token:</strong> ${token ? 'Presente' : 'Ausente'}<br>
+                <strong>User:</strong> ${user ? 'Presente' : 'Ausente'}
+            `;
+            
+            log(`Estado verificado: ${status}`);
+        }
+
+        async function testLogin() {
+            try {
+                log('Iniciando prueba de login...');
+                const response = await fetch(`${baseURL}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'admin@easybranch.com',
+                        password: 'admin123'
+                    })
+                });
+
+                log(`Respuesta del servidor: ${response.status} ${response.statusText}`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`Datos recibidos: ${JSON.stringify(data)}`);
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    log('Login exitoso - Token guardado');
+                    checkStatus();
+                } else {
+                    const errorText = await response.text();
+                    log(`Error en login: ${response.status} - ${errorText}`);
+                }
+            } catch (error) {
+                log(`Error en login: ${error.message}`);
+            }
+        }
+
+        async function testLogout() {
+            try {
+                log('Iniciando prueba de logout...');
+                const token = localStorage.getItem('token');
+                
+                if (!token) {
+                    log('No hay token para hacer logout');
+                    return;
+                }
+
+                log(`Token actual: ${token.substring(0, 20)}...`);
+                
+                const response = await fetch(`${baseURL}/auth/logout`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                log(`Respuesta del logout: ${response.status} ${response.statusText}`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`Logout exitoso: ${JSON.stringify(data)}`);
+                } else {
+                    const errorText = await response.text();
+                    log(`Error en logout del backend: ${response.status} - ${errorText}`);
+                }
+            } catch (error) {
+                log(`Error en logout: ${error.message}`);
+            } finally {
+                log('Limpiando datos locales...');
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                log('Datos locales limpiados');
+                checkStatus();
+            }
+        }
+
+        function clearStorage() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            log('Storage limpiado manualmente');
+            checkStatus();
+        }
+
+        async function testBackend() {
+            try {
+                log('Probando conectividad con el backend...');
+                
+                // Probar health check
+                const healthResponse = await fetch(`${baseURL}/health`);
+                log(`Health check: ${healthResponse.status} ${healthResponse.statusText}`);
+                
+                if (healthResponse.ok) {
+                    const healthData = await healthResponse.json();
+                    log(`Health data: ${JSON.stringify(healthData)}`);
+                }
+                
+                // Probar login directo
+                log('Probando login directo...');
+                const loginResponse = await fetch(`${baseURL}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'admin@easybranch.com',
+                        password: 'admin123'
+                    })
+                });
+                
+                log(`Login directo: ${loginResponse.status} ${loginResponse.statusText}`);
+                
+                if (loginResponse.ok) {
+                    const loginData = await loginResponse.json();
+                    log(`Login data recibida: ${JSON.stringify(loginData)}`);
+                } else {
+                    const errorText = await loginResponse.text();
+                    log(`Error en login directo: ${errorText}`);
+                }
+                
+            } catch (error) {
+                log(`Error en prueba de backend: ${error.message}`);
+            }
+        }
+
+        // Verificar estado inicial
+        checkStatus();
+    </script>
+</body>
+</html>

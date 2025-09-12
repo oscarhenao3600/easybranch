@@ -19,12 +19,19 @@ const branchAIConfigRoutes = require('./routes/branchAIConfig');
 const orderRoutes = require('./routes/order');
 const dashboardRoutes = require('./routes/dashboard');
 const reportsRoutes = require('./routes/reports');
+const billingRoutes = require('./routes/billing');
 
 const app = express();
 
 // Inicializar servicios
 const logger = new LoggerService();
-const databaseService = new DatabaseService();
+// databaseService se inicializa en server.js
+let databaseService = null;
+
+// Función para establecer la instancia del databaseService
+function setDatabaseService(service) {
+  databaseService = service;
+}
 
 // Configurar rate limiting
 const limiter = rateLimit({
@@ -124,6 +131,7 @@ app.use('/api/branch-ai-config', branchAIConfigRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportsRoutes);
+app.use('/api/billing', billingRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -132,7 +140,7 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     version: '2.0.0',
     environment: process.env.NODE_ENV,
-          database: databaseService.getConnectionStatus() ? 'connected' : 'disconnected'
+    database: databaseService ? (databaseService.getConnectionStatus() ? 'connected' : 'disconnected') : 'not_initialized'
   });
 });
 
@@ -165,3 +173,4 @@ app.use('*', (req, res) => {
 });
 
 module.exports = app;
+module.exports.setDatabaseService = setDatabaseService;

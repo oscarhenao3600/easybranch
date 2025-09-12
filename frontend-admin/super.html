@@ -1158,12 +1158,32 @@
                 return this.token;
             }
 
-            logout() {
-                this.token = null;
-                this.user = null;
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                window.location.href = 'index.html';
+            async logout() {
+                try {
+                    console.log('Iniciando logout...');
+                    // Llamar al endpoint de logout del backend
+                    await fetch(`${this.baseURL}/auth/logout`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${this.token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    console.log('Logout del backend exitoso');
+                } catch (error) {
+                    console.error('Error en logout:', error);
+                } finally {
+                    console.log('Limpiando datos locales...');
+                    // Limpiar datos locales independientemente del resultado del backend
+                    this.token = null;
+                    this.user = null;
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                    console.log('Redirigiendo a login...');
+                    
+                    // Forzar recarga completa de la página
+                    window.location.replace('index.html');
+                }
             }
 
             async makeRequest(endpoint, options = {}) {
@@ -1204,17 +1224,25 @@
             }
 
             init() {
+                console.log('Inicializando dashboard...');
+                console.log('Token en localStorage:', localStorage.getItem('token'));
+                
+                // Verificar autenticación
                 if (!this.authService.isAuthenticated()) {
-                    window.location.href = 'index.html';
+                    console.log('Usuario no autenticado, redirigiendo a login...');
+                    window.location.replace('index.html');
                     return;
                 }
 
+                console.log('Usuario autenticado, verificando rol...');
                 const user = this.authService.getUser();
-                if (user.role !== 'super_admin') {
+                if (!user || user.role !== 'super_admin') {
+                    console.log('Usuario no es super_admin o datos inválidos, haciendo logout...');
                     this.authService.logout();
                     return;
                 }
 
+                console.log('Inicialización exitosa, cargando dashboard...');
                 this.setupUserInfo();
                 this.bindEvents();
                 this.loadDashboard();
@@ -2861,7 +2889,699 @@
 
             async loadBilling() {
                 const section = document.getElementById('billingSection');
-                section.innerHTML = '<div class="text-center"><h4>Facturación</h4><p>Contenido en desarrollo...</p></div>';
+                section.innerHTML = `
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fas fa-file-invoice me-2"></i>Facturación y Cuentas de Cobro
+                            </h5>
+                            <div class="d-flex gap-2">
+                                <select id="billingBranchFilter" class="form-select form-select-sm" style="width: 200px;">
+                                    <option value="">Todas las sucursales</option>
+                                </select>
+                                <select id="billingStatusFilter" class="form-select form-select-sm" style="width: 150px;">
+                                    <option value="delivered">Entregados</option>
+                                    <option value="all">Todos</option>
+                                    <option value="pending">Pendientes</option>
+                                </select>
+                                <button class="btn btn-outline-primary btn-sm" onclick="app.refreshBilling()">
+                                    <i class="fas fa-sync-alt me-1"></i>Actualizar
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <!-- Pestañas -->
+                            <ul class="nav nav-tabs mb-4" id="billingTabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active" id="orders-tab" data-bs-toggle="tab" data-bs-target="#orders" type="button" role="tab">
+                                        <i class="fas fa-shopping-cart me-2"></i>Pedidos para Facturar
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="invoices-tab" data-bs-toggle="tab" data-bs-target="#invoices" type="button" role="tab">
+                                        <i class="fas fa-file-invoice me-2"></i>Cuentas de Cobro
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="settings-tab" data-bs-toggle="tab" data-bs-target="#settings" type="button" role="tab">
+                                        <i class="fas fa-cog me-2"></i>Configuración
+                                    </button>
+                                </li>
+                            </ul>
+
+                            <!-- Contenido de las pestañas -->
+                            <div class="tab-content" id="billingTabContent">
+                                <!-- Pestaña de Pedidos -->
+                                <div class="tab-pane fade show active" id="orders" role="tabpanel">
+                                    <div id="billingOrdersContent">
+                                        <div class="text-center">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">Cargando pedidos...</span>
+                                            </div>
+                                            <p class="mt-2">Cargando pedidos para facturar...</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Pestaña de Cuentas de Cobro -->
+                                <div class="tab-pane fade" id="invoices" role="tabpanel">
+                                    <div id="billingInvoicesContent">
+                                        <div class="text-center">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">Cargando cuentas de cobro...</span>
+                                            </div>
+                                            <p class="mt-2">Cargando cuentas de cobro...</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Pestaña de Configuración -->
+                                <div class="tab-pane fade" id="settings" role="tabpanel">
+                                    <div id="billingSettingsContent">
+                                        <div class="text-center">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">Cargando configuración...</span>
+                                            </div>
+                                            <p class="mt-2">Cargando configuración de facturación...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Configurar eventos
+                this.setupBillingEvents();
+                
+                // Cargar datos iniciales
+                await this.loadBillingBranches();
+                await this.loadBillingOrders();
+            }
+
+            // Funciones de Facturación
+            setupBillingEvents() {
+                // Cambio de filtros
+                document.getElementById('billingBranchFilter').addEventListener('change', () => {
+                    this.loadBillingOrders();
+                });
+                document.getElementById('billingStatusFilter').addEventListener('change', () => {
+                    this.loadBillingOrders();
+                });
+
+                // Cambio de pestañas
+                document.getElementById('orders-tab').addEventListener('click', () => {
+                    this.loadBillingOrders();
+                });
+                document.getElementById('invoices-tab').addEventListener('click', () => {
+                    this.loadBillingInvoices();
+                });
+                document.getElementById('settings-tab').addEventListener('click', () => {
+                    this.loadBillingSettings();
+                });
+            }
+
+            async loadBillingBranches() {
+                try {
+                    const response = await fetch('http://localhost:3000/api/branch', {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const branchSelect = document.getElementById('billingBranchFilter');
+                        branchSelect.innerHTML = '<option value="">Todas las sucursales</option>';
+                        
+                        data.data.forEach(branch => {
+                            const option = document.createElement('option');
+                            option.value = branch.branchId;
+                            option.textContent = branch.name;
+                            branchSelect.appendChild(option);
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error loading branches:', error);
+                }
+            }
+
+            async loadBillingOrders() {
+                try {
+                    const branchId = document.getElementById('billingBranchFilter').value;
+                    const status = document.getElementById('billingStatusFilter').value;
+                    
+                    let params = new URLSearchParams();
+                    if (branchId) params.append('branchId', branchId);
+                    if (status) params.append('status', status);
+
+                    const response = await fetch(`http://localhost:3000/api/billing/orders?${params}`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al cargar pedidos');
+                    }
+
+                    const data = await response.json();
+                    this.renderBillingOrders(data.data);
+
+                } catch (error) {
+                    console.error('Error loading billing orders:', error);
+                    document.getElementById('billingOrdersContent').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Error al cargar los pedidos: ${error.message}
+                        </div>
+                    `;
+                }
+            }
+
+            renderBillingOrders(data) {
+                const content = document.getElementById('billingOrdersContent');
+                
+                if (data.orders.length === 0) {
+                    content.innerHTML = `
+                        <div class="text-center text-muted">
+                            <i class="fas fa-shopping-cart fa-3x mb-3"></i>
+                            <h5>No hay pedidos para facturar</h5>
+                            <p>No se encontraron pedidos con los filtros seleccionados</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                content.innerHTML = `
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Pedido</th>
+                                    <th>Sucursal</th>
+                                    <th>Cliente</th>
+                                    <th>Total</th>
+                                    <th>Estado</th>
+                                    <th>Fecha</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.orders.map(order => `
+                                    <tr>
+                                        <td>
+                                            <strong>${order.orderId}</strong>
+                                            ${order.billingInfo ? `<br><small class="text-success">Facturado: ${order.billingInfo.invoiceNumber}</small>` : ''}
+                                        </td>
+                                        <td>${order.branchName}</td>
+                                        <td>
+                                            <div>
+                                                <strong>${order.customer.name}</strong><br>
+                                                <small class="text-muted">${order.customer.phone}</small>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <strong>$${order.total.toLocaleString()}</strong>
+                                        </td>
+                                        <td>
+                                            <span class="badge ${this.getOrderStatusBadgeClass(order.status)}">
+                                                ${this.getOrderStatusText(order.status)}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <small>${new Date(order.createdAt).toLocaleDateString()}</small><br>
+                                            <small class="text-muted">${new Date(order.createdAt).toLocaleTimeString()}</small>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-outline-primary" onclick="app.viewOrderDetails('${order.orderId}')" title="Ver detalles">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                                ${!order.billingInfo ? `
+                                                    <button class="btn btn-outline-success" onclick="app.generateInvoice('${order.orderId}')" title="Generar cuenta de cobro">
+                                                        <i class="fas fa-file-invoice"></i>
+                                                    </button>
+                                                ` : `
+                                                    <button class="btn btn-outline-info" onclick="app.sendInvoice('${order.orderId}')" title="Enviar cuenta de cobro">
+                                                        <i class="fas fa-paper-plane"></i>
+                                                    </button>
+                                                `}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Paginación -->
+                    <nav aria-label="Paginación de pedidos">
+                        <ul class="pagination justify-content-center">
+                            ${this.generateBillingPagination(data.pagination)}
+                        </ul>
+                    </nav>
+                `;
+            }
+
+            async loadBillingInvoices() {
+                try {
+                    const branchId = document.getElementById('billingBranchFilter').value;
+                    
+                    let params = new URLSearchParams();
+                    if (branchId) params.append('branchId', branchId);
+
+                    const response = await fetch(`http://localhost:3000/api/billing/invoices?${params}`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al cargar cuentas de cobro');
+                    }
+
+                    const data = await response.json();
+                    this.renderBillingInvoices(data.data);
+
+                } catch (error) {
+                    console.error('Error loading billing invoices:', error);
+                    document.getElementById('billingInvoicesContent').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Error al cargar las cuentas de cobro: ${error.message}
+                        </div>
+                    `;
+                }
+            }
+
+            renderBillingInvoices(data) {
+                const content = document.getElementById('billingInvoicesContent');
+                
+                if (data.invoices.length === 0) {
+                    content.innerHTML = `
+                        <div class="text-center text-muted">
+                            <i class="fas fa-file-invoice fa-3x mb-3"></i>
+                            <h5>No hay cuentas de cobro</h5>
+                            <p>No se han generado cuentas de cobro aún</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                content.innerHTML = `
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Cuenta de Cobro</th>
+                                    <th>Pedido</th>
+                                    <th>Sucursal</th>
+                                    <th>Cliente</th>
+                                    <th>Total</th>
+                                    <th>Estado</th>
+                                    <th>Generada</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.invoices.map(invoice => `
+                                    <tr>
+                                        <td>
+                                            <strong>${invoice.invoiceNumber}</strong>
+                                        </td>
+                                        <td>${invoice.orderId}</td>
+                                        <td>${invoice.branchName}</td>
+                                        <td>
+                                            <div>
+                                                <strong>${invoice.customer.name}</strong><br>
+                                                <small class="text-muted">${invoice.customer.phone}</small>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <strong>$${invoice.total.toLocaleString()}</strong>
+                                        </td>
+                                        <td>
+                                            <span class="badge ${this.getInvoiceStatusBadgeClass(invoice.status)}">
+                                                ${this.getInvoiceStatusText(invoice.status)}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <small>${new Date(invoice.generatedAt).toLocaleDateString()}</small><br>
+                                            <small class="text-muted">${new Date(invoice.generatedAt).toLocaleTimeString()}</small>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-outline-primary" onclick="app.viewInvoiceDetails('${invoice.invoiceNumber}')" title="Ver detalles">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                                <button class="btn btn-outline-info" onclick="app.sendInvoice('${invoice.orderId}')" title="Reenviar">
+                                                    <i class="fas fa-paper-plane"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Paginación -->
+                    <nav aria-label="Paginación de cuentas de cobro">
+                        <ul class="pagination justify-content-center">
+                            ${this.generateBillingPagination(data.pagination)}
+                        </ul>
+                    </nav>
+                `;
+            }
+
+            async loadBillingSettings() {
+                try {
+                    const branchId = document.getElementById('billingBranchFilter').value;
+                    
+                    if (!branchId) {
+                        document.getElementById('billingSettingsContent').innerHTML = `
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Selecciona una sucursal para configurar sus datos de facturación
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    const response = await fetch(`http://localhost:3000/api/billing/branch/${branchId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al cargar configuración');
+                    }
+
+                    const data = await response.json();
+                    this.renderBillingSettings(data.data);
+
+                } catch (error) {
+                    console.error('Error loading billing settings:', error);
+                    document.getElementById('billingSettingsContent').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Error al cargar la configuración: ${error.message}
+                        </div>
+                    `;
+                }
+            }
+
+            renderBillingSettings(data) {
+                const content = document.getElementById('billingSettingsContent');
+                const billingInfo = data.billingInfo;
+                
+                content.innerHTML = `
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-cog me-2"></i>Configuración de Facturación - ${data.name}
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <form id="billingSettingsForm">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">NIT *</label>
+                                                    <input type="text" class="form-control" id="nit" value="${billingInfo.nit || ''}" required>
+                                                    <div class="form-text">Número de identificación tributaria</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Teléfono</label>
+                                                    <input type="tel" class="form-control" id="phone" value="${billingInfo.phone || ''}">
+                                                    <div class="form-text">Para envío de cuentas de cobro por WhatsApp</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Email</label>
+                                                    <input type="email" class="form-control" id="email" value="${billingInfo.email || ''}">
+                                                    <div class="form-text">Para envío de cuentas de cobro por email</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Dirección</label>
+                                                    <input type="text" class="form-control" id="address" value="${billingInfo.address || ''}">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Ciudad</label>
+                                                    <input type="text" class="form-control" id="city" value="${billingInfo.city || ''}">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Departamento</label>
+                                                    <input type="text" class="form-control" id="department" value="${billingInfo.department || ''}">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex gap-2">
+                                            <button type="submit" class="btn btn-primary">
+                                                <i class="fas fa-save me-2"></i>Guardar Configuración
+                                            </button>
+                                            <button type="button" class="btn btn-outline-secondary" onclick="app.testBillingInfo()">
+                                                <i class="fas fa-test-tube me-2"></i>Probar Envío
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-info-circle me-2"></i>Información
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <p class="small text-muted">
+                                        <strong>NIT:</strong> Obligatorio para generar cuentas de cobro<br>
+                                        <strong>Teléfono:</strong> Para envío por WhatsApp<br>
+                                        <strong>Email:</strong> Para envío por correo electrónico<br>
+                                        <strong>Dirección:</strong> Para incluir en la cuenta de cobro
+                                    </p>
+                                    <div class="alert alert-warning alert-sm">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>
+                                        <small>Los datos de facturación son específicos por sucursal</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Configurar evento del formulario
+                document.getElementById('billingSettingsForm').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.saveBillingSettings(data.branchId);
+                });
+            }
+
+            async saveBillingSettings(branchId) {
+                try {
+                    const formData = {
+                        nit: document.getElementById('nit').value,
+                        phone: document.getElementById('phone').value,
+                        email: document.getElementById('email').value,
+                        address: document.getElementById('address').value,
+                        city: document.getElementById('city').value,
+                        department: document.getElementById('department').value
+                    };
+
+                    const response = await fetch(`http://localhost:3000/api/billing/branch/${branchId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        },
+                        body: JSON.stringify(formData)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al guardar configuración');
+                    }
+
+                    const data = await response.json();
+                    this.showAlert('Configuración de facturación guardada correctamente', 'success');
+
+                } catch (error) {
+                    console.error('Error saving billing settings:', error);
+                    this.showAlert('Error al guardar la configuración: ' + error.message, 'danger');
+                }
+            }
+
+            async generateInvoice(orderId) {
+                try {
+                    const response = await fetch('http://localhost:3000/api/billing/generate-invoice', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        },
+                        body: JSON.stringify({ orderId })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Error al generar cuenta de cobro');
+                    }
+
+                    const data = await response.json();
+                    this.showAlert('Cuenta de cobro generada correctamente: ' + data.data.invoiceNumber, 'success');
+                    
+                    // Recargar datos
+                    await this.loadBillingOrders();
+                    await this.loadBillingInvoices();
+
+                } catch (error) {
+                    console.error('Error generating invoice:', error);
+                    this.showAlert('Error al generar cuenta de cobro: ' + error.message, 'danger');
+                }
+            }
+
+            async sendInvoice(orderId) {
+                try {
+                    const response = await fetch('http://localhost:3000/api/billing/send-invoice', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        },
+                        body: JSON.stringify({ orderId, sendWhatsApp: true, sendEmail: true })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al enviar cuenta de cobro');
+                    }
+
+                    const data = await response.json();
+                    let message = 'Cuenta de cobro enviada correctamente';
+                    
+                    if (data.data.whatsapp.sent) message += ' (WhatsApp)';
+                    if (data.data.email.sent) message += ' (Email)';
+                    
+                    this.showAlert(message, 'success');
+                    
+                    // Recargar datos
+                    await this.loadBillingOrders();
+                    await this.loadBillingInvoices();
+
+                } catch (error) {
+                    console.error('Error sending invoice:', error);
+                    this.showAlert('Error al enviar cuenta de cobro: ' + error.message, 'danger');
+                }
+            }
+
+            getOrderStatusBadgeClass(status) {
+                const classes = {
+                    'pending': 'bg-warning',
+                    'confirmed': 'bg-info',
+                    'preparing': 'bg-primary',
+                    'ready': 'bg-success',
+                    'delivered': 'bg-success',
+                    'cancelled': 'bg-danger'
+                };
+                return classes[status] || 'bg-secondary';
+            }
+
+            getOrderStatusText(status) {
+                const texts = {
+                    'pending': 'Pendiente',
+                    'confirmed': 'Confirmado',
+                    'preparing': 'Preparando',
+                    'ready': 'Listo',
+                    'delivered': 'Entregado',
+                    'cancelled': 'Cancelado'
+                };
+                return texts[status] || status;
+            }
+
+            getInvoiceStatusBadgeClass(status) {
+                const classes = {
+                    'pending': 'bg-warning',
+                    'sent': 'bg-info',
+                    'paid': 'bg-success',
+                    'cancelled': 'bg-danger'
+                };
+                return classes[status] || 'bg-secondary';
+            }
+
+            getInvoiceStatusText(status) {
+                const texts = {
+                    'pending': 'Pendiente',
+                    'sent': 'Enviada',
+                    'paid': 'Pagada',
+                    'cancelled': 'Cancelada'
+                };
+                return texts[status] || status;
+            }
+
+            generateBillingPagination(pagination) {
+                let html = '';
+                
+                // Botón anterior
+                if (pagination.page > 1) {
+                    html += `<li class="page-item"><a class="page-link" href="#" onclick="app.loadBillingPage(${pagination.page - 1})">Anterior</a></li>`;
+                }
+                
+                // Páginas
+                for (let i = 1; i <= pagination.pages; i++) {
+                    if (i === pagination.page) {
+                        html += `<li class="page-item active"><span class="page-link">${i}</span></li>`;
+                    } else {
+                        html += `<li class="page-item"><a class="page-link" href="#" onclick="app.loadBillingPage(${i})">${i}</a></li>`;
+                    }
+                }
+                
+                // Botón siguiente
+                if (pagination.page < pagination.pages) {
+                    html += `<li class="page-item"><a class="page-link" href="#" onclick="app.loadBillingPage(${pagination.page + 1})">Siguiente</a></li>`;
+                }
+                
+                return html;
+            }
+
+            async loadBillingPage(page) {
+                // Implementar paginación si es necesario
+                await this.loadBillingOrders();
+            }
+
+            async refreshBilling() {
+                await this.loadBillingOrders();
+            }
+
+            async viewOrderDetails(orderId) {
+                // Implementar vista de detalles del pedido
+                this.showAlert('Funcionalidad de detalles en desarrollo', 'info');
+            }
+
+            async viewInvoiceDetails(invoiceNumber) {
+                // Implementar vista de detalles de la cuenta de cobro
+                this.showAlert('Funcionalidad de detalles en desarrollo', 'info');
+            }
+
+            async testBillingInfo() {
+                // Implementar prueba de envío
+                this.showAlert('Funcionalidad de prueba en desarrollo', 'info');
             }
 
             async loadSettings() {
@@ -5157,7 +5877,7 @@
             try {
                 const token = localStorage.getItem('token');
                 if (!token) {
-                    window.location.href = '/frontend-admin/index.html';
+                    window.location.href = 'index.html';
                     return;
                 }
 

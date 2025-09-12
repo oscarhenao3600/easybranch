@@ -13,6 +13,9 @@ async function startServer() {
     await databaseService.connect();
     logger.info('✅ Base de datos conectada');
 
+    // Pasar la instancia del databaseService al app
+    app.setDatabaseService(databaseService);
+
     // Iniciar servidor
     app.listen(PORT, () => {
       logger.info(`🚀 Servidor EasyBranch ejecutándose en puerto ${PORT}`);
