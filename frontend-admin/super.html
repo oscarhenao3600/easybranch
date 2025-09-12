@@ -1121,6 +1121,8 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Chart.js para gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         class AuthService {
             constructor() {
@@ -2973,24 +2975,818 @@
                 const section = document.getElementById('reportsSection');
                 section.innerHTML = `
                     <div class="card">
-                        <div class="card-header">
+                        <div class="card-header d-flex justify-content-between align-items-center">
                             <h5 class="mb-0">
                                 <i class="fas fa-chart-bar me-2"></i>Reportes y Análisis
                             </h5>
+                            <div class="d-flex gap-2">
+                                <select id="reportType" class="form-select form-select-sm" style="width: 150px;">
+                                    <option value="sales">Ventas</option>
+                                    <option value="branches">Sucursales</option>
+                                    <option value="whatsapp">WhatsApp</option>
+                                    <option value="ai">Inteligencia Artificial</option>
+                                </select>
+                                <select id="reportPeriod" class="form-select form-select-sm" style="width: 120px;">
+                                    <option value="7d">Últimos 7 días</option>
+                                    <option value="30d" selected>Últimos 30 días</option>
+                                    <option value="90d">Últimos 90 días</option>
+                                    <option value="custom">Personalizado</option>
+                                </select>
+                                <button class="btn btn-outline-primary btn-sm" onclick="app.refreshReports()">
+                                    <i class="fas fa-sync-alt me-1"></i>Actualizar
+                                </button>
+                                <button class="btn btn-success btn-sm" onclick="app.exportReport()">
+                                    <i class="fas fa-download me-1"></i>Exportar
+                                </button>
+                            </div>
                         </div>
                         <div class="card-body">
-                            <div class="text-center text-muted">
-                                <i class="fas fa-chart-bar fa-3x mb-3"></i>
-                                <h5>Reportes</h5>
-                                <p>Visualiza estadísticas y reportes de tu negocio</p>
-                                <div class="alert alert-info">
-                                    <i class="fas fa-info-circle me-2"></i>
-                                    Esta funcionalidad estará disponible próximamente
+                            <!-- Filtros personalizados -->
+                            <div id="customDateFilters" class="row mb-3" style="display: none;">
+                                <div class="col-md-3">
+                                    <label class="form-label">Fecha inicio</label>
+                                    <input type="date" id="startDate" class="form-control form-control-sm">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Fecha fin</label>
+                                    <input type="date" id="endDate" class="form-control form-control-sm">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Negocio</label>
+                                    <select id="businessFilter" class="form-select form-select-sm">
+                                        <option value="">Todos los negocios</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Sucursal</label>
+                                    <select id="branchFilter" class="form-select form-select-sm">
+                                        <option value="">Todas las sucursales</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Contenido de reportes -->
+                            <div id="reportsContent">
+                                <div class="text-center">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Cargando reportes...</span>
+                                    </div>
+                                    <p class="mt-2">Cargando reportes...</p>
                                 </div>
                             </div>
                         </div>
                     </div>
                 `;
+
+                // Configurar eventos
+                this.setupReportsEvents();
+                
+                // Cargar filtros
+                await this.loadBusinessFilter();
+                
+                // Cargar datos iniciales
+                await this.loadReportsData();
+            }
+
+            setupReportsEvents() {
+                // Cambio de tipo de reporte
+                document.getElementById('reportType').addEventListener('change', () => {
+                    this.loadReportsData();
+                });
+
+                // Cambio de período
+                document.getElementById('reportPeriod').addEventListener('change', (e) => {
+                    const customFilters = document.getElementById('customDateFilters');
+                    if (e.target.value === 'custom') {
+                        customFilters.style.display = 'block';
+                    } else {
+                        customFilters.style.display = 'none';
+                    }
+                    this.loadReportsData();
+                });
+
+                // Cambio de filtros personalizados
+                document.getElementById('startDate').addEventListener('change', () => {
+                    this.loadReportsData();
+                });
+                document.getElementById('endDate').addEventListener('change', () => {
+                    this.loadReportsData();
+                });
+                document.getElementById('businessFilter').addEventListener('change', () => {
+                    this.loadBranchFilter();
+                    this.loadReportsData();
+                });
+                document.getElementById('branchFilter').addEventListener('change', () => {
+                    this.loadReportsData();
+                });
+            }
+
+            async loadReportsData() {
+                try {
+                    const reportType = document.getElementById('reportType').value;
+                    const period = document.getElementById('reportPeriod').value;
+                    
+                    let params = new URLSearchParams();
+                    params.append('period', period);
+                    
+                    if (period === 'custom') {
+                        const startDate = document.getElementById('startDate').value;
+                        const endDate = document.getElementById('endDate').value;
+                        if (startDate) params.append('startDate', startDate);
+                        if (endDate) params.append('endDate', endDate);
+                    }
+
+                    const businessId = document.getElementById('businessFilter').value;
+                    const branchId = document.getElementById('branchFilter').value;
+                    if (businessId) params.append('businessId', businessId);
+                    if (branchId) params.append('branchId', branchId);
+
+                    const response = await fetch(`http://localhost:3000/api/reports/${reportType}?${params}`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al cargar reportes');
+                    }
+
+                    const data = await response.json();
+                    this.renderReport(reportType, data.data);
+
+                } catch (error) {
+                    console.error('Error loading reports:', error);
+                    document.getElementById('reportsContent').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Error al cargar los reportes: ${error.message}
+                        </div>
+                    `;
+                }
+            }
+
+            renderReport(type, data) {
+                const content = document.getElementById('reportsContent');
+                
+                switch (type) {
+                    case 'sales':
+                        this.renderSalesReport(data);
+                        break;
+                    case 'branches':
+                        this.renderBranchesReport(data);
+                        break;
+                    case 'whatsapp':
+                        this.renderWhatsAppReport(data);
+                        break;
+                    case 'ai':
+                        this.renderAIReport(data);
+                        break;
+                }
+            }
+
+            renderSalesReport(data) {
+                const content = document.getElementById('reportsContent');
+                const stats = data.stats;
+                
+                content.innerHTML = `
+                    <!-- Resumen de ventas -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Total Pedidos</h6>
+                                            <h3 class="mb-0">${stats.totalOrders}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-shopping-cart fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-success text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Ingresos Totales</h6>
+                                            <h3 class="mb-0">$${stats.totalRevenue.toLocaleString()}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-dollar-sign fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-info text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Valor Promedio</h6>
+                                            <h3 class="mb-0">$${stats.avgOrderValue.toFixed(0)}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-chart-line fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-warning text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Pedidos Completados</h6>
+                                            <h3 class="mb-0">${stats.completedOrders}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-check-circle fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Gráficos -->
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Ventas Diarias</h6>
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="dailySalesChart" height="100"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Pedidos por Estado</h6>
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="ordersStatusChart" height="100"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Ventas por sucursal -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Ventas por Sucursal</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>Sucursal</th>
+                                                    <th>Pedidos</th>
+                                                    <th>Ingresos</th>
+                                                    <th>Valor Promedio</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                ${data.salesByBranch.map(branch => `
+                                                    <tr>
+                                                        <td>${branch.branchName}</td>
+                                                        <td>${branch.orders}</td>
+                                                        <td>$${branch.revenue.toLocaleString()}</td>
+                                                        <td>$${branch.avgOrderValue.toFixed(0)}</td>
+                                                    </tr>
+                                                `).join('')}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Crear gráficos
+                this.createDailySalesChart(data.dailySales);
+                this.createOrdersStatusChart(data.ordersByStatus);
+            }
+
+            createDailySalesChart(dailySales) {
+                const ctx = document.getElementById('dailySalesChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: dailySales.map(day => `${day._id.day}/${day._id.month}`),
+                        datasets: [{
+                            label: 'Ingresos',
+                            data: dailySales.map(day => day.revenue),
+                            borderColor: 'rgb(75, 192, 192)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+
+            createOrdersStatusChart(ordersByStatus) {
+                const ctx = document.getElementById('ordersStatusChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ordersByStatus.map(status => status._id),
+                        datasets: [{
+                            data: ordersByStatus.map(status => status.count),
+                            backgroundColor: [
+                                '#FF6384',
+                                '#36A2EB',
+                                '#FFCE56',
+                                '#4BC0C0',
+                                '#9966FF',
+                                '#FF9F40'
+                            ]
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
+                });
+            }
+
+            renderBranchesReport(data) {
+                const content = document.getElementById('reportsContent');
+                const summary = data.summary;
+                
+                content.innerHTML = `
+                    <!-- Resumen de sucursales -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Total Sucursales</h6>
+                                            <h3 class="mb-0">${summary.totalBranches}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-building fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-success text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Sucursales Activas</h6>
+                                            <h3 class="mb-0">${summary.activeBranches}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-check-circle fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-info text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">WhatsApp Conectado</h6>
+                                            <h3 class="mb-0">${summary.connectedWhatsApp}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fab fa-whatsapp fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-warning text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">IA Habilitada</h6>
+                                            <h3 class="mb-0">${summary.aiEnabled}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-robot fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabla de sucursales -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">Rendimiento por Sucursal</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Sucursal</th>
+                                            <th>Negocio</th>
+                                            <th>Estado</th>
+                                            <th>Pedidos</th>
+                                            <th>Ingresos</th>
+                                            <th>Servicios</th>
+                                            <th>WhatsApp</th>
+                                            <th>IA</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${data.branches.map(branch => `
+                                            <tr>
+                                                <td>${branch.name}</td>
+                                                <td>${branch.businessName}</td>
+                                                <td>
+                                                    <span class="badge ${branch.isActive ? 'bg-success' : 'bg-secondary'}">
+                                                        ${branch.isActive ? 'Activa' : 'Inactiva'}
+                                                    </span>
+                                                </td>
+                                                <td>${branch.orderStats.totalOrders}</td>
+                                                <td>$${branch.orderStats.totalRevenue.toLocaleString()}</td>
+                                                <td>${branch.serviceCount}</td>
+                                                <td>
+                                                    <span class="badge ${branch.whatsappConnected ? 'bg-success' : 'bg-danger'}">
+                                                        ${branch.whatsappConnected ? 'Conectado' : 'Desconectado'}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span class="badge ${branch.aiEnabled ? 'bg-success' : 'bg-secondary'}">
+                                                        ${branch.aiEnabled ? 'Habilitada' : 'Deshabilitada'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderWhatsAppReport(data) {
+                const content = document.getElementById('reportsContent');
+                const stats = data.stats;
+                
+                content.innerHTML = `
+                    <!-- Resumen de WhatsApp -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Total Conexiones</h6>
+                                            <h3 class="mb-0">${stats.total}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fab fa-whatsapp fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-success text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Conectadas</h6>
+                                            <h3 class="mb-0">${stats.connected}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-check-circle fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-danger text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Desconectadas</h6>
+                                            <h3 class="mb-0">${stats.disconnected}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-times-circle fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-warning text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Conectando</h6>
+                                            <h3 class="mb-0">${stats.connecting}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-spinner fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabla de conexiones -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">Conexiones WhatsApp</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Teléfono</th>
+                                            <th>Sucursal</th>
+                                            <th>Negocio</th>
+                                            <th>Estado</th>
+                                            <th>Creado</th>
+                                            <th>Última Conexión</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${data.connections.map(conn => `
+                                            <tr>
+                                                <td>${conn.phoneNumber}</td>
+                                                <td>${conn.branchName}</td>
+                                                <td>${conn.businessName}</td>
+                                                <td>
+                                                    <span class="badge ${conn.status === 'connected' ? 'bg-success' : conn.status === 'disconnected' ? 'bg-danger' : 'bg-warning'}">
+                                                        ${conn.status}
+                                                    </span>
+                                                </td>
+                                                <td>${new Date(conn.createdAt).toLocaleDateString()}</td>
+                                                <td>${conn.lastSeen ? new Date(conn.lastSeen).toLocaleDateString() : 'N/A'}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderAIReport(data) {
+                const content = document.getElementById('reportsContent');
+                const stats = data.stats;
+                
+                content.innerHTML = `
+                    <!-- Resumen de IA -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Total Configuraciones</h6>
+                                            <h3 class="mb-0">${stats.total}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-robot fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-success text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">IA Habilitada</h6>
+                                            <h3 class="mb-0">${stats.enabled}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-check-circle fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-info text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Con Menú</h6>
+                                            <h3 class="mb-0">${stats.withMenu}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-list fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-warning text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Con Prompt</h6>
+                                            <h3 class="mb-0">${stats.withPrompt}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-comment fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabla de configuraciones IA -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">Configuraciones de IA por Sucursal</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Sucursal</th>
+                                            <th>Negocio</th>
+                                            <th>Estado</th>
+                                            <th>Proveedor</th>
+                                            <th>Modelo</th>
+                                            <th>Menú</th>
+                                            <th>Prompt</th>
+                                            <th>Productos</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${data.configs.map(config => `
+                                            <tr>
+                                                <td>${config.branchName}</td>
+                                                <td>${config.businessName}</td>
+                                                <td>
+                                                    <span class="badge ${config.enabled ? 'bg-success' : 'bg-secondary'}">
+                                                        ${config.enabled ? 'Habilitada' : 'Deshabilitada'}
+                                                    </span>
+                                                </td>
+                                                <td>${config.provider}</td>
+                                                <td>${config.model}</td>
+                                                <td>
+                                                    <span class="badge ${config.hasMenu ? 'bg-success' : 'bg-secondary'}">
+                                                        ${config.hasMenu ? 'Configurado' : 'Sin configurar'}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span class="badge ${config.hasPrompt ? 'bg-success' : 'bg-secondary'}">
+                                                        ${config.hasPrompt ? 'Configurado' : 'Sin configurar'}
+                                                    </span>
+                                                </td>
+                                                <td>${config.menuProducts}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            async refreshReports() {
+                await this.loadReportsData();
+            }
+
+            async exportReport() {
+                try {
+                    const reportType = document.getElementById('reportType').value;
+                    const period = document.getElementById('reportPeriod').value;
+                    
+                    let params = new URLSearchParams();
+                    params.append('type', reportType);
+                    params.append('format', 'json');
+                    params.append('period', period);
+                    
+                    if (period === 'custom') {
+                        const startDate = document.getElementById('startDate').value;
+                        const endDate = document.getElementById('endDate').value;
+                        if (startDate) params.append('startDate', startDate);
+                        if (endDate) params.append('endDate', endDate);
+                    }
+
+                    const businessId = document.getElementById('businessFilter').value;
+                    const branchId = document.getElementById('branchFilter').value;
+                    if (businessId) params.append('businessId', businessId);
+                    if (branchId) params.append('branchId', branchId);
+
+                    const response = await fetch(`http://localhost:3000/api/reports/export?${params}`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al exportar reporte');
+                    }
+
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `reporte_${reportType}_${new Date().toISOString().split('T')[0]}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                } catch (error) {
+                    console.error('Error exporting report:', error);
+                    alert('Error al exportar el reporte: ' + error.message);
+                }
+            }
+
+            async loadBusinessFilter() {
+                try {
+                    const response = await fetch('http://localhost:3000/api/business', {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const businessSelect = document.getElementById('businessFilter');
+                        businessSelect.innerHTML = '<option value="">Todos los negocios</option>';
+                        
+                        data.data.forEach(business => {
+                            const option = document.createElement('option');
+                            option.value = business.businessId;
+                            option.textContent = business.name;
+                            businessSelect.appendChild(option);
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error loading businesses:', error);
+                }
+            }
+
+            async loadBranchFilter() {
+                const businessId = document.getElementById('businessFilter').value;
+                const branchSelect = document.getElementById('branchFilter');
+                
+                branchSelect.innerHTML = '<option value="">Todas las sucursales</option>';
+                
+                if (!businessId) return;
+
+                try {
+                    const response = await fetch(`http://localhost:3000/api/branch?businessId=${businessId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        data.data.forEach(branch => {
+                            const option = document.createElement('option');
+                            option.value = branch.branchId;
+                            option.textContent = branch.name;
+                            branchSelect.appendChild(option);
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error loading branches:', error);
+                }
             }
 
             showAlert(message, type) {

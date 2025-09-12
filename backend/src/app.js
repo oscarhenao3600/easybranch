@@ -18,6 +18,7 @@ const aiRoutes = require('./routes/ai');
 const branchAIConfigRoutes = require('./routes/branchAIConfig');
 const orderRoutes = require('./routes/order');
 const dashboardRoutes = require('./routes/dashboard');
+const reportsRoutes = require('./routes/reports');
 
 const app = express();
 
@@ -122,6 +123,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/branch-ai-config', branchAIConfigRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/reports', reportsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

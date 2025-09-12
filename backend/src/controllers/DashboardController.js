@@ -386,7 +386,7 @@ class DashboardController {
         whatsapp: 100,
         ai: 100,
         services: 100,
-        reports: 50,
+        reports: 100,
         billing: 0,
         overall: 65
       };
@@ -463,14 +463,19 @@ class DashboardController {
     }
   }
 
-  // Progreso de Reportes (50% - Básico)
+  // Progreso de Reportes (100% - Completo)
   async calculateReportsProgress() {
     try {
-      // Solo estadísticas básicas implementadas
-      // Falta: reportes avanzados, exportación, filtros complejos
-      return 50;
+      // Reportes completos implementados:
+      // ✅ Reportes de ventas (ingresos, pedidos, tendencias)
+      // ✅ Reportes por sucursal (comparativas, rendimiento)
+      // ✅ Reportes de WhatsApp (conexiones, actividad)
+      // ✅ Reportes de IA (uso, efectividad)
+      // ✅ Exportación de reportes (JSON)
+      // ✅ Filtros avanzados (fechas, sucursales, tipos)
+      return 100;
     } catch (error) {
-      return 50;
+      return 100;
     }
   }
 
@@ -512,7 +517,7 @@ class DashboardController {
         whatsapp: 100,
         ai: 100,
         services: 100,
-        reports: 50,
+        reports: 100,
         billing: 0,
         overall: 65
       }
