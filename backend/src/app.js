@@ -11,6 +11,7 @@ const LoggerService = require('./services/LoggerService');
 
 // Importar rutas modulares
 const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/users');
 const businessRoutes = require('./routes/business');
 const branchRoutes = require('./routes/branch');
 const whatsappRoutes = require('./routes/whatsapp');
@@ -123,6 +124,7 @@ app.use((req, res, next) => {
 
 // Rutas modulares
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/business', businessRoutes);
 app.use('/api/branch', branchRoutes);
 app.use('/api/whatsapp', whatsappRoutes);

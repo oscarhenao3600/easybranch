@@ -1123,6 +1123,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Chart.js para gráficos -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="./users-methods.js"></script>
     <script>
         class AuthService {
             constructor() {
@@ -2637,7 +2638,25 @@
 
             async loadUsers() {
                 const section = document.getElementById('usersSection');
-                section.innerHTML = '<div class="text-center"><h4>Gestión de Usuarios</h4><p>Contenido en desarrollo...</p></div>';
+                try {
+                    const response = await fetch('./users-section.html');
+                    const usersHtml = await response.text();
+                    section.innerHTML = usersHtml;
+                    
+                    // Inicializar la sección de usuarios
+                    await this.loadUserStats();
+                    await this.loadUsersData();
+                    await this.loadBusinessesForUserFilter();
+                    this.setupUserEventListeners();
+                } catch (error) {
+                    console.error('Error loading users section:', error);
+                    section.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Error al cargar la sección de usuarios: ${error.message}
+                        </div>
+                    `;
+                }
             }
 
             async loadOrders() {
@@ -6501,6 +6520,301 @@
                     return;
                 }
                 this.showAlert('Función de cancelación en desarrollo', 'info');
+            }
+
+            // ===== MÉTODOS PARA GESTIÓN DE USUARIOS =====
+
+            // Variables para usuarios
+            currentUsers = [];
+            currentUserPage = 1;
+            currentUserFilters = {};
+            currentEditingUserId = null;
+
+            // Cargar estadísticas de usuarios
+            async loadUserStats() {
+                try {
+                    const token = localStorage.getItem('token');
+                    const response = await fetch(`${this.baseURL}/users/stats`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al cargar estadísticas de usuarios');
+                    }
+
+                    const data = await response.json();
+                    const stats = data.data;
+
+                    // Actualizar estadísticas en la UI
+                    const totalUsersEl = document.getElementById('totalUsersCount');
+                    const activeUsersEl = document.getElementById('activeUsersCount');
+                    const inactiveUsersEl = document.getElementById('inactiveUsersCount');
+                    const adminUsersEl = document.getElementById('adminUsersCount');
+
+                    if (totalUsersEl) totalUsersEl.textContent = stats.totalUsers || 0;
+                    if (activeUsersEl) activeUsersEl.textContent = stats.activeUsers || 0;
+                    if (inactiveUsersEl) inactiveUsersEl.textContent = stats.inactiveUsers || 0;
+                    if (adminUsersEl) adminUsersEl.textContent = (stats.roleStats?.super_admin || 0) + (stats.roleStats?.business_admin || 0);
+
+                } catch (error) {
+                    console.error('Error loading user stats:', error);
+                }
+            }
+
+            // Cargar datos de usuarios
+            async loadUsersData(page = 1) {
+                try {
+                    const token = localStorage.getItem('token');
+                    const params = new URLSearchParams({
+                        page: page,
+                        limit: 20,
+                        ...this.currentUserFilters
+                    });
+
+                    const response = await fetch(`${this.baseURL}/users?${params}`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al cargar usuarios');
+                    }
+
+                    const data = await response.json();
+                    this.currentUsers = data.data.users;
+                    this.currentUserPage = page;
+
+                    this.renderUsersTable();
+                    this.renderUsersPagination(data.data.pagination);
+
+                } catch (error) {
+                    console.error('Error loading users:', error);
+                    this.showAlert('Error al cargar usuarios: ' + error.message, 'danger');
+                }
+            }
+
+            // Renderizar tabla de usuarios
+            renderUsersTable() {
+                const tbody = document.getElementById('usersTableBody');
+                
+                if (!tbody) return;
+
+                if (this.currentUsers.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                <i class="fas fa-users fa-2x mb-2"></i>
+                                <p class="mb-0">No hay usuarios disponibles</p>
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tbody.innerHTML = this.currentUsers.map(user => `
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                                    ${user.name.charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                    <strong>${user.name}</strong>
+                                    <br>
+                                    <small class="text-muted">${user.userId}</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="text-primary">${user.email}</span>
+                        </td>
+                        <td>
+                            <span class="badge ${this.getUserRoleBadgeClass(user.role)}">
+                                ${this.getUserRoleText(user.role)}
+                            </span>
+                        </td>
+                        <td>
+                            <div>
+                                <strong>${user.businessId?.name || 'N/A'}</strong>
+                                ${user.branchId?.name ? `<br><small class="text-muted">${user.branchId.name}</small>` : ''}
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge ${user.isActive ? 'bg-success' : 'bg-secondary'}">
+                                ${user.isActive ? 'Activo' : 'Inactivo'}
+                            </span>
+                        </td>
+                        <td>
+                            <div>
+                                <strong>${this.formatDate(user.lastLogin || user.createdAt)}</strong>
+                                <br>
+                                <small class="text-muted">${this.formatTime(user.lastLogin || user.createdAt)}</small>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.editUser('${user._id}')" title="Editar">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-outline-info btn-sm" onclick="dashboardApp.managePermissions('${user._id}')" title="Permisos">
+                                    <i class="fas fa-key"></i>
+                                </button>
+                                <button class="btn btn-outline-warning btn-sm" onclick="dashboardApp.resetPassword('${user._id}')" title="Resetear contraseña">
+                                    <i class="fas fa-unlock"></i>
+                                </button>
+                                ${user.role !== 'super_admin' ? `
+                                    <button class="btn btn-outline-${user.isActive ? 'secondary' : 'success'} btn-sm" 
+                                            onclick="dashboardApp.toggleUserStatus('${user._id}')" 
+                                            title="${user.isActive ? 'Desactivar' : 'Activar'}">
+                                        <i class="fas fa-${user.isActive ? 'pause' : 'play'}"></i>
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            // Renderizar paginación de usuarios
+            renderUsersPagination(pagination) {
+                const paginationContainer = document.getElementById('usersPagination');
+                if (!paginationContainer) return;
+                
+                if (pagination.totalPages <= 1) {
+                    paginationContainer.innerHTML = '';
+                    return;
+                }
+
+                let paginationHTML = '';
+                
+                // Botón anterior
+                if (pagination.hasPrev) {
+                    paginationHTML += `
+                        <li class="page-item">
+                            <a class="page-link" href="#" onclick="dashboardApp.loadUsersData(${pagination.currentPage - 1})">Anterior</a>
+                        </li>
+                    `;
+                }
+
+                // Páginas
+                for (let i = 1; i <= pagination.totalPages; i++) {
+                    if (i === pagination.currentPage) {
+                        paginationHTML += `
+                            <li class="page-item active">
+                                <span class="page-link">${i}</span>
+                            </li>
+                        `;
+                    } else {
+                        paginationHTML += `
+                            <li class="page-item">
+                                <a class="page-link" href="#" onclick="dashboardApp.loadUsersData(${i})">${i}</a>
+                            </li>
+                        `;
+                    }
+                }
+
+                // Botón siguiente
+                if (pagination.hasNext) {
+                    paginationHTML += `
+                        <li class="page-item">
+                            <a class="page-link" href="#" onclick="dashboardApp.loadUsersData(${pagination.currentPage + 1})">Siguiente</a>
+                        </li>
+                    `;
+                }
+
+                paginationContainer.innerHTML = paginationHTML;
+            }
+
+            // Obtener clase de badge para rol de usuario
+            getUserRoleBadgeClass(role) {
+                const roleClasses = {
+                    'super_admin': 'bg-danger',
+                    'business_admin': 'bg-warning',
+                    'branch_admin': 'bg-info',
+                    'staff': 'bg-secondary'
+                };
+                return roleClasses[role] || 'bg-secondary';
+            }
+
+            // Obtener texto para rol de usuario
+            getUserRoleText(role) {
+                const roleTexts = {
+                    'super_admin': 'Super Admin',
+                    'business_admin': 'Business Admin',
+                    'branch_admin': 'Branch Admin',
+                    'staff': 'Staff'
+                };
+                return roleTexts[role] || role;
+            }
+
+            // Métodos adicionales para usuarios (llaman a las funciones globales)
+            async loadBusinessesForUserFilter() {
+                return window.loadBusinessesForUserFilter();
+            }
+
+            setupUserEventListeners() {
+                return window.setupUserEventListeners();
+            }
+
+            filterUsers() {
+                return window.filterUsers();
+            }
+
+            refreshUsers() {
+                return window.refreshUsers();
+            }
+
+            exportUsers() {
+                return window.exportUsers();
+            }
+
+            openCreateUserModal() {
+                return window.openCreateUserModal();
+            }
+
+            editUser(userId) {
+                return window.editUser(userId);
+            }
+
+            saveUser() {
+                return window.saveUser();
+            }
+
+            loadBranchesForUser(businessId) {
+                return window.loadBranchesForUser(businessId);
+            }
+
+            generatePermissionsCheckboxes(role, currentPermissions = []) {
+                return window.generatePermissionsCheckboxes(role, currentPermissions);
+            }
+
+            getSelectedPermissions() {
+                return window.getSelectedPermissions();
+            }
+
+            managePermissions(userId) {
+                return window.managePermissions(userId);
+            }
+
+            saveUserPermissions() {
+                return window.saveUserPermissions();
+            }
+
+            resetPassword(userId) {
+                return window.resetPassword(userId);
+            }
+
+            saveResetPassword() {
+                return window.saveResetPassword();
+            }
+
+            toggleUserStatus(userId) {
+                return window.toggleUserStatus(userId);
             }
         }
 
