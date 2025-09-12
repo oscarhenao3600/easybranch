@@ -2644,8 +2644,8 @@
                 try {
                     // La sección de pedidos ya tiene su contenido HTML
                     // Solo necesitamos cargar los datos
-                    await loadBranchesForOrderFilter();
-                    await loadOrdersData();
+                    await this.loadBranchesForOrderFilter();
+                    await this.loadOrdersData();
                 } catch (error) {
                     console.error('Error loading orders:', error);
                     // Usar console.error en lugar de showAlert para evitar errores de contexto
@@ -6209,6 +6209,299 @@
                     `;
                 }).join('');
             }
+
+            // ===== MÉTODOS PARA GESTIÓN DE PEDIDOS =====
+
+            // Cargar sucursales para filtro de pedidos
+            async loadBranchesForOrderFilter() {
+                try {
+                    const token = localStorage.getItem('token');
+                    const response = await fetch(`${this.baseURL}/branch`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al cargar sucursales');
+                    }
+
+                    const data = await response.json();
+                    const branchSelect = document.getElementById('orderBranchFilter');
+                    
+                    if (branchSelect) {
+                        branchSelect.innerHTML = '<option value="">Todas las sucursales</option>' +
+                            data.data.map(branch => 
+                                `<option value="${branch._id}">${branch.name}</option>`
+                            ).join('');
+                    }
+
+                } catch (error) {
+                    console.error('Error loading branches for filter:', error);
+                }
+            }
+
+            // Variables para pedidos
+            currentOrders = [];
+            currentOrderPage = 1;
+            currentOrderFilters = {};
+
+            // Cargar datos de pedidos
+            async loadOrdersData(page = 1) {
+                try {
+                    const token = localStorage.getItem('token');
+                    if (!token) {
+                        window.location.href = 'index.html';
+                        return;
+                    }
+
+                    const params = new URLSearchParams({
+                        page: page,
+                        limit: 20,
+                        ...this.currentOrderFilters
+                    });
+
+                    const response = await fetch(`${this.baseURL}/orders?${params}`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al cargar pedidos');
+                    }
+
+                    const data = await response.json();
+                    this.currentOrders = data.data.orders;
+                    this.currentOrderPage = page;
+
+                    this.renderOrdersTable();
+                    this.renderOrdersPagination(data.data.pagination);
+                    this.updateOrdersStats(data.data.stats);
+
+                } catch (error) {
+                    console.error('Error loading orders:', error);
+                }
+            }
+
+            // Renderizar tabla de pedidos
+            renderOrdersTable() {
+                const tbody = document.getElementById('ordersTableBody');
+                
+                if (this.currentOrders.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                <i class="fas fa-shopping-cart fa-2x mb-2"></i>
+                                <p class="mb-0">No hay pedidos disponibles</p>
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tbody.innerHTML = this.currentOrders.map(order => `
+                    <tr>
+                        <td>
+                            <span class="badge bg-light text-dark">${order.orderId}</span>
+                        </td>
+                        <td>
+                            <div>
+                                <strong>${order.customer?.name || 'Cliente no disponible'}</strong>
+                                <br>
+                                <small class="text-muted">${order.customer?.phone || 'Sin teléfono'}</small>
+                            </div>
+                        </td>
+                        <td>
+                            <div>
+                                <strong>${order.branchId?.name || 'N/A'}</strong>
+                                <br>
+                                <small class="text-muted">${order.branchId?.address || ''}</small>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge ${this.getOrderStatusBadgeClass(order.status)}">
+                                ${this.getOrderStatusText(order.status)}
+                            </span>
+                        </td>
+                        <td>
+                            <strong>$${order.total.toLocaleString()}</strong>
+                        </td>
+                        <td>
+                            <div>
+                                <strong>${this.formatDate(order.createdAt)}</strong>
+                                <br>
+                                <small class="text-muted">${this.formatTime(order.createdAt)}</small>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.viewOrderDetails('${order._id}')" title="Ver detalles">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="btn btn-outline-success btn-sm" onclick="dashboardApp.updateOrderStatus('${order._id}')" title="Actualizar estado">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                ${order.status === 'pending' || order.status === 'confirmed' ? `
+                                    <button class="btn btn-outline-danger btn-sm" onclick="dashboardApp.cancelOrder('${order._id}')" title="Cancelar">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            // Renderizar paginación de pedidos
+            renderOrdersPagination(pagination) {
+                const paginationContainer = document.getElementById('ordersPagination');
+                
+                if (pagination.totalPages <= 1) {
+                    paginationContainer.innerHTML = '';
+                    return;
+                }
+
+                let paginationHTML = '';
+                
+                // Botón anterior
+                if (pagination.hasPrev) {
+                    paginationHTML += `
+                        <li class="page-item">
+                            <a class="page-link" href="#" onclick="dashboardApp.loadOrdersData(${pagination.currentPage - 1})">Anterior</a>
+                        </li>
+                    `;
+                }
+
+                // Páginas
+                for (let i = 1; i <= pagination.totalPages; i++) {
+                    if (i === pagination.currentPage) {
+                        paginationHTML += `
+                            <li class="page-item active">
+                                <span class="page-link">${i}</span>
+                            </li>
+                        `;
+                    } else {
+                        paginationHTML += `
+                            <li class="page-item">
+                                <a class="page-link" href="#" onclick="dashboardApp.loadOrdersData(${i})">${i}</a>
+                            </li>
+                        `;
+                    }
+                }
+
+                // Botón siguiente
+                if (pagination.hasNext) {
+                    paginationHTML += `
+                        <li class="page-item">
+                            <a class="page-link" href="#" onclick="dashboardApp.loadOrdersData(${pagination.currentPage + 1})">Siguiente</a>
+                        </li>
+                    `;
+                }
+
+                paginationContainer.innerHTML = paginationHTML;
+            }
+
+            // Actualizar estadísticas de pedidos
+            updateOrdersStats(stats) {
+                const totalOrdersElement = document.getElementById('totalOrdersCount');
+                if (totalOrdersElement) {
+                    totalOrdersElement.textContent = `${stats.totalOrders} pedidos`;
+                }
+            }
+
+            // Obtener clase de badge para estado de pedido
+            getOrderStatusBadgeClass(status) {
+                const statusClasses = {
+                    'pending': 'bg-warning',
+                    'confirmed': 'bg-info',
+                    'preparing': 'bg-primary',
+                    'ready': 'bg-success',
+                    'delivered': 'bg-secondary',
+                    'cancelled': 'bg-danger'
+                };
+                return statusClasses[status] || 'bg-secondary';
+            }
+
+            // Obtener texto para estado de pedido
+            getOrderStatusText(status) {
+                const statusTexts = {
+                    'pending': 'Pendiente',
+                    'confirmed': 'Confirmado',
+                    'preparing': 'Preparando',
+                    'ready': 'Listo',
+                    'delivered': 'Entregado',
+                    'cancelled': 'Cancelado'
+                };
+                return statusTexts[status] || status;
+            }
+
+            // Formatear fecha
+            formatDate(dateString) {
+                const date = new Date(dateString);
+                return date.toLocaleDateString('es-ES');
+            }
+
+            // Formatear hora
+            formatTime(dateString) {
+                const date = new Date(dateString);
+                return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+            }
+
+            // Filtrar pedidos
+            filterOrders() {
+                this.currentOrderFilters = {
+                    status: document.getElementById('orderStatusFilter')?.value || '',
+                    branchId: document.getElementById('orderBranchFilter')?.value || '',
+                    dateFrom: document.getElementById('orderDateFrom')?.value || '',
+                    dateTo: document.getElementById('orderDateTo')?.value || '',
+                    search: document.getElementById('orderSearch')?.value || ''
+                };
+
+                // Limpiar filtros vacíos
+                Object.keys(this.currentOrderFilters).forEach(key => {
+                    if (!this.currentOrderFilters[key]) {
+                        delete this.currentOrderFilters[key];
+                    }
+                });
+
+                this.loadOrdersData(1);
+            }
+
+            // Buscar pedidos
+            searchOrders() {
+                this.filterOrders();
+            }
+
+            // Refrescar pedidos
+            refreshOrders() {
+                this.loadOrdersData(this.currentOrderPage);
+            }
+
+            // Exportar pedidos
+            exportOrders() {
+                this.showAlert('Función de exportación en desarrollo', 'info');
+            }
+
+            // Ver detalles del pedido
+            async viewOrderDetails(orderId) {
+                this.showAlert('Función de detalles en desarrollo', 'info');
+            }
+
+            // Actualizar estado del pedido
+            async updateOrderStatus(orderId) {
+                this.showAlert('Función de actualización en desarrollo', 'info');
+            }
+
+            // Cancelar pedido
+            async cancelOrder(orderId) {
+                if (!confirm('¿Estás seguro de que quieres cancelar este pedido?')) {
+                    return;
+                }
+                this.showAlert('Función de cancelación en desarrollo', 'info');
+            }
         }
 
         // Initialize dashboard
@@ -6456,290 +6749,109 @@
     <script>
         // ===== FUNCIONES DE PEDIDOS =====
         
-        // Variables globales para pedidos
+        // Variables globales para pedidos (ahora son métodos de la clase)
         let currentOrders = [];
         let currentOrderPage = 1;
         let currentOrderFilters = {};
         
-        // Cargar pedidos
+        // Función global para compatibilidad (llama al método de la clase)
         async function loadOrdersData(page = 1) {
-            try {
-                const token = localStorage.getItem('token');
-                if (!token) {
-                    window.location.href = 'index.html';
-                    return;
-                }
-
-                const params = new URLSearchParams({
-                    page: page,
-                    limit: 20,
-                    ...currentOrderFilters
-                });
-
-                const response = await fetch(`http://localhost:3000/api/orders?${params}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                if (!response.ok) {
-                    throw new Error('Error al cargar pedidos');
-                }
-
-                const data = await response.json();
-                currentOrders = data.data.orders;
-                currentOrderPage = page;
-
-                renderOrdersTable();
-                renderOrdersPagination(data.data.pagination);
-                updateOrdersStats(data.data.stats);
-
-            } catch (error) {
-                console.error('Error loading orders:', error);
-                // Usar console.error en lugar de showAlert para evitar errores de contexto
-                console.error('Error al cargar pedidos:', error.message);
+            if (window.dashboardApp) {
+                return window.dashboardApp.loadOrdersData(page);
             }
         }
 
-        // Renderizar tabla de pedidos
+        // Función global para compatibilidad
         function renderOrdersTable() {
-            const tbody = document.getElementById('ordersTableBody');
-            
-            if (currentOrders.length === 0) {
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="7" class="text-center text-muted py-4">
-                            <i class="fas fa-shopping-cart fa-2x mb-2"></i>
-                            <p class="mb-0">No hay pedidos disponibles</p>
-                        </td>
-                    </tr>
-                `;
-                return;
+            if (window.dashboardApp) {
+                return window.dashboardApp.renderOrdersTable();
             }
-
-            tbody.innerHTML = currentOrders.map(order => `
-                <tr>
-                    <td>
-                        <span class="badge bg-light text-dark">${order.orderId}</span>
-                    </td>
-                    <td>
-                        <div>
-                            <strong>${order.customer?.name || 'Cliente no disponible'}</strong>
-                            <br>
-                            <small class="text-muted">${order.customer?.phone || 'Sin teléfono'}</small>
-                        </div>
-                    </td>
-                    <td>
-                        <div>
-                            <strong>${order.branchId?.name || 'N/A'}</strong>
-                            <br>
-                            <small class="text-muted">${order.branchId?.address || ''}</small>
-                        </div>
-                    </td>
-                    <td>
-                        <span class="badge ${getOrderStatusBadgeClass(order.status)}">
-                            ${getOrderStatusText(order.status)}
-                        </span>
-                    </td>
-                    <td>
-                        <strong>$${order.total.toLocaleString()}</strong>
-                    </td>
-                    <td>
-                        <div>
-                            <strong>${formatDate(order.createdAt)}</strong>
-                            <br>
-                            <small class="text-muted">${formatTime(order.createdAt)}</small>
-                        </div>
-                    </td>
-                    <td>
-                        <div class="btn-group" role="group">
-                            <button class="btn btn-outline-primary btn-sm" onclick="viewOrderDetails('${order._id}')" title="Ver detalles">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                            <button class="btn btn-outline-success btn-sm" onclick="updateOrderStatus('${order._id}')" title="Actualizar estado">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            ${order.status === 'pending' || order.status === 'confirmed' ? `
-                                <button class="btn btn-outline-danger btn-sm" onclick="cancelOrder('${order._id}')" title="Cancelar">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            ` : ''}
-                        </div>
-                    </td>
-                </tr>
-            `).join('');
         }
 
-        // Renderizar paginación de pedidos
+        // Función global para compatibilidad
         function renderOrdersPagination(pagination) {
-            const paginationContainer = document.getElementById('ordersPagination');
-            
-            if (pagination.totalPages <= 1) {
-                paginationContainer.innerHTML = '';
-                return;
+            if (window.dashboardApp) {
+                return window.dashboardApp.renderOrdersPagination(pagination);
             }
-
-            let paginationHTML = '';
-            
-            // Botón anterior
-            if (pagination.hasPrev) {
-                paginationHTML += `
-                    <li class="page-item">
-                        <a class="page-link" href="#" onclick="loadOrdersData(${pagination.currentPage - 1})">Anterior</a>
-                    </li>
-                `;
-            }
-
-            // Páginas
-            for (let i = 1; i <= pagination.totalPages; i++) {
-                if (i === pagination.currentPage) {
-                    paginationHTML += `
-                        <li class="page-item active">
-                            <span class="page-link">${i}</span>
-                        </li>
-                    `;
-                } else {
-                    paginationHTML += `
-                        <li class="page-item">
-                            <a class="page-link" href="#" onclick="loadOrdersData(${i})">${i}</a>
-                        </li>
-                    `;
-                }
-            }
-
-            // Botón siguiente
-            if (pagination.hasNext) {
-                paginationHTML += `
-                    <li class="page-item">
-                        <a class="page-link" href="#" onclick="loadOrdersData(${pagination.currentPage + 1})">Siguiente</a>
-                    </li>
-                `;
-            }
-
-            paginationContainer.innerHTML = paginationHTML;
         }
 
-        // Actualizar estadísticas de pedidos
+        // Funciones globales para compatibilidad (llaman a los métodos de la clase)
         function updateOrdersStats(stats) {
-            document.getElementById('totalOrdersCount').textContent = `${stats.totalOrders} pedidos`;
-            document.getElementById('totalRevenue').textContent = `$${stats.revenue.total.toLocaleString()}`;
+            if (window.dashboardApp) {
+                return window.dashboardApp.updateOrdersStats(stats);
+            }
         }
 
-        // Funciones auxiliares para pedidos
         function getOrderStatusBadgeClass(status) {
-            const statusClasses = {
-                'pending': 'bg-warning',
-                'confirmed': 'bg-info',
-                'preparing': 'bg-primary',
-                'ready': 'bg-success',
-                'delivered': 'bg-success',
-                'cancelled': 'bg-danger'
-            };
-            return statusClasses[status] || 'bg-secondary';
+            if (window.dashboardApp) {
+                return window.dashboardApp.getOrderStatusBadgeClass(status);
+            }
+            return 'bg-secondary';
         }
 
         function getOrderStatusText(status) {
-            const statusTexts = {
-                'pending': 'Pendiente',
-                'confirmed': 'Confirmado',
-                'preparing': 'Preparando',
-                'ready': 'Listo',
-                'delivered': 'Entregado',
-                'cancelled': 'Cancelado'
-            };
-            return statusTexts[status] || status;
+            if (window.dashboardApp) {
+                return window.dashboardApp.getOrderStatusText(status);
+            }
+            return status;
         }
 
         function formatDate(dateString) {
+            if (window.dashboardApp) {
+                return window.dashboardApp.formatDate(dateString);
+            }
             return new Date(dateString).toLocaleDateString('es-ES');
         }
 
         function formatTime(dateString) {
+            if (window.dashboardApp) {
+                return window.dashboardApp.formatTime(dateString);
+            }
             return new Date(dateString).toLocaleTimeString('es-ES', { 
                 hour: '2-digit', 
                 minute: '2-digit' 
             });
         }
 
-        // Filtrar pedidos
         function filterOrders() {
-            currentOrderFilters = {
-                status: document.getElementById('orderStatusFilter').value,
-                branchId: document.getElementById('orderBranchFilter').value,
-                dateFrom: document.getElementById('orderDateFrom').value,
-                dateTo: document.getElementById('orderDateTo').value,
-                search: document.getElementById('orderSearch').value
-            };
-
-            // Limpiar filtros vacíos
-            Object.keys(currentOrderFilters).forEach(key => {
-                if (!currentOrderFilters[key]) {
-                    delete currentOrderFilters[key];
-                }
-            });
-
-            loadOrdersData(1);
-        }
-
-        // Buscar pedidos
-        function searchOrders() {
-            filterOrders();
-        }
-
-        // Refrescar pedidos
-        function refreshOrders() {
-            loadOrdersData(currentOrderPage);
-        }
-
-        // Exportar pedidos
-        function exportOrders() {
-            showAlert('Función de exportación en desarrollo', 'info');
-        }
-
-        // Ver detalles del pedido
-        async function viewOrderDetails(orderId) {
-            showAlert('Función de detalles en desarrollo', 'info');
-        }
-
-        // Actualizar estado del pedido
-        async function updateOrderStatus(orderId) {
-            showAlert('Función de actualización en desarrollo', 'info');
-        }
-
-        // Cancelar pedido
-        async function cancelOrder(orderId) {
-            if (!confirm('¿Estás seguro de que quieres cancelar este pedido?')) {
-                return;
+            if (window.dashboardApp) {
+                return window.dashboardApp.filterOrders();
             }
-            showAlert('Función de cancelación en desarrollo', 'info');
         }
 
-        // Cargar sucursales para filtro
-        async function loadBranchesForOrderFilter() {
-            try {
-                const token = localStorage.getItem('token');
-                const response = await fetch('http://localhost:3000/api/branch', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
+        function searchOrders() {
+            if (window.dashboardApp) {
+                return window.dashboardApp.searchOrders();
+            }
+        }
 
-                if (!response.ok) {
-                    throw new Error('Error al cargar sucursales');
-                }
+        function refreshOrders() {
+            if (window.dashboardApp) {
+                return window.dashboardApp.refreshOrders();
+            }
+        }
 
-                const data = await response.json();
-                const branchSelect = document.getElementById('orderBranchFilter');
-                
-                branchSelect.innerHTML = '<option value="">Todas las sucursales</option>' +
-                    data.data.map(branch => 
-                        `<option value="${branch._id}">${branch.name}</option>`
-                    ).join('');
+        function exportOrders() {
+            if (window.dashboardApp) {
+                return window.dashboardApp.exportOrders();
+            }
+        }
 
-            } catch (error) {
-                console.error('Error loading branches for filter:', error);
+        async function viewOrderDetails(orderId) {
+            if (window.dashboardApp) {
+                return window.dashboardApp.viewOrderDetails(orderId);
+            }
+        }
+
+        async function updateOrderStatus(orderId) {
+            if (window.dashboardApp) {
+                return window.dashboardApp.updateOrderStatus(orderId);
+            }
+        }
+
+        async function cancelOrder(orderId) {
+            if (window.dashboardApp) {
+                return window.dashboardApp.cancelOrder(orderId);
             }
         }
 </body>
