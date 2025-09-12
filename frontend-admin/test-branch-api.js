@@ -13,7 +13,7 @@ async function testBranchAPI() {
         }
         
         // Hacer request a la API
-        const response = await fetch('/api/branch', {
+        const response = await fetch('http://localhost:3000/api/branch', {
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'

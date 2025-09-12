@@ -90,6 +90,35 @@ router.get('/', authMiddleware.verifyToken, authMiddleware.requireRole(['super_a
     }
 });
 
+// GET /api/branch/services - Get all services (for super admin)
+router.get('/services', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin']), async (req, res) => {
+    try {
+        logger.info('Starting services endpoint');
+        
+        // Simple test first - just return empty array
+        return res.json({
+            success: true,
+            data: [],
+            pagination: {
+                page: 1,
+                limit: 12,
+                total: 0,
+                pages: 0
+            },
+            message: 'Servicios endpoint funcionando - sin datos aún'
+        });
+        
+    } catch (error) {
+        logger.error('Error getting all services:', error);
+        logger.error('Error stack:', error.stack);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error interno del servidor',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
 // GET /api/branch/:branchId - Get specific branch
 router.get('/:branchId', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
     try {
@@ -317,14 +346,22 @@ router.get('/:branchId/stats', authMiddleware.verifyToken, authMiddleware.requir
     }
 });
 
+
 // GET /api/branch/:branchId/services - Get branch services
 router.get('/:branchId/services', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
     try {
-        const { page = 1, limit = 10, category, available } = req.query;
+        const { page = 1, limit = 10, category, available, search } = req.query;
         
         const filter = { branchId: req.params.branchId };
         if (category) filter.category = category;
-        if (available === 'true') filter.isAvailable = true;
+        if (available === 'true') filter['availability.isAvailable'] = true;
+        if (search) {
+            filter.$or = [
+                { name: { $regex: search, $options: 'i' } },
+                { description: { $regex: search, $options: 'i' } },
+                { category: { $regex: search, $options: 'i' } }
+            ];
+        }
 
         const services = await Service.find(filter)
             .select('-__v')

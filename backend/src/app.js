@@ -16,6 +16,8 @@ const branchRoutes = require('./routes/branch');
 const whatsappRoutes = require('./routes/whatsapp');
 const aiRoutes = require('./routes/ai');
 const branchAIConfigRoutes = require('./routes/branchAIConfig');
+const orderRoutes = require('./routes/order');
+const dashboardRoutes = require('./routes/dashboard');
 
 const app = express();
 
@@ -42,7 +44,7 @@ app.use(helmet({
             styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
             imgSrc: ["'self'", "data:", "https:"],
-            connectSrc: ["'self'"],
+            connectSrc: ["'self'", "http://localhost:4000"],
             frameSrc: ["'self'"],
             objectSrc: ["'none'"],
             mediaSrc: ["'self'"],
@@ -118,6 +120,8 @@ app.use('/api/branch', branchRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/branch-ai-config', branchAIConfigRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

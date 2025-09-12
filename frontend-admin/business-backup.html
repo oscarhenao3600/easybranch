@@ -363,7 +363,7 @@
     <script>
         class AuthService {
             constructor() {
-                this.baseURL = 'http://localhost:4000/api';
+                this.baseURL = 'http://localhost:3000/api';
                 this.token = localStorage.getItem('token');
                 this.user = JSON.parse(localStorage.getItem('user'));
             }
@@ -759,7 +759,7 @@
             async loadBusinessInfo() {
                 try {
                     const token = localStorage.getItem('token');
-                    const response = await fetch('/api/business', {
+                    const response = await fetch('http://localhost:3000/api/business', {
                         headers: {
                             'Authorization': `Bearer ${token}`,
                             'Content-Type': 'application/json'
@@ -819,7 +819,7 @@
             async loadBranchesList() {
                 try {
                     const token = localStorage.getItem('token');
-                    const response = await fetch('/api/branch', {
+                    const response = await fetch('http://localhost:3000/api/branch', {
                         headers: {
                             'Authorization': `Bearer ${token}`,
                             'Content-Type': 'application/json'
@@ -912,13 +912,13 @@
                 try {
                     const token = localStorage.getItem('token');
                     const [branchesResponse, ordersResponse] = await Promise.all([
-                        fetch('/api/branch', {
+                        fetch('http://localhost:3000/api/branch', {
                             headers: {
                                 'Authorization': `Bearer ${token}`,
                                 'Content-Type': 'application/json'
                             }
                         }),
-                        fetch('/api/orders', {
+                        fetch('http://localhost:3000/api/orders', {
                             headers: {
                                 'Authorization': `Bearer ${token}`,
                                 'Content-Type': 'application/json'

@@ -2,7 +2,7 @@ const app = require('./app');
 const DatabaseService = require('./services/DatabaseService');
 const LoggerService = require('./services/LoggerService');
 
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 3000;
 const logger = new LoggerService();
 const databaseService = new DatabaseService();
 
