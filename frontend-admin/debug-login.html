@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Login - EasyBranch</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        button { padding: 10px 15px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .log { background: #f8f9fa; padding: 10px; margin: 10px 0; border-radius: 3px; font-family: monospace; white-space: pre-wrap; }
+        .error { background: #f8d7da; color: #721c24; }
+        .success { background: #d4edda; color: #155724; }
+    </style>
+</head>
+<body>
+    <h1>Debug Login - EasyBranch</h1>
+    
+    <div class="debug-section">
+        <h3>Estado del Sistema</h3>
+        <div id="systemStatus">Verificando...</div>
+        <button onclick="checkSystemStatus()">Verificar Sistema</button>
+    </div>
+
+    <div class="debug-section">
+        <h3>Prueba de Login</h3>
+        <button onclick="debugLogin()">Debug Login</button>
+        <button onclick="clearAll()">Limpiar Todo</button>
+    </div>
+
+    <div class="debug-section">
+        <h3>Logs de Debug</h3>
+        <div id="debugLogs" class="log"></div>
+        <button onclick="clearLogs()">Limpiar Logs</button>
+    </div>
+
+    <script>
+        const baseURL = 'http://localhost:3000/api';
+        
+        function debugLog(message, type = 'info') {
+            const logs = document.getElementById('debugLogs');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : '';
+            logs.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            console.log(`[${timestamp}] ${message}`);
+        }
+
+        function clearLogs() {
+            document.getElementById('debugLogs').innerHTML = '';
+        }
+
+        async function checkSystemStatus() {
+            debugLog('=== VERIFICANDO ESTADO DEL SISTEMA ===');
+            
+            try {
+                // Verificar backend
+                debugLog('1. Verificando backend...');
+                const healthResponse = await fetch(`${baseURL}/health`);
+                debugLog(`   Backend Status: ${healthResponse.status} ${healthResponse.statusText}`);
+                
+                let healthData = null;
+                if (healthResponse.ok) {
+                    healthData = await healthResponse.json();
+                    debugLog(`   Database: ${healthData.database}`);
+                    debugLog(`   Environment: ${healthData.environment}`);
+                    debugLog(`   Version: ${healthData.version}`);
+                } else {
+                    debugLog(`   Error: ${healthResponse.statusText}`, 'error');
+                }
+                
+                // Verificar localStorage
+                debugLog('2. Verificando localStorage...');
+                const token = localStorage.getItem('token');
+                const user = localStorage.getItem('user');
+                debugLog(`   Token: ${token ? 'Presente (' + token.substring(0, 20) + '...)' : 'Ausente'}`);
+                debugLog(`   User: ${user ? 'Presente' : 'Ausente'}`);
+                
+                // Verificar conectividad
+                debugLog('3. Verificando conectividad...');
+                const testResponse = await fetch(`${baseURL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: 'test@test.com', password: 'test' })
+                });
+                debugLog(`   Conectividad: ${testResponse.status} ${testResponse.statusText}`);
+                
+                document.getElementById('systemStatus').innerHTML = `
+                    <strong>Backend:</strong> ${healthResponse.ok ? '✅ OK' : '❌ Error'}<br>
+                    <strong>Database:</strong> ${healthData ? healthData.database : 'N/A'}<br>
+                    <strong>Token:</strong> ${token ? '✅ Presente' : '❌ Ausente'}<br>
+                    <strong>Conectividad:</strong> ${testResponse.status === 401 ? '✅ OK' : '❌ Error'}
+                `;
+                
+            } catch (error) {
+                debugLog(`Error verificando sistema: ${error.message}`, 'error');
+                document.getElementById('systemStatus').innerHTML = `<span style="color: red;">Error: ${error.message}</span>`;
+            }
+        }
+
+        async function debugLogin() {
+            debugLog('=== INICIANDO DEBUG DE LOGIN ===');
+            
+            try {
+                // Limpiar datos previos
+                debugLog('1. Limpiando datos previos...');
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                
+                // Intentar login
+                debugLog('2. Intentando login...');
+                debugLog(`   URL: ${baseURL}/auth/login`);
+                debugLog(`   Credenciales: admin@easybranch.com / admin123`);
+                
+                const response = await fetch(`${baseURL}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'admin@easybranch.com',
+                        password: 'admin123'
+                    })
+                });
+                
+                debugLog(`3. Respuesta recibida:`);
+                debugLog(`   Status: ${response.status} ${response.statusText}`);
+                debugLog(`   Headers: ${JSON.stringify([...response.headers.entries()])}`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    debugLog(`4. Datos recibidos:`, 'success');
+                    debugLog(`   Token: ${data.token ? data.token.substring(0, 20) + '...' : 'No token'}`);
+                    debugLog(`   User: ${JSON.stringify(data.user)}`);
+                    
+                    // Guardar datos
+                    debugLog('5. Guardando datos en localStorage...');
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    debugLog('   Datos guardados correctamente', 'success');
+                    
+                    // Verificar guardado
+                    debugLog('6. Verificando datos guardados...');
+                    const savedToken = localStorage.getItem('token');
+                    const savedUser = localStorage.getItem('user');
+                    debugLog(`   Token guardado: ${savedToken ? '✅' : '❌'}`);
+                    debugLog(`   User guardado: ${savedUser ? '✅' : '❌'}`);
+                    
+                } else {
+                    const errorText = await response.text();
+                    debugLog(`4. Error en login:`, 'error');
+                    debugLog(`   ${errorText}`, 'error');
+                }
+                
+            } catch (error) {
+                debugLog(`Error en debug de login: ${error.message}`, 'error');
+            }
+        }
+
+        function clearAll() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            debugLog('Datos limpiados completamente', 'success');
+        }
+
+        // Verificar estado inicial
+        checkSystemStatus();
+    </script>
+</body>
+</html>

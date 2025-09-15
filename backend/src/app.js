@@ -11,17 +11,28 @@ const LoggerService = require('./services/LoggerService');
 
 // Importar rutas modulares
 const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/users');
 const businessRoutes = require('./routes/business');
 const branchRoutes = require('./routes/branch');
 const whatsappRoutes = require('./routes/whatsapp');
 const aiRoutes = require('./routes/ai');
 const branchAIConfigRoutes = require('./routes/branchAIConfig');
+const orderRoutes = require('./routes/order');
+const dashboardRoutes = require('./routes/dashboard');
+const reportsRoutes = require('./routes/reports');
+const billingRoutes = require('./routes/billing');
 
 const app = express();
 
 // Inicializar servicios
 const logger = new LoggerService();
-const databaseService = new DatabaseService();
+// databaseService se inicializa en server.js
+let databaseService = null;
+
+// Función para establecer la instancia del databaseService
+function setDatabaseService(service) {
+  databaseService = service;
+}
 
 // Configurar rate limiting
 const limiter = rateLimit({
@@ -42,7 +53,7 @@ app.use(helmet({
             styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
             imgSrc: ["'self'", "data:", "https:"],
-            connectSrc: ["'self'"],
+            connectSrc: ["'self'", "http://localhost:4000"],
             frameSrc: ["'self'"],
             objectSrc: ["'none'"],
             mediaSrc: ["'self'"],
@@ -113,11 +124,16 @@ app.use((req, res, next) => {
 
 // Rutas modulares
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/business', businessRoutes);
 app.use('/api/branch', branchRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/branch-ai-config', branchAIConfigRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/reports', reportsRoutes);
+app.use('/api/billing', billingRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -126,7 +142,7 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     version: '2.0.0',
     environment: process.env.NODE_ENV,
-          database: databaseService.getConnectionStatus() ? 'connected' : 'disconnected'
+    database: databaseService ? (databaseService.getConnectionStatus() ? 'connected' : 'disconnected') : 'not_initialized'
   });
 });
 
@@ -159,3 +175,4 @@ app.use('*', (req, res) => {
 });
 
 module.exports = app;
+module.exports.setDatabaseService = setDatabaseService;

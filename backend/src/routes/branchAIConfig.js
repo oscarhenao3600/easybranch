@@ -11,12 +11,22 @@ const controller = new BranchAIConfigController();
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         const uploadPath = path.join(__dirname, '../../uploads/menus');
+        
+        // Crear directorio si no existe
+        const fs = require('fs');
+        if (!fs.existsSync(uploadPath)) {
+            console.log('📁 Creando directorio:', uploadPath);
+            fs.mkdirSync(uploadPath, { recursive: true });
+        }
+        
+        console.log('📁 Directorio de destino:', uploadPath);
         cb(null, uploadPath);
     },
     filename: (req, file, cb) => {
         const branchId = req.params.branchId;
         const timestamp = Date.now();
         const filename = `menu-${branchId}-${timestamp}.pdf`;
+        console.log('📄 Nombre de archivo generado:', filename);
         cb(null, filename);
     }
 });
@@ -39,7 +49,7 @@ const upload = multer({
 router.use(authMiddleware.verifyToken);
 
 // Rutas para configuración de IA por sucursal
-router.post('/:branchId', controller.createOrUpdateConfig.bind(controller));
+router.post('/:branchId', upload.single('menuPDF'), controller.createOrUpdateConfig.bind(controller));
 router.get('/:branchId', controller.getConfig.bind(controller));
 router.get('/', controller.getAllConfigs.bind(controller));
 router.delete('/:branchId', controller.deleteConfig.bind(controller));

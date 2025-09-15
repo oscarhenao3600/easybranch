@@ -513,6 +513,43 @@
                 padding: 16px;
             }
         }
+
+        /* Estilos para tarjetas de productos */
+        .product-card {
+            transition: all 0.3s ease;
+            border: 1px solid #e9ecef;
+        }
+
+        .product-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border-color: #007bff;
+        }
+
+        .product-card .card-body {
+            padding: 1rem;
+        }
+
+        .product-card .card-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .product-card .badge {
+            font-size: 0.7rem;
+        }
+
+        .product-card .text-success {
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+
+        /* Animación para el spinner */
+        .spinner-border {
+            width: 2rem;
+            height: 2rem;
+        }
     </style>
 </head>
 <body>
@@ -863,11 +900,18 @@
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between">
                                             <div>
-                                                <h3 id="systemHealth">100%</h3>
-                                                <p class="mb-0">Salud del Sistema</p>
+                                                <h3 id="developmentProgress">69%</h3>
+                                                <p class="mb-0">Progreso del Desarrollo</p>
                                             </div>
                                             <div class="stat-icon">
-                                                <i class="fas fa-heartbeat"></i>
+                                                <i class="fas fa-code"></i>
+                                            </div>
+                                        </div>
+                                        <div class="mt-2">
+                                            <div class="progress" style="height: 6px;">
+                                                <div class="progress-bar bg-success" role="progressbar" 
+                                                     id="progressBar" style="width: 69%" aria-valuenow="69" 
+                                                     aria-valuemin="0" aria-valuemax="100"></div>
                                             </div>
                                         </div>
                                     </div>
@@ -924,7 +968,128 @@
                     </div>
 
                     <div id="ordersSection" style="display: none;">
-                        <!-- Orders content will be loaded here -->
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-header d-flex justify-content-between align-items-center">
+                                        <h5 class="mb-0">
+                                            <i class="fas fa-shopping-cart me-2"></i>Gestión de Pedidos
+                                        </h5>
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-outline-primary btn-sm" onclick="refreshOrders()">
+                                                <i class="fas fa-sync-alt me-1"></i>Actualizar
+                                            </button>
+                                            <button class="btn btn-primary btn-sm" onclick="exportOrders()">
+                                                <i class="fas fa-download me-1"></i>Exportar
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <!-- Filtros -->
+                                        <div class="row mb-4">
+                                            <div class="col-md-3">
+                                                <label class="form-label">Estado</label>
+                                                <select class="form-select" id="orderStatusFilter" onchange="filterOrders()">
+                                                    <option value="">Todos los estados</option>
+                                                    <option value="pending">Pendiente</option>
+                                                    <option value="confirmed">Confirmado</option>
+                                                    <option value="preparing">Preparando</option>
+                                                    <option value="ready">Listo</option>
+                                                    <option value="delivered">Entregado</option>
+                                                    <option value="cancelled">Cancelado</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">Sucursal</label>
+                                                <select class="form-select" id="orderBranchFilter" onchange="filterOrders()">
+                                                    <option value="">Todas las sucursales</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">Fecha desde</label>
+                                                <input type="date" class="form-control" id="orderDateFrom" onchange="filterOrders()">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">Fecha hasta</label>
+                                                <input type="date" class="form-control" id="orderDateTo" onchange="filterOrders()">
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Búsqueda -->
+                                        <div class="row mb-4">
+                                            <div class="col-md-6">
+                                                <div class="input-group">
+                                                    <span class="input-group-text">
+                                                        <i class="fas fa-search"></i>
+                                                    </span>
+                                                    <input type="text" class="form-control" id="orderSearch" placeholder="Buscar por cliente, teléfono o ID de pedido..." onkeyup="searchOrders()">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="d-flex justify-content-end">
+                                                    <span class="badge bg-info me-2" id="totalOrdersCount">0 pedidos</span>
+                                                    <span class="badge bg-success me-2" id="totalRevenue">$0</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Tabla de pedidos -->
+                                        <div class="table-responsive">
+                                            <table class="table table-hover">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th>ID Pedido</th>
+                                                        <th>Cliente</th>
+                                                        <th>Sucursal</th>
+                                                        <th>Estado</th>
+                                                        <th>Total</th>
+                                                        <th>Fecha</th>
+                                                        <th>Acciones</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="ordersTableBody">
+                                                    <tr>
+                                                        <td colspan="7" class="text-center">
+                                                            <div class="spinner-border text-primary" role="status">
+                                                                <span class="visually-hidden">Cargando...</span>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        <!-- Paginación -->
+                                        <nav aria-label="Paginación de pedidos">
+                                            <ul class="pagination justify-content-center" id="ordersPagination">
+                                                <!-- Paginación se genera dinámicamente -->
+                                            </ul>
+                                        </nav>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Modal para detalles del pedido -->
+                        <div class="modal fade" id="orderDetailsModal" tabindex="-1">
+                            <div class="modal-dialog modal-lg">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">
+                                            <i class="fas fa-shopping-cart me-2"></i>Detalles del Pedido
+                                        </h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body" id="orderDetailsContent">
+                                        <!-- Contenido del pedido se carga dinámicamente -->
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                                        <button type="button" class="btn btn-primary" onclick="updateOrderStatus()">Actualizar Estado</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div id="whatsappSection" style="display: none;">
@@ -956,10 +1121,13 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Chart.js para gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="./users-methods.js"></script>
     <script>
         class AuthService {
             constructor() {
-                this.baseURL = 'http://localhost:4000/api';
+                this.baseURL = 'http://localhost:3000/api';
                 this.loadFromStorage();
             }
 
@@ -991,12 +1159,32 @@
                 return this.token;
             }
 
-            logout() {
-                this.token = null;
-                this.user = null;
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                window.location.href = 'index.html';
+            async logout() {
+                try {
+                    console.log('Iniciando logout...');
+                    // Llamar al endpoint de logout del backend
+                    await fetch(`${this.baseURL}/auth/logout`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${this.token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    console.log('Logout del backend exitoso');
+                } catch (error) {
+                    console.error('Error en logout:', error);
+                } finally {
+                    console.log('Limpiando datos locales...');
+                    // Limpiar datos locales independientemente del resultado del backend
+                    this.token = null;
+                    this.user = null;
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                    console.log('Redirigiendo a login...');
+                    
+                    // Forzar recarga completa de la página
+                    window.location.replace('index.html');
+                }
             }
 
             async makeRequest(endpoint, options = {}) {
@@ -1029,7 +1217,7 @@
         class SuperAdminDashboard {
             constructor() {
                 this.authService = new AuthService();
-                this.baseURL = 'http://localhost:4000/api';
+                this.baseURL = 'http://localhost:3000/api';
                 this.currentSection = 'dashboard';
                 this.currentBusinessId = null;
                 this.currentBusinessName = null;
@@ -1037,17 +1225,25 @@
             }
 
             init() {
+                console.log('Inicializando dashboard...');
+                console.log('Token en localStorage:', localStorage.getItem('token'));
+                
+                // Verificar autenticación
                 if (!this.authService.isAuthenticated()) {
-                    window.location.href = 'index.html';
+                    console.log('Usuario no autenticado, redirigiendo a login...');
+                    window.location.replace('index.html');
                     return;
                 }
 
+                console.log('Usuario autenticado, verificando rol...');
                 const user = this.authService.getUser();
-                if (user.role !== 'super_admin') {
+                if (!user || user.role !== 'super_admin') {
+                    console.log('Usuario no es super_admin o datos inválidos, haciendo logout...');
                     this.authService.logout();
                     return;
                 }
 
+                console.log('Inicialización exitosa, cargando dashboard...');
                 this.setupUserInfo();
                 this.bindEvents();
                 this.loadDashboard();
@@ -1144,64 +1340,6 @@
                 }
             }
 
-            async loadDashboardStats() {
-                try {
-                    // Simulate API call
-                    const stats = {
-                        totalBusinesses: 12,
-                        totalBranches: 45,
-                        totalOrders: 156,
-                        totalRevenue: 2847.50,
-                        connectedWhatsApp: 38,
-                        activeUsers: 89,
-                        aiResponses: 234,
-                        systemHealth: 100
-                    };
-
-                    // Update stats
-                    document.getElementById('totalBusinesses').textContent = stats.totalBusinesses;
-                    document.getElementById('totalBranches').textContent = stats.totalBranches;
-                    document.getElementById('totalOrders').textContent = stats.totalOrders;
-                    document.getElementById('totalRevenue').textContent = '$' + stats.totalRevenue.toFixed(2);
-                    document.getElementById('connectedWhatsApp').textContent = stats.connectedWhatsApp;
-                    document.getElementById('activeUsers').textContent = stats.activeUsers;
-                    document.getElementById('aiResponses').textContent = stats.aiResponses;
-                    document.getElementById('systemHealth').textContent = stats.systemHealth + '%';
-
-                } catch (error) {
-                    console.error('Error loading stats:', error);
-                }
-            }
-
-            async loadRecentActivity() {
-                try {
-                    const activityContainer = document.getElementById('recentActivity');
-                    
-                    // Simulate recent activity
-                    const activities = [
-                        { type: 'order', message: 'Nuevo pedido en Restaurante El Buen Sabor', time: '2 min' },
-                        { type: 'whatsapp', message: 'WhatsApp conectado en Sucursal Centro', time: '5 min' },
-                        { type: 'user', message: 'Nuevo usuario registrado: María López', time: '10 min' },
-                        { type: 'business', message: 'Negocio "Café Aroma" activado', time: '15 min' },
-                        { type: 'ai', message: 'IA respondió 5 consultas en la última hora', time: '1 hora' }
-                    ];
-
-                    activityContainer.innerHTML = activities.map(activity => `
-                        <div class="d-flex align-items-center mb-3">
-                            <div class="me-3">
-                                <i class="fas fa-${this.getActivityIcon(activity.type)} text-primary"></i>
-                            </div>
-                            <div class="flex-grow-1">
-                                <p class="mb-0">${activity.message}</p>
-                                <small class="text-muted">${activity.time}</small>
-                            </div>
-                        </div>
-                    `).join('');
-
-                } catch (error) {
-                    console.error('Error loading activity:', error);
-                }
-            }
 
             getActivityIcon(type) {
                 const icons = {
@@ -2500,7 +2638,38 @@
 
             async loadUsers() {
                 const section = document.getElementById('usersSection');
-                section.innerHTML = '<div class="text-center"><h4>Gestión de Usuarios</h4><p>Contenido en desarrollo...</p></div>';
+                try {
+                    const response = await fetch('./users-section.html');
+                    const usersHtml = await response.text();
+                    section.innerHTML = usersHtml;
+                    
+                    // Inicializar la sección de usuarios
+                    await this.loadUserStats();
+                    await this.loadUsersData();
+                    await this.loadBusinessesForUserFilter();
+                    this.setupUserEventListeners();
+                } catch (error) {
+                    console.error('Error loading users section:', error);
+                    section.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Error al cargar la sección de usuarios: ${error.message}
+                        </div>
+                    `;
+                }
+            }
+
+            async loadOrders() {
+                try {
+                    // La sección de pedidos ya tiene su contenido HTML
+                    // Solo necesitamos cargar los datos
+                    await this.loadBranchesForOrderFilter();
+                    await this.loadOrdersData();
+                } catch (error) {
+                    console.error('Error loading orders:', error);
+                    // Usar console.error en lugar de showAlert para evitar errores de contexto
+                    console.error('Error al cargar pedidos:', error.message);
+                }
             }
 
             // Business Management Actions
@@ -2666,10 +2835,6 @@
                 }
             }
 
-            async loadOrders() {
-                const section = document.getElementById('ordersSection');
-                section.innerHTML = '<div class="text-center"><h4>Pedidos</h4><p>Contenido en desarrollo...</p></div>';
-            }
 
             async loadWhatsApp() {
                 const section = document.getElementById('whatsappSection');
@@ -2743,60 +2908,1649 @@
 
             async loadBilling() {
                 const section = document.getElementById('billingSection');
-                section.innerHTML = '<div class="text-center"><h4>Facturación</h4><p>Contenido en desarrollo...</p></div>';
+                section.innerHTML = `
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fas fa-file-invoice me-2"></i>Facturación y Cuentas de Cobro
+                            </h5>
+                            <div class="d-flex gap-2">
+                                <select id="billingBranchFilter" class="form-select form-select-sm" style="width: 200px;">
+                                    <option value="">Todas las sucursales</option>
+                                </select>
+                                <select id="billingStatusFilter" class="form-select form-select-sm" style="width: 150px;">
+                                    <option value="delivered">Entregados</option>
+                                    <option value="all">Todos</option>
+                                    <option value="pending">Pendientes</option>
+                                </select>
+                                <button class="btn btn-outline-primary btn-sm" onclick="app.refreshBilling()">
+                                    <i class="fas fa-sync-alt me-1"></i>Actualizar
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <!-- Pestañas -->
+                            <ul class="nav nav-tabs mb-4" id="billingTabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active" id="orders-tab" data-bs-toggle="tab" data-bs-target="#orders" type="button" role="tab">
+                                        <i class="fas fa-shopping-cart me-2"></i>Pedidos para Facturar
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="invoices-tab" data-bs-toggle="tab" data-bs-target="#invoices" type="button" role="tab">
+                                        <i class="fas fa-file-invoice me-2"></i>Cuentas de Cobro
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="settings-tab" data-bs-toggle="tab" data-bs-target="#settings" type="button" role="tab">
+                                        <i class="fas fa-cog me-2"></i>Configuración
+                                    </button>
+                                </li>
+                            </ul>
+
+                            <!-- Contenido de las pestañas -->
+                            <div class="tab-content" id="billingTabContent">
+                                <!-- Pestaña de Pedidos -->
+                                <div class="tab-pane fade show active" id="orders" role="tabpanel">
+                                    <div id="billingOrdersContent">
+                                        <div class="text-center">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">Cargando pedidos...</span>
+                                            </div>
+                                            <p class="mt-2">Cargando pedidos para facturar...</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Pestaña de Cuentas de Cobro -->
+                                <div class="tab-pane fade" id="invoices" role="tabpanel">
+                                    <div id="billingInvoicesContent">
+                                        <div class="text-center">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">Cargando cuentas de cobro...</span>
+                                            </div>
+                                            <p class="mt-2">Cargando cuentas de cobro...</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Pestaña de Configuración -->
+                                <div class="tab-pane fade" id="settings" role="tabpanel">
+                                    <div id="billingSettingsContent">
+                                        <div class="text-center">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">Cargando configuración...</span>
+                                            </div>
+                                            <p class="mt-2">Cargando configuración de facturación...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Configurar eventos
+                this.setupBillingEvents();
+                
+                // Cargar datos iniciales
+                await this.loadBillingBranches();
+                await this.loadBillingOrders();
+            }
+
+            // Funciones de Facturación
+            setupBillingEvents() {
+                // Cambio de filtros
+                document.getElementById('billingBranchFilter').addEventListener('change', () => {
+                    this.loadBillingOrders();
+                });
+                document.getElementById('billingStatusFilter').addEventListener('change', () => {
+                    this.loadBillingOrders();
+                });
+
+                // Cambio de pestañas
+                document.getElementById('orders-tab').addEventListener('click', () => {
+                    this.loadBillingOrders();
+                });
+                document.getElementById('invoices-tab').addEventListener('click', () => {
+                    this.loadBillingInvoices();
+                });
+                document.getElementById('settings-tab').addEventListener('click', () => {
+                    this.loadBillingSettings();
+                });
+            }
+
+            async loadBillingBranches() {
+                try {
+                    const response = await fetch('http://localhost:3000/api/branch', {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const branchSelect = document.getElementById('billingBranchFilter');
+                        branchSelect.innerHTML = '<option value="">Todas las sucursales</option>';
+                        
+                        data.data.forEach(branch => {
+                            const option = document.createElement('option');
+                            option.value = branch.branchId;
+                            option.textContent = branch.name;
+                            branchSelect.appendChild(option);
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error loading branches:', error);
+                }
+            }
+
+            async loadBillingOrders() {
+                try {
+                    const branchId = document.getElementById('billingBranchFilter').value;
+                    const status = document.getElementById('billingStatusFilter').value;
+                    
+                    let params = new URLSearchParams();
+                    if (branchId) params.append('branchId', branchId);
+                    if (status) params.append('status', status);
+
+                    const response = await fetch(`http://localhost:3000/api/billing/orders?${params}`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al cargar pedidos');
+                    }
+
+                    const data = await response.json();
+                    this.renderBillingOrders(data.data);
+
+                } catch (error) {
+                    console.error('Error loading billing orders:', error);
+                    document.getElementById('billingOrdersContent').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Error al cargar los pedidos: ${error.message}
+                        </div>
+                    `;
+                }
+            }
+
+            renderBillingOrders(data) {
+                const content = document.getElementById('billingOrdersContent');
+                
+                if (data.orders.length === 0) {
+                    content.innerHTML = `
+                        <div class="text-center text-muted">
+                            <i class="fas fa-shopping-cart fa-3x mb-3"></i>
+                            <h5>No hay pedidos para facturar</h5>
+                            <p>No se encontraron pedidos con los filtros seleccionados</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                content.innerHTML = `
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Pedido</th>
+                                    <th>Sucursal</th>
+                                    <th>Cliente</th>
+                                    <th>Total</th>
+                                    <th>Estado</th>
+                                    <th>Fecha</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.orders.map(order => `
+                                    <tr>
+                                        <td>
+                                            <strong>${order.orderId}</strong>
+                                            ${order.billingInfo ? `<br><small class="text-success">Facturado: ${order.billingInfo.invoiceNumber}</small>` : ''}
+                                        </td>
+                                        <td>${order.branchName}</td>
+                                        <td>
+                                            <div>
+                                                <strong>${order.customer.name}</strong><br>
+                                                <small class="text-muted">${order.customer.phone}</small>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <strong>$${order.total.toLocaleString()}</strong>
+                                        </td>
+                                        <td>
+                                            <span class="badge ${this.getOrderStatusBadgeClass(order.status)}">
+                                                ${this.getOrderStatusText(order.status)}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <small>${new Date(order.createdAt).toLocaleDateString()}</small><br>
+                                            <small class="text-muted">${new Date(order.createdAt).toLocaleTimeString()}</small>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-outline-primary" onclick="app.viewOrderDetails('${order.orderId}')" title="Ver detalles">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                                ${!order.billingInfo ? `
+                                                    <button class="btn btn-outline-success" onclick="app.generateInvoice('${order.orderId}')" title="Generar cuenta de cobro">
+                                                        <i class="fas fa-file-invoice"></i>
+                                                    </button>
+                                                ` : `
+                                                    <button class="btn btn-outline-info" onclick="app.sendInvoice('${order.orderId}')" title="Enviar cuenta de cobro">
+                                                        <i class="fas fa-paper-plane"></i>
+                                                    </button>
+                                                `}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Paginación -->
+                    <nav aria-label="Paginación de pedidos">
+                        <ul class="pagination justify-content-center">
+                            ${this.generateBillingPagination(data.pagination)}
+                        </ul>
+                    </nav>
+                `;
+            }
+
+            async loadBillingInvoices() {
+                try {
+                    const branchId = document.getElementById('billingBranchFilter').value;
+                    
+                    let params = new URLSearchParams();
+                    if (branchId) params.append('branchId', branchId);
+
+                    const response = await fetch(`http://localhost:3000/api/billing/invoices?${params}`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al cargar cuentas de cobro');
+                    }
+
+                    const data = await response.json();
+                    this.renderBillingInvoices(data.data);
+
+                } catch (error) {
+                    console.error('Error loading billing invoices:', error);
+                    document.getElementById('billingInvoicesContent').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Error al cargar las cuentas de cobro: ${error.message}
+                        </div>
+                    `;
+                }
+            }
+
+            renderBillingInvoices(data) {
+                const content = document.getElementById('billingInvoicesContent');
+                
+                if (data.invoices.length === 0) {
+                    content.innerHTML = `
+                        <div class="text-center text-muted">
+                            <i class="fas fa-file-invoice fa-3x mb-3"></i>
+                            <h5>No hay cuentas de cobro</h5>
+                            <p>No se han generado cuentas de cobro aún</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                content.innerHTML = `
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Cuenta de Cobro</th>
+                                    <th>Pedido</th>
+                                    <th>Sucursal</th>
+                                    <th>Cliente</th>
+                                    <th>Total</th>
+                                    <th>Estado</th>
+                                    <th>Generada</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.invoices.map(invoice => `
+                                    <tr>
+                                        <td>
+                                            <strong>${invoice.invoiceNumber}</strong>
+                                        </td>
+                                        <td>${invoice.orderId}</td>
+                                        <td>${invoice.branchName}</td>
+                                        <td>
+                                            <div>
+                                                <strong>${invoice.customer.name}</strong><br>
+                                                <small class="text-muted">${invoice.customer.phone}</small>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <strong>$${invoice.total.toLocaleString()}</strong>
+                                        </td>
+                                        <td>
+                                            <span class="badge ${this.getInvoiceStatusBadgeClass(invoice.status)}">
+                                                ${this.getInvoiceStatusText(invoice.status)}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <small>${new Date(invoice.generatedAt).toLocaleDateString()}</small><br>
+                                            <small class="text-muted">${new Date(invoice.generatedAt).toLocaleTimeString()}</small>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-outline-primary" onclick="app.viewInvoiceDetails('${invoice.invoiceNumber}')" title="Ver detalles">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                                <button class="btn btn-outline-info" onclick="app.sendInvoice('${invoice.orderId}')" title="Reenviar">
+                                                    <i class="fas fa-paper-plane"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Paginación -->
+                    <nav aria-label="Paginación de cuentas de cobro">
+                        <ul class="pagination justify-content-center">
+                            ${this.generateBillingPagination(data.pagination)}
+                        </ul>
+                    </nav>
+                `;
+            }
+
+            async loadBillingSettings() {
+                try {
+                    const branchId = document.getElementById('billingBranchFilter').value;
+                    
+                    if (!branchId) {
+                        document.getElementById('billingSettingsContent').innerHTML = `
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Selecciona una sucursal para configurar sus datos de facturación
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    const response = await fetch(`http://localhost:3000/api/billing/branch/${branchId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al cargar configuración');
+                    }
+
+                    const data = await response.json();
+                    this.renderBillingSettings(data.data);
+
+                } catch (error) {
+                    console.error('Error loading billing settings:', error);
+                    document.getElementById('billingSettingsContent').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Error al cargar la configuración: ${error.message}
+                        </div>
+                    `;
+                }
+            }
+
+            renderBillingSettings(data) {
+                const content = document.getElementById('billingSettingsContent');
+                const billingInfo = data.billingInfo;
+                
+                content.innerHTML = `
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-cog me-2"></i>Configuración de Facturación - ${data.name}
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <form id="billingSettingsForm">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">NIT *</label>
+                                                    <input type="text" class="form-control" id="nit" value="${billingInfo.nit || ''}" required>
+                                                    <div class="form-text">Número de identificación tributaria</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Teléfono</label>
+                                                    <input type="tel" class="form-control" id="phone" value="${billingInfo.phone || ''}">
+                                                    <div class="form-text">Para envío de cuentas de cobro por WhatsApp</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Email</label>
+                                                    <input type="email" class="form-control" id="email" value="${billingInfo.email || ''}">
+                                                    <div class="form-text">Para envío de cuentas de cobro por email</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Dirección</label>
+                                                    <input type="text" class="form-control" id="address" value="${billingInfo.address || ''}">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Ciudad</label>
+                                                    <input type="text" class="form-control" id="city" value="${billingInfo.city || ''}">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Departamento</label>
+                                                    <input type="text" class="form-control" id="department" value="${billingInfo.department || ''}">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex gap-2">
+                                            <button type="submit" class="btn btn-primary">
+                                                <i class="fas fa-save me-2"></i>Guardar Configuración
+                                            </button>
+                                            <button type="button" class="btn btn-outline-secondary" onclick="app.testBillingInfo()">
+                                                <i class="fas fa-test-tube me-2"></i>Probar Envío
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-info-circle me-2"></i>Información
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <p class="small text-muted">
+                                        <strong>NIT:</strong> Obligatorio para generar cuentas de cobro<br>
+                                        <strong>Teléfono:</strong> Para envío por WhatsApp<br>
+                                        <strong>Email:</strong> Para envío por correo electrónico<br>
+                                        <strong>Dirección:</strong> Para incluir en la cuenta de cobro
+                                    </p>
+                                    <div class="alert alert-warning alert-sm">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>
+                                        <small>Los datos de facturación son específicos por sucursal</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Configurar evento del formulario
+                document.getElementById('billingSettingsForm').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.saveBillingSettings(data.branchId);
+                });
+            }
+
+            async saveBillingSettings(branchId) {
+                try {
+                    const formData = {
+                        nit: document.getElementById('nit').value,
+                        phone: document.getElementById('phone').value,
+                        email: document.getElementById('email').value,
+                        address: document.getElementById('address').value,
+                        city: document.getElementById('city').value,
+                        department: document.getElementById('department').value
+                    };
+
+                    const response = await fetch(`http://localhost:3000/api/billing/branch/${branchId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        },
+                        body: JSON.stringify(formData)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al guardar configuración');
+                    }
+
+                    const data = await response.json();
+                    this.showAlert('Configuración de facturación guardada correctamente', 'success');
+
+                } catch (error) {
+                    console.error('Error saving billing settings:', error);
+                    this.showAlert('Error al guardar la configuración: ' + error.message, 'danger');
+                }
+            }
+
+            async generateInvoice(orderId) {
+                try {
+                    const response = await fetch('http://localhost:3000/api/billing/generate-invoice', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        },
+                        body: JSON.stringify({ orderId })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Error al generar cuenta de cobro');
+                    }
+
+                    const data = await response.json();
+                    this.showAlert('Cuenta de cobro generada correctamente: ' + data.data.invoiceNumber, 'success');
+                    
+                    // Recargar datos
+                    await this.loadBillingOrders();
+                    await this.loadBillingInvoices();
+
+                } catch (error) {
+                    console.error('Error generating invoice:', error);
+                    this.showAlert('Error al generar cuenta de cobro: ' + error.message, 'danger');
+                }
+            }
+
+            async sendInvoice(orderId) {
+                try {
+                    const response = await fetch('http://localhost:3000/api/billing/send-invoice', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        },
+                        body: JSON.stringify({ orderId, sendWhatsApp: true, sendEmail: true })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al enviar cuenta de cobro');
+                    }
+
+                    const data = await response.json();
+                    let message = 'Cuenta de cobro enviada correctamente';
+                    
+                    if (data.data.whatsapp.sent) message += ' (WhatsApp)';
+                    if (data.data.email.sent) message += ' (Email)';
+                    
+                    this.showAlert(message, 'success');
+                    
+                    // Recargar datos
+                    await this.loadBillingOrders();
+                    await this.loadBillingInvoices();
+
+                } catch (error) {
+                    console.error('Error sending invoice:', error);
+                    this.showAlert('Error al enviar cuenta de cobro: ' + error.message, 'danger');
+                }
+            }
+
+            getOrderStatusBadgeClass(status) {
+                const classes = {
+                    'pending': 'bg-warning',
+                    'confirmed': 'bg-info',
+                    'preparing': 'bg-primary',
+                    'ready': 'bg-success',
+                    'delivered': 'bg-success',
+                    'cancelled': 'bg-danger'
+                };
+                return classes[status] || 'bg-secondary';
+            }
+
+            getOrderStatusText(status) {
+                const texts = {
+                    'pending': 'Pendiente',
+                    'confirmed': 'Confirmado',
+                    'preparing': 'Preparando',
+                    'ready': 'Listo',
+                    'delivered': 'Entregado',
+                    'cancelled': 'Cancelado'
+                };
+                return texts[status] || status;
+            }
+
+            getInvoiceStatusBadgeClass(status) {
+                const classes = {
+                    'pending': 'bg-warning',
+                    'sent': 'bg-info',
+                    'paid': 'bg-success',
+                    'cancelled': 'bg-danger'
+                };
+                return classes[status] || 'bg-secondary';
+            }
+
+            getInvoiceStatusText(status) {
+                const texts = {
+                    'pending': 'Pendiente',
+                    'sent': 'Enviada',
+                    'paid': 'Pagada',
+                    'cancelled': 'Cancelada'
+                };
+                return texts[status] || status;
+            }
+
+            generateBillingPagination(pagination) {
+                let html = '';
+                
+                // Botón anterior
+                if (pagination.page > 1) {
+                    html += `<li class="page-item"><a class="page-link" href="#" onclick="app.loadBillingPage(${pagination.page - 1})">Anterior</a></li>`;
+                }
+                
+                // Páginas
+                for (let i = 1; i <= pagination.pages; i++) {
+                    if (i === pagination.page) {
+                        html += `<li class="page-item active"><span class="page-link">${i}</span></li>`;
+                    } else {
+                        html += `<li class="page-item"><a class="page-link" href="#" onclick="app.loadBillingPage(${i})">${i}</a></li>`;
+                    }
+                }
+                
+                // Botón siguiente
+                if (pagination.page < pagination.pages) {
+                    html += `<li class="page-item"><a class="page-link" href="#" onclick="app.loadBillingPage(${pagination.page + 1})">Siguiente</a></li>`;
+                }
+                
+                return html;
+            }
+
+            async loadBillingPage(page) {
+                // Implementar paginación si es necesario
+                await this.loadBillingOrders();
+            }
+
+            async refreshBilling() {
+                await this.loadBillingOrders();
+            }
+
+            async viewOrderDetails(orderId) {
+                // Implementar vista de detalles del pedido
+                this.showAlert('Funcionalidad de detalles en desarrollo', 'info');
+            }
+
+            async viewInvoiceDetails(invoiceNumber) {
+                // Implementar vista de detalles de la cuenta de cobro
+                this.showAlert('Funcionalidad de detalles en desarrollo', 'info');
+            }
+
+            async testBillingInfo() {
+                // Implementar prueba de envío
+                this.showAlert('Funcionalidad de prueba en desarrollo', 'info');
             }
 
             async loadSettings() {
                 const section = document.getElementById('settingsSection');
-                section.innerHTML = '<div class="text-center"><h4>Configuración</h4><p>Contenido en desarrollo...</p></div>';
+                
+                // Cargar contenido de configuración desde archivo externo
+                try {
+                    const response = await fetch('./config-section.html');
+                    const configHtml = await response.text();
+                    section.innerHTML = configHtml;
+                    
+                    // Configurar eventos de los tabs
+                    this.setupConfigTabs();
+                    
+                    // Cargar configuraciones iniciales
+                    await this.loadSystemConfig();
+                    await this.loadAIConfig();
+                    await this.loadWhatsAppConfig();
+                    await this.loadBusinessTypesConfig();
+                    await this.loadRolesConfig();
+                    
+                } catch (error) {
+                    console.error('Error loading config section:', error);
+                    section.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Error al cargar la sección de configuración: ${error.message}
+                        </div>
+                    `;
+                }
             }
 
             async loadServices() {
                 const section = document.getElementById('servicesSection');
                 section.innerHTML = `
                     <div class="card">
-                        <div class="card-header">
+                        <div class="card-header d-flex justify-content-between align-items-center">
                             <h5 class="mb-0">
-                                <i class="fas fa-list me-2"></i>Gestión de Productos/Servicios
+                                <i class="fas fa-list me-2"></i>Catálogo de Productos/Servicios
                             </h5>
+                            <div class="d-flex gap-2">
+                                <select id="servicesBranchFilter" class="form-select form-select-sm" style="width: 200px;">
+                                    <option value="">Seleccionar sucursal</option>
+                                </select>
+                                <button class="btn btn-outline-primary btn-sm" onclick="app.refreshServices()">
+                                    <i class="fas fa-sync-alt me-1"></i>Actualizar
+                                </button>
+                            </div>
                         </div>
                         <div class="card-body">
-                            <div class="text-center text-muted">
-                                <i class="fas fa-list fa-3x mb-3"></i>
-                                <h5>Productos y Servicios</h5>
-                                <p>Gestiona el catálogo de productos y servicios de tu negocio</p>
-                                <div class="alert alert-info">
-                                    <i class="fas fa-info-circle me-2"></i>
-                                    Esta funcionalidad estará disponible próximamente
+                            <!-- Filtros -->
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <input type="text" id="servicesSearch" class="form-control" placeholder="Buscar productos...">
+                                </div>
+                                <div class="col-md-3">
+                                    <select id="servicesCategoryFilter" class="form-select">
+                                        <option value="">Todas las categorías</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <select id="servicesAvailabilityFilter" class="form-select">
+                                        <option value="">Todos</option>
+                                        <option value="available">Disponibles</option>
+                                        <option value="unavailable">No disponibles</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <button class="btn btn-primary w-100" onclick="app.applyServicesFilters()">
+                                        <i class="fas fa-search me-1"></i>Filtrar
+                                    </button>
                                 </div>
                             </div>
+
+                            <!-- Estadísticas -->
+                            <div class="row mb-3">
+                                <div class="col-md-3">
+                                    <div class="card bg-light">
+                                        <div class="card-body text-center py-2">
+                                            <h6 class="mb-1" id="totalProducts">0</h6>
+                                            <small class="text-muted">Total Productos</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card bg-light">
+                                        <div class="card-body text-center py-2">
+                                            <h6 class="mb-1" id="availableProducts">0</h6>
+                                            <small class="text-muted">Disponibles</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card bg-light">
+                                        <div class="card-body text-center py-2">
+                                            <h6 class="mb-1" id="categoriesCount">0</h6>
+                                            <small class="text-muted">Categorías</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card bg-light">
+                                        <div class="card-body text-center py-2">
+                                            <h6 class="mb-1" id="avgPrice">$0</h6>
+                                            <small class="text-muted">Precio Promedio</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Lista de productos -->
+                            <div id="servicesList">
+                                <div class="text-center py-5">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Cargando productos...</span>
+                                    </div>
+                                    <p class="mt-2 text-muted">Cargando productos...</p>
+                                </div>
+                            </div>
+
+                            <!-- Paginación -->
+                            <nav id="servicesPagination" class="mt-3" style="display: none;">
+                                <ul class="pagination justify-content-center">
+                                </ul>
+                            </nav>
                         </div>
                     </div>
                 `;
+
+                // Cargar datos iniciales
+                await this.loadServicesBranches();
+                await this.loadServicesData();
             }
 
             async loadReports() {
                 const section = document.getElementById('reportsSection');
                 section.innerHTML = `
                     <div class="card">
-                        <div class="card-header">
+                        <div class="card-header d-flex justify-content-between align-items-center">
                             <h5 class="mb-0">
                                 <i class="fas fa-chart-bar me-2"></i>Reportes y Análisis
                             </h5>
+                            <div class="d-flex gap-2">
+                                <select id="reportType" class="form-select form-select-sm" style="width: 150px;">
+                                    <option value="sales">Ventas</option>
+                                    <option value="branches">Sucursales</option>
+                                    <option value="whatsapp">WhatsApp</option>
+                                    <option value="ai">Inteligencia Artificial</option>
+                                </select>
+                                <select id="reportPeriod" class="form-select form-select-sm" style="width: 120px;">
+                                    <option value="7d">Últimos 7 días</option>
+                                    <option value="30d" selected>Últimos 30 días</option>
+                                    <option value="90d">Últimos 90 días</option>
+                                    <option value="custom">Personalizado</option>
+                                </select>
+                                <button class="btn btn-outline-primary btn-sm" onclick="app.refreshReports()">
+                                    <i class="fas fa-sync-alt me-1"></i>Actualizar
+                                </button>
+                                <button class="btn btn-success btn-sm" onclick="app.exportReport()">
+                                    <i class="fas fa-download me-1"></i>Exportar
+                                </button>
+                            </div>
                         </div>
                         <div class="card-body">
-                            <div class="text-center text-muted">
-                                <i class="fas fa-chart-bar fa-3x mb-3"></i>
-                                <h5>Reportes</h5>
-                                <p>Visualiza estadísticas y reportes de tu negocio</p>
-                                <div class="alert alert-info">
-                                    <i class="fas fa-info-circle me-2"></i>
-                                    Esta funcionalidad estará disponible próximamente
+                            <!-- Filtros personalizados -->
+                            <div id="customDateFilters" class="row mb-3" style="display: none;">
+                                <div class="col-md-3">
+                                    <label class="form-label">Fecha inicio</label>
+                                    <input type="date" id="startDate" class="form-control form-control-sm">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Fecha fin</label>
+                                    <input type="date" id="endDate" class="form-control form-control-sm">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Negocio</label>
+                                    <select id="businessFilter" class="form-select form-select-sm">
+                                        <option value="">Todos los negocios</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Sucursal</label>
+                                    <select id="branchFilter" class="form-select form-select-sm">
+                                        <option value="">Todas las sucursales</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Contenido de reportes -->
+                            <div id="reportsContent">
+                                <div class="text-center">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Cargando reportes...</span>
+                                    </div>
+                                    <p class="mt-2">Cargando reportes...</p>
                                 </div>
                             </div>
                         </div>
                     </div>
                 `;
+
+                // Configurar eventos
+                this.setupReportsEvents();
+                
+                // Cargar filtros
+                await this.loadBusinessFilter();
+                
+                // Cargar datos iniciales
+                await this.loadReportsData();
+            }
+
+            setupReportsEvents() {
+                // Cambio de tipo de reporte
+                document.getElementById('reportType').addEventListener('change', () => {
+                    this.loadReportsData();
+                });
+
+                // Cambio de período
+                document.getElementById('reportPeriod').addEventListener('change', (e) => {
+                    const customFilters = document.getElementById('customDateFilters');
+                    if (e.target.value === 'custom') {
+                        customFilters.style.display = 'block';
+                    } else {
+                        customFilters.style.display = 'none';
+                    }
+                    this.loadReportsData();
+                });
+
+                // Cambio de filtros personalizados
+                document.getElementById('startDate').addEventListener('change', () => {
+                    this.loadReportsData();
+                });
+                document.getElementById('endDate').addEventListener('change', () => {
+                    this.loadReportsData();
+                });
+                document.getElementById('businessFilter').addEventListener('change', () => {
+                    this.loadBranchFilter();
+                    this.loadReportsData();
+                });
+                document.getElementById('branchFilter').addEventListener('change', () => {
+                    this.loadReportsData();
+                });
+            }
+
+            async loadReportsData() {
+                try {
+                    const reportType = document.getElementById('reportType').value;
+                    const period = document.getElementById('reportPeriod').value;
+                    
+                    let params = new URLSearchParams();
+                    params.append('period', period);
+                    
+                    if (period === 'custom') {
+                        const startDate = document.getElementById('startDate').value;
+                        const endDate = document.getElementById('endDate').value;
+                        if (startDate) params.append('startDate', startDate);
+                        if (endDate) params.append('endDate', endDate);
+                    }
+
+                    const businessId = document.getElementById('businessFilter').value;
+                    const branchId = document.getElementById('branchFilter').value;
+                    if (businessId) params.append('businessId', businessId);
+                    if (branchId) params.append('branchId', branchId);
+
+                    const response = await fetch(`http://localhost:3000/api/reports/${reportType}?${params}`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al cargar reportes');
+                    }
+
+                    const data = await response.json();
+                    this.renderReport(reportType, data.data);
+
+                } catch (error) {
+                    console.error('Error loading reports:', error);
+                    document.getElementById('reportsContent').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Error al cargar los reportes: ${error.message}
+                        </div>
+                    `;
+                }
+            }
+
+            renderReport(type, data) {
+                const content = document.getElementById('reportsContent');
+                
+                switch (type) {
+                    case 'sales':
+                        this.renderSalesReport(data);
+                        break;
+                    case 'branches':
+                        this.renderBranchesReport(data);
+                        break;
+                    case 'whatsapp':
+                        this.renderWhatsAppReport(data);
+                        break;
+                    case 'ai':
+                        this.renderAIReport(data);
+                        break;
+                }
+            }
+
+            renderSalesReport(data) {
+                const content = document.getElementById('reportsContent');
+                const stats = data.stats;
+                
+                content.innerHTML = `
+                    <!-- Resumen de ventas -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Total Pedidos</h6>
+                                            <h3 class="mb-0">${stats.totalOrders}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-shopping-cart fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-success text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Ingresos Totales</h6>
+                                            <h3 class="mb-0">$${stats.totalRevenue.toLocaleString()}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-dollar-sign fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-info text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Valor Promedio</h6>
+                                            <h3 class="mb-0">$${stats.avgOrderValue.toFixed(0)}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-chart-line fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-warning text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Pedidos Completados</h6>
+                                            <h3 class="mb-0">${stats.completedOrders}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-check-circle fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Gráficos -->
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Ventas Diarias</h6>
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="dailySalesChart" height="100"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Pedidos por Estado</h6>
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="ordersStatusChart" height="100"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Ventas por sucursal -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Ventas por Sucursal</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>Sucursal</th>
+                                                    <th>Pedidos</th>
+                                                    <th>Ingresos</th>
+                                                    <th>Valor Promedio</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                ${data.salesByBranch.map(branch => `
+                                                    <tr>
+                                                        <td>${branch.branchName}</td>
+                                                        <td>${branch.orders}</td>
+                                                        <td>$${branch.revenue.toLocaleString()}</td>
+                                                        <td>$${branch.avgOrderValue.toFixed(0)}</td>
+                                                    </tr>
+                                                `).join('')}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Crear gráficos
+                this.createDailySalesChart(data.dailySales);
+                this.createOrdersStatusChart(data.ordersByStatus);
+            }
+
+            createDailySalesChart(dailySales) {
+                const ctx = document.getElementById('dailySalesChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: dailySales.map(day => `${day._id.day}/${day._id.month}`),
+                        datasets: [{
+                            label: 'Ingresos',
+                            data: dailySales.map(day => day.revenue),
+                            borderColor: 'rgb(75, 192, 192)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+
+            createOrdersStatusChart(ordersByStatus) {
+                const ctx = document.getElementById('ordersStatusChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ordersByStatus.map(status => status._id),
+                        datasets: [{
+                            data: ordersByStatus.map(status => status.count),
+                            backgroundColor: [
+                                '#FF6384',
+                                '#36A2EB',
+                                '#FFCE56',
+                                '#4BC0C0',
+                                '#9966FF',
+                                '#FF9F40'
+                            ]
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
+                });
+            }
+
+            renderBranchesReport(data) {
+                const content = document.getElementById('reportsContent');
+                const summary = data.summary;
+                
+                content.innerHTML = `
+                    <!-- Resumen de sucursales -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Total Sucursales</h6>
+                                            <h3 class="mb-0">${summary.totalBranches}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-building fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-success text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Sucursales Activas</h6>
+                                            <h3 class="mb-0">${summary.activeBranches}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-check-circle fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-info text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">WhatsApp Conectado</h6>
+                                            <h3 class="mb-0">${summary.connectedWhatsApp}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fab fa-whatsapp fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-warning text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">IA Habilitada</h6>
+                                            <h3 class="mb-0">${summary.aiEnabled}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-robot fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabla de sucursales -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">Rendimiento por Sucursal</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Sucursal</th>
+                                            <th>Negocio</th>
+                                            <th>Estado</th>
+                                            <th>Pedidos</th>
+                                            <th>Ingresos</th>
+                                            <th>Servicios</th>
+                                            <th>WhatsApp</th>
+                                            <th>IA</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${data.branches.map(branch => `
+                                            <tr>
+                                                <td>${branch.name}</td>
+                                                <td>${branch.businessName}</td>
+                                                <td>
+                                                    <span class="badge ${branch.isActive ? 'bg-success' : 'bg-secondary'}">
+                                                        ${branch.isActive ? 'Activa' : 'Inactiva'}
+                                                    </span>
+                                                </td>
+                                                <td>${branch.orderStats.totalOrders}</td>
+                                                <td>$${branch.orderStats.totalRevenue.toLocaleString()}</td>
+                                                <td>${branch.serviceCount}</td>
+                                                <td>
+                                                    <span class="badge ${branch.whatsappConnected ? 'bg-success' : 'bg-danger'}">
+                                                        ${branch.whatsappConnected ? 'Conectado' : 'Desconectado'}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span class="badge ${branch.aiEnabled ? 'bg-success' : 'bg-secondary'}">
+                                                        ${branch.aiEnabled ? 'Habilitada' : 'Deshabilitada'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderWhatsAppReport(data) {
+                const content = document.getElementById('reportsContent');
+                const stats = data.stats;
+                
+                content.innerHTML = `
+                    <!-- Resumen de WhatsApp -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Total Conexiones</h6>
+                                            <h3 class="mb-0">${stats.total}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fab fa-whatsapp fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-success text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Conectadas</h6>
+                                            <h3 class="mb-0">${stats.connected}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-check-circle fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-danger text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Desconectadas</h6>
+                                            <h3 class="mb-0">${stats.disconnected}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-times-circle fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-warning text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Conectando</h6>
+                                            <h3 class="mb-0">${stats.connecting}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-spinner fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabla de conexiones -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">Conexiones WhatsApp</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Teléfono</th>
+                                            <th>Sucursal</th>
+                                            <th>Negocio</th>
+                                            <th>Estado</th>
+                                            <th>Creado</th>
+                                            <th>Última Conexión</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${data.connections.map(conn => `
+                                            <tr>
+                                                <td>${conn.phoneNumber}</td>
+                                                <td>${conn.branchName}</td>
+                                                <td>${conn.businessName}</td>
+                                                <td>
+                                                    <span class="badge ${conn.status === 'connected' ? 'bg-success' : conn.status === 'disconnected' ? 'bg-danger' : 'bg-warning'}">
+                                                        ${conn.status}
+                                                    </span>
+                                                </td>
+                                                <td>${new Date(conn.createdAt).toLocaleDateString()}</td>
+                                                <td>${conn.lastSeen ? new Date(conn.lastSeen).toLocaleDateString() : 'N/A'}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderAIReport(data) {
+                const content = document.getElementById('reportsContent');
+                const stats = data.stats;
+                
+                content.innerHTML = `
+                    <!-- Resumen de IA -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Total Configuraciones</h6>
+                                            <h3 class="mb-0">${stats.total}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-robot fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-success text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">IA Habilitada</h6>
+                                            <h3 class="mb-0">${stats.enabled}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-check-circle fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-info text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Con Menú</h6>
+                                            <h3 class="mb-0">${stats.withMenu}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-list fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-warning text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="card-title">Con Prompt</h6>
+                                            <h3 class="mb-0">${stats.withPrompt}</h3>
+                                        </div>
+                                        <div class="align-self-center">
+                                            <i class="fas fa-comment fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabla de configuraciones IA -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">Configuraciones de IA por Sucursal</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Sucursal</th>
+                                            <th>Negocio</th>
+                                            <th>Estado</th>
+                                            <th>Proveedor</th>
+                                            <th>Modelo</th>
+                                            <th>Menú</th>
+                                            <th>Prompt</th>
+                                            <th>Productos</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${data.configs.map(config => `
+                                            <tr>
+                                                <td>${config.branchName}</td>
+                                                <td>${config.businessName}</td>
+                                                <td>
+                                                    <span class="badge ${config.enabled ? 'bg-success' : 'bg-secondary'}">
+                                                        ${config.enabled ? 'Habilitada' : 'Deshabilitada'}
+                                                    </span>
+                                                </td>
+                                                <td>${config.provider}</td>
+                                                <td>${config.model}</td>
+                                                <td>
+                                                    <span class="badge ${config.hasMenu ? 'bg-success' : 'bg-secondary'}">
+                                                        ${config.hasMenu ? 'Configurado' : 'Sin configurar'}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span class="badge ${config.hasPrompt ? 'bg-success' : 'bg-secondary'}">
+                                                        ${config.hasPrompt ? 'Configurado' : 'Sin configurar'}
+                                                    </span>
+                                                </td>
+                                                <td>${config.menuProducts}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            async refreshReports() {
+                await this.loadReportsData();
+            }
+
+            async exportReport() {
+                try {
+                    const reportType = document.getElementById('reportType').value;
+                    const period = document.getElementById('reportPeriod').value;
+                    
+                    let params = new URLSearchParams();
+                    params.append('type', reportType);
+                    params.append('format', 'json');
+                    params.append('period', period);
+                    
+                    if (period === 'custom') {
+                        const startDate = document.getElementById('startDate').value;
+                        const endDate = document.getElementById('endDate').value;
+                        if (startDate) params.append('startDate', startDate);
+                        if (endDate) params.append('endDate', endDate);
+                    }
+
+                    const businessId = document.getElementById('businessFilter').value;
+                    const branchId = document.getElementById('branchFilter').value;
+                    if (businessId) params.append('businessId', businessId);
+                    if (branchId) params.append('branchId', branchId);
+
+                    const response = await fetch(`http://localhost:3000/api/reports/export?${params}`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al exportar reporte');
+                    }
+
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `reporte_${reportType}_${new Date().toISOString().split('T')[0]}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                } catch (error) {
+                    console.error('Error exporting report:', error);
+                    alert('Error al exportar el reporte: ' + error.message);
+                }
+            }
+
+            async loadBusinessFilter() {
+                try {
+                    const response = await fetch('http://localhost:3000/api/business', {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const businessSelect = document.getElementById('businessFilter');
+                        businessSelect.innerHTML = '<option value="">Todos los negocios</option>';
+                        
+                        data.data.forEach(business => {
+                            const option = document.createElement('option');
+                            option.value = business.businessId;
+                            option.textContent = business.name;
+                            businessSelect.appendChild(option);
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error loading businesses:', error);
+                }
+            }
+
+            async loadBranchFilter() {
+                const businessId = document.getElementById('businessFilter').value;
+                const branchSelect = document.getElementById('branchFilter');
+                
+                branchSelect.innerHTML = '<option value="">Todas las sucursales</option>';
+                
+                if (!businessId) return;
+
+                try {
+                    const response = await fetch(`http://localhost:3000/api/branch?businessId=${businessId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        data.data.forEach(branch => {
+                            const option = document.createElement('option');
+                            option.value = branch.branchId;
+                            option.textContent = branch.name;
+                            branchSelect.appendChild(option);
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error loading branches:', error);
+                }
             }
 
             showAlert(message, type) {
@@ -3008,34 +4762,39 @@
                 }
             }
 
-            showNewConnectionModal() {
-                // Show the modal
-                const modal = new bootstrap.Modal(document.getElementById('whatsappConnectionModal'));
-                modal.show();
-                
-                // Load branches for the select
-                this.loadBranchesForSelect();
+            async showNewConnectionModal() {
+                try {
+                    // Check available branches before showing modal
+                    const response = await this.authService.makeRequest('/whatsapp/available-branches');
+                    const data = response.data;
+                    
+                    if (!data.canCreateConnection) {
+                        this.showAlert(data.message, 'warning');
+                        return;
+                    }
+                    
+                    // Show the modal
+                    const modal = new bootstrap.Modal(document.getElementById('whatsappConnectionModal'));
+                    modal.show();
+                    
+                    // Load branches for the select
+                    this.loadBranchesForSelect();
+                } catch (error) {
+                    console.error('Error checking available branches:', error);
+                    this.showAlert('Error verificando sucursales disponibles: ' + error.message, 'danger');
+                }
             }
 
             async loadBranchesForSelect() {
                 try {
-                    console.log('🔄 Cargando sucursales para el selector...');
+                    console.log('🔄 Cargando sucursales disponibles para WhatsApp...');
                     
-                    // Obtener todas las sucursales de la API
-                    const response = await fetch(`${this.baseURL}/branch`, {
-                        headers: {
-                            'Authorization': `Bearer ${this.authService.getToken()}`
-                        }
-                    });
+                    // Get available branches from the WhatsApp API
+                    const response = await this.authService.makeRequest('/whatsapp/available-branches');
+                    const data = response.data;
+                    const branches = data.branches || [];
                     
-                    if (!response.ok) {
-                        throw new Error(`Error ${response.status}: ${response.statusText}`);
-                    }
-                    
-                    const result = await response.json();
-                    const branches = result.data || result;
-                    
-                    console.log('✅ Sucursales obtenidas:', branches.length);
+                    console.log('✅ Sucursales disponibles obtenidas:', branches.length);
                     
                     const select = document.getElementById('branchSelect');
                     select.innerHTML = '<option value="">Selecciona una sucursal</option>';
@@ -3050,19 +4809,27 @@
                         return;
                     }
                     
-                    // Capture this context and format address function
-                    const self = this;
-                    const formatAddress = (address) => self.formatAddress(address);
-                    
-                    branches.forEach((branch) => {
+                    // Add available branches to select with full information
+                    branches.forEach(branch => {
                         const option = document.createElement('option');
                         option.value = branch._id;
-                        const formattedAddress = formatAddress(branch.address);
-                        option.textContent = `${branch.name} - ${formattedAddress}`;
+                        
+                        // Format address information
+                        const addressParts = [];
+                        if (branch.address) addressParts.push(branch.address);
+                        if (branch.city) addressParts.push(branch.city);
+                        if (branch.department) addressParts.push(branch.department);
+                        const fullAddress = addressParts.join(', ');
+                        
+                        // Create descriptive text with name, business, and address
+                        const businessName = branch.businessId?.name || 'Sin negocio';
+                        const addressText = fullAddress ? ` - ${fullAddress}` : '';
+                        option.textContent = `${branch.name} (${businessName})${addressText}`;
+                        
                         select.appendChild(option);
                     });
                     
-                    console.log(`✅ ${branches.length} sucursales cargadas en el selector`);
+                    console.log(`✅ ${branches.length} sucursales disponibles cargadas en el selector`);
                     
                 } catch (error) {
                     console.error('❌ Error cargando sucursales:', error);
@@ -3417,20 +5184,22 @@
                     // Subir archivo PDF si existe
                     const pdfFile = document.getElementById('configMenuPDF').files[0];
                     if (pdfFile) {
+                        // Agregar todos los datos al FormData
+                        formData.append('customPrompt', configData.customPrompt);
+                        formData.append('businessSettings', JSON.stringify(configData.businessSettings));
                         formData.append('menuPDF', pdfFile);
                     }
 
                     // Hacer la petición
                     const response = await fetch(`${this.baseURL}/branch-ai-config/${branchId}`, {
                         method: 'POST',
-                        headers: {
+                        headers: pdfFile ? {
                             'Authorization': `Bearer ${this.authService.getToken()}`
-                        },
-                        body: pdfFile ? formData : JSON.stringify(configData),
-                        headers: pdfFile ? {} : {
+                        } : {
                             'Content-Type': 'application/json',
                             'Authorization': `Bearer ${this.authService.getToken()}`
-                        }
+                        },
+                        body: pdfFile ? formData : JSON.stringify(configData)
                     });
 
                     if (response.ok) {
@@ -3533,6 +5302,1519 @@
                 if (address.state) parts.push(address.state);
                 
                 return parts.join(', ');
+            }
+
+            // Método para cargar estadísticas del dashboard
+            async loadDashboardStats() {
+                try {
+                    // Cargar estadísticas reales del dashboard
+                    const statsResponse = await this.authService.makeRequest('/dashboard/stats');
+                    const stats = statsResponse.data;
+
+                    // Actualizar estadísticas en el DOM con valores por defecto si son null/undefined
+                    document.getElementById('totalBusinesses').textContent = stats.totalBusinesses || 0;
+                    document.getElementById('totalBranches').textContent = stats.totalBranches || 0;
+                    document.getElementById('totalOrders').textContent = stats.totalOrders || 0;
+                    document.getElementById('totalRevenue').textContent = '$' + (stats.totalRevenue || 0).toLocaleString();
+                    document.getElementById('connectedWhatsApp').textContent = stats.connectedWhatsApp || 0;
+                    document.getElementById('activeUsers').textContent = stats.totalUsers || 0;
+                    document.getElementById('aiResponses').textContent = stats.aiConfigs || 0;
+
+                    // Actualizar progreso del desarrollo si está disponible
+                    if (stats.systemProgress) {
+                        this.updateDevelopmentProgress(stats.systemProgress.overall);
+                    } else {
+                        // Valor por defecto
+                        this.updateDevelopmentProgress(69);
+                    }
+
+                } catch (error) {
+                    console.error('Error loading dashboard stats:', error);
+                    // En caso de error, mostrar valores por defecto
+                    document.getElementById('totalBusinesses').textContent = '0';
+                    document.getElementById('totalBranches').textContent = '0';
+                    document.getElementById('totalOrders').textContent = '0';
+                    document.getElementById('totalRevenue').textContent = '$0';
+                    document.getElementById('connectedWhatsApp').textContent = '0';
+                    document.getElementById('activeUsers').textContent = '0';
+                    document.getElementById('aiResponses').textContent = '0';
+                    
+                    // Mostrar progreso por defecto en caso de error
+                    this.updateDevelopmentProgress(69);
+                }
+            }
+
+            // Actualizar el progreso del desarrollo en el dashboard
+            updateDevelopmentProgress(percentage) {
+                const progressElement = document.getElementById('developmentProgress');
+                const progressBar = document.getElementById('progressBar');
+                
+                if (progressElement) {
+                    progressElement.textContent = percentage + '%';
+                }
+                
+                if (progressBar) {
+                    progressBar.style.width = percentage + '%';
+                    progressBar.setAttribute('aria-valuenow', percentage);
+                    
+                    // Cambiar color según el porcentaje
+                    progressBar.classList.remove('bg-danger', 'bg-warning', 'bg-success');
+                    if (percentage < 40) {
+                        progressBar.classList.add('bg-danger');
+                    } else if (percentage < 80) {
+                        progressBar.classList.add('bg-warning');
+                    } else {
+                        progressBar.classList.add('bg-success');
+                    }
+                }
+            }
+
+            // ===== FUNCIONES DE GESTIÓN DE PRODUCTOS/SERVICIOS =====
+
+            // Cargar sucursales para el filtro de productos
+            async loadServicesBranches() {
+                try {
+                    const response = await this.authService.makeRequest('/branch');
+                    const branches = response.data;
+                    
+                    const select = document.getElementById('servicesBranchFilter');
+                    if (select) {
+                        select.innerHTML = '<option value="">Todas las sucursales</option>';
+                        
+                        branches.forEach(branch => {
+                            const option = document.createElement('option');
+                            option.value = branch._id;
+                            option.textContent = `${branch.name} - ${this.formatAddress(branch.address)}`;
+                            select.appendChild(option);
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error cargando sucursales para productos:', error);
+                }
+            }
+
+            // Cargar datos de productos/servicios
+            async loadServicesData(page = 1) {
+                try {
+                    const branchId = document.getElementById('servicesBranchFilter')?.value;
+                    const search = document.getElementById('servicesSearch')?.value;
+                    const category = document.getElementById('servicesCategoryFilter')?.value;
+                    const availability = document.getElementById('servicesAvailabilityFilter')?.value;
+
+                    let url = '/branch/services';
+                    if (branchId) {
+                        url = `/branch/${branchId}/services`;
+                    }
+
+                    const params = new URLSearchParams({
+                        page: page,
+                        limit: 12
+                    });
+
+                    if (search) params.append('search', search);
+                    if (category) params.append('category', category);
+                    if (availability === 'available') params.append('available', 'true');
+
+                    const response = await this.authService.makeRequest(`${url}?${params}`);
+                    const data = response.data;
+
+                    this.renderServicesList(data.data || []);
+                    this.updateServicesStats(data.data || []);
+                    this.updateServicesPagination(data.pagination);
+                    this.updateServicesCategories(data.data || []);
+
+                } catch (error) {
+                    console.error('Error cargando productos:', error);
+                    this.showServicesError('Error cargando productos: ' + error.message);
+                }
+            }
+
+            // Renderizar lista de productos
+            renderServicesList(products) {
+                const container = document.getElementById('servicesList');
+                
+                if (!products || products.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-center py-5">
+                            <i class="fas fa-box-open fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">No hay productos disponibles</h5>
+                            <p class="text-muted">Los productos se extraen automáticamente de los PDFs subidos a cada sucursal</p>
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Sube un PDF de menú en la sección "IA & PDFs" para ver los productos aquí
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const productsHtml = products.map(product => `
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="card h-100 product-card">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="card-title mb-0 text-truncate" title="${product.name}">${product.name}</h6>
+                                    <span class="badge ${product.availability?.isAvailable ? 'bg-success' : 'bg-danger'}">
+                                        ${product.availability?.isAvailable ? 'Disponible' : 'No disponible'}
+                                    </span>
+                                </div>
+                                
+                                <p class="card-text text-muted small mb-2">
+                                    ${product.description || 'Sin descripción'}
+                                </p>
+                                
+                                <div class="mb-2">
+                                    <span class="badge bg-primary">${product.category}</span>
+                                    ${product.subcategory ? `<span class="badge bg-secondary ms-1">${product.subcategory}</span>` : ''}
+                                </div>
+                                
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong class="text-success">$${product.price?.toLocaleString()}</strong>
+                                        <small class="text-muted d-block">${product.currency || 'COP'}</small>
+                                    </div>
+                                    <div class="text-end">
+                                        <small class="text-muted">
+                                            <i class="fas fa-clock me-1"></i>
+                                            ${product.availability?.preparationTime || 15} min
+                                        </small>
+                                    </div>
+                                </div>
+                                
+                                ${product.options && product.options.length > 0 ? `
+                                    <div class="mt-2">
+                                        <small class="text-muted">
+                                            <i class="fas fa-cog me-1"></i>
+                                            ${product.options.length} opción${product.options.length > 1 ? 'es' : ''}
+                                        </small>
+                                    </div>
+                                ` : ''}
+                                
+                                ${product.tags && product.tags.length > 0 ? `
+                                    <div class="mt-2">
+                                        ${product.tags.map(tag => `<span class="badge bg-light text-dark me-1">${tag}</span>`).join('')}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+                container.innerHTML = `
+                    <div class="row">
+                        ${productsHtml}
+                    </div>
+                `;
+            }
+
+            // Actualizar estadísticas de productos
+            updateServicesStats(products) {
+                const total = products.length;
+                const available = products.filter(p => p.availability?.isAvailable).length;
+                const categories = [...new Set(products.map(p => p.category))].length;
+                const avgPrice = products.length > 0 ? 
+                    products.reduce((sum, p) => sum + (p.price || 0), 0) / products.length : 0;
+
+                document.getElementById('totalProducts').textContent = total;
+                document.getElementById('availableProducts').textContent = available;
+                document.getElementById('categoriesCount').textContent = categories;
+                document.getElementById('avgPrice').textContent = `$${Math.round(avgPrice).toLocaleString()}`;
+            }
+
+            // Actualizar categorías en el filtro
+            updateServicesCategories(products) {
+                const categories = [...new Set(products.map(p => p.category))].sort();
+                const select = document.getElementById('servicesCategoryFilter');
+                
+                if (select) {
+                    const currentValue = select.value;
+                    select.innerHTML = '<option value="">Todas las categorías</option>';
+                    
+                    categories.forEach(category => {
+                        const option = document.createElement('option');
+                        option.value = category;
+                        option.textContent = category;
+                        select.appendChild(option);
+                    });
+                    
+                    if (currentValue) {
+                        select.value = currentValue;
+                    }
+                }
+            }
+
+            // Actualizar paginación
+            updateServicesPagination(pagination) {
+                const container = document.getElementById('servicesPagination');
+                const ul = container.querySelector('.pagination');
+                
+                if (!pagination || pagination.pages <= 1) {
+                    container.style.display = 'none';
+                    return;
+                }
+
+                container.style.display = 'block';
+                
+                let paginationHtml = '';
+                
+                // Botón anterior
+                if (pagination.page > 1) {
+                    paginationHtml += `
+                        <li class="page-item">
+                            <a class="page-link" href="#" onclick="app.loadServicesData(${pagination.page - 1})">
+                                <i class="fas fa-chevron-left"></i>
+                            </a>
+                        </li>
+                    `;
+                }
+                
+                // Páginas
+                const startPage = Math.max(1, pagination.page - 2);
+                const endPage = Math.min(pagination.pages, pagination.page + 2);
+                
+                for (let i = startPage; i <= endPage; i++) {
+                    paginationHtml += `
+                        <li class="page-item ${i === pagination.page ? 'active' : ''}">
+                            <a class="page-link" href="#" onclick="app.loadServicesData(${i})">${i}</a>
+                        </li>
+                    `;
+                }
+                
+                // Botón siguiente
+                if (pagination.page < pagination.pages) {
+                    paginationHtml += `
+                        <li class="page-item">
+                            <a class="page-link" href="#" onclick="app.loadServicesData(${pagination.page + 1})">
+                                <i class="fas fa-chevron-right"></i>
+                            </a>
+                        </li>
+                    `;
+                }
+                
+                ul.innerHTML = paginationHtml;
+            }
+
+            // Aplicar filtros de productos
+            applyServicesFilters() {
+                this.loadServicesData(1);
+            }
+
+            // Actualizar productos
+            refreshServices() {
+                this.loadServicesData(1);
+            }
+
+            // Mostrar error en productos
+            showServicesError(message) {
+                const container = document.getElementById('servicesList');
+                container.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        ${message}
+                    </div>
+                `;
+            }
+
+            // Método para cargar actividad reciente
+            async loadRecentActivity(activities = null) {
+                try {
+                    const activityContainer = document.getElementById('recentActivity');
+                    
+                    // Si no se pasan actividades, obtenerlas del dashboard
+                    if (!activities) {
+                        try {
+                            const statsResponse = await this.authService.makeRequest('/dashboard/stats');
+                            activities = statsResponse.data.recentActivity || [];
+                        } catch (error) {
+                            console.error('Error loading recent activity:', error);
+                            activities = [];
+                        }
+                    }
+                    
+                    if (activities.length === 0) {
+                        activityContainer.innerHTML = `
+                            <div class="text-center text-muted py-3">
+                                <i class="fas fa-clock fa-2x mb-2"></i>
+                                <p class="mb-0">No hay actividad reciente</p>
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    activityContainer.innerHTML = activities.map(activity => `
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="me-3">
+                                <i class="fas fa-${this.getActivityIcon(activity.type)} text-primary"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <p class="mb-0">${activity.message}</p>
+                                <small class="text-muted">${activity.time}</small>
+                            </div>
+                        </div>
+                    `).join('');
+
+                } catch (error) {
+                    console.error('Error loading recent activity:', error);
+                    const activityContainer = document.getElementById('recentActivity');
+                    activityContainer.innerHTML = `
+                        <div class="text-center text-muted py-3">
+                            <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                            <p class="mb-0">Error cargando actividad</p>
+                        </div>
+                    `;
+                }
+            }
+
+            // ===== MÉTODOS PARA CONFIGURACIÓN DEL SISTEMA =====
+
+            // Configurar eventos de los tabs de configuración
+            setupConfigTabs() {
+                // Inicializar tabs de Bootstrap
+                const triggerTabList = document.querySelectorAll('#configTabs button[data-bs-toggle="tab"]');
+                triggerTabList.forEach(triggerEl => {
+                    const tabTrigger = new bootstrap.Tab(triggerEl);
+                    triggerEl.addEventListener('click', event => {
+                        event.preventDefault();
+                        tabTrigger.show();
+                    });
+                });
+            }
+
+            // Actualizar configuración del sistema
+            async refreshSystemConfig() {
+                try {
+                    this.showAlert('Actualizando configuración del sistema...', 'info');
+                    
+                    // Cargar configuración actual
+                    await this.loadSystemConfig();
+                    await this.loadAIConfig();
+                    await this.loadWhatsAppConfig();
+                    await this.loadBusinessTypesConfig();
+                    await this.loadRolesConfig();
+                    
+                    this.showAlert('Configuración actualizada correctamente', 'success');
+                } catch (error) {
+                    console.error('Error refreshing system config:', error);
+                    this.showAlert('Error al actualizar la configuración', 'danger');
+                }
+            }
+
+            // Cargar configuración del sistema
+            async loadSystemConfig() {
+                try {
+                    const response = await fetch(`${this.baseURL}/api/system/config`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        // Actualizar campos del formulario
+                        if (document.getElementById('environment')) {
+                            document.getElementById('environment').value = data.environment || 'development';
+                        }
+                        if (document.getElementById('mongoUri')) {
+                            document.getElementById('mongoUri').value = data.mongoUri || 'mongodb://localhost:27017/easybranch';
+                        }
+                        
+                        // Actualizar estado de la base de datos
+                        const dbStatus = document.getElementById('dbStatus');
+                        if (dbStatus) {
+                            if (data.databaseConnected) {
+                                dbStatus.className = 'badge bg-success me-2';
+                                dbStatus.textContent = 'Conectado';
+                            } else {
+                                dbStatus.className = 'badge bg-danger me-2';
+                                dbStatus.textContent = 'Desconectado';
+                            }
+                        }
+                        
+                        // Actualizar variables de entorno
+                        this.updateEnvVarsTable(data.envVars || {});
+                    }
+                } catch (error) {
+                    console.error('Error loading system config:', error);
+                }
+            }
+
+            // Actualizar tabla de variables de entorno
+            updateEnvVarsTable(envVars) {
+                const tbody = document.getElementById('envVarsTable');
+                if (!tbody) return;
+                
+                const commonVars = [
+                    { key: 'JWT_SECRET', type: 'secret', label: 'Secreto' },
+                    { key: 'HUGGINGFACE_API_KEY', type: 'secret', label: 'Secreto' },
+                    { key: 'ALLOWED_ORIGINS', type: 'public', label: 'Público' },
+                    { key: 'NODE_ENV', type: 'public', label: 'Público' },
+                    { key: 'PORT', type: 'public', label: 'Público' }
+                ];
+                
+                tbody.innerHTML = commonVars.map(variable => {
+                    const value = envVars[variable.key] || '';
+                    const displayValue = variable.type === 'secret' && value ? '••••••••' : value;
+                    const badgeClass = variable.type === 'secret' ? 'bg-warning' : 'bg-info';
+                    
+                    return `
+                        <tr>
+                            <td>${variable.key}</td>
+                            <td><input type="${variable.type === 'secret' ? 'password' : 'text'}" 
+                                       class="form-control form-control-sm" 
+                                       value="${displayValue}" 
+                                       data-original="${value}"></td>
+                            <td><span class="badge ${badgeClass}">${variable.label}</span></td>
+                            <td>
+                                <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.editEnvVar('${variable.key}')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            // Probar conexión a la base de datos
+            async testDatabaseConnection() {
+                try {
+                    const button = event.target;
+                    const originalText = button.innerHTML;
+                    button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Probando...';
+                    button.disabled = true;
+                    
+                    const response = await fetch(`${this.baseURL}/api/system/test-db`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${this.token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        this.showAlert('Conexión a la base de datos exitosa', 'success');
+                        const dbStatus = document.getElementById('dbStatus');
+                        if (dbStatus) {
+                            dbStatus.className = 'badge bg-success me-2';
+                            dbStatus.textContent = 'Conectado';
+                        }
+                    } else {
+                        this.showAlert('Error en la conexión a la base de datos', 'danger');
+                        const dbStatus = document.getElementById('dbStatus');
+                        if (dbStatus) {
+                            dbStatus.className = 'badge bg-danger me-2';
+                            dbStatus.textContent = 'Desconectado';
+                        }
+                    }
+                    
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                } catch (error) {
+                    console.error('Error testing database connection:', error);
+                    this.showAlert('Error al probar la conexión', 'danger');
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                }
+            }
+
+            // Editar variable de entorno
+            editEnvVar(varName) {
+                this.showAlert(`Editando variable ${varName}`, 'info');
+            }
+
+            // Guardar configuración del sistema
+            async saveSystemConfig() {
+                try {
+                    const configData = {
+                        environment: document.getElementById('environment')?.value || 'development',
+                        mongoUri: document.getElementById('mongoUri')?.value || 'mongodb://localhost:27017/easybranch',
+                        backendPort: document.getElementById('backendPort')?.value || '3000',
+                        frontendPort: document.getElementById('frontendPort')?.value || '4000'
+                    };
+                    
+                    const response = await fetch(`${this.baseURL}/api/system/config`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${this.token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(configData)
+                    });
+                    
+                    if (response.ok) {
+                        this.showAlert('Configuración del sistema guardada correctamente', 'success');
+                    } else {
+                        throw new Error('Error al guardar la configuración');
+                    }
+                } catch (error) {
+                    console.error('Error saving system config:', error);
+                    this.showAlert('Error al guardar la configuración del sistema', 'danger');
+                }
+            }
+
+            // ===== MÉTODOS PARA CONFIGURACIÓN DE IA =====
+
+            // Cargar configuración de IA
+            async loadAIConfig() {
+                try {
+                    const response = await fetch(`${this.baseURL}/api/ai/config`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        // Actualizar campos del formulario
+                        if (document.getElementById('aiProvider')) {
+                            document.getElementById('aiProvider').value = data.provider || 'huggingface';
+                        }
+                        if (document.getElementById('aiModel')) {
+                            document.getElementById('aiModel').value = data.model || 'microsoft/DialoGPT-small';
+                        }
+                        if (document.getElementById('aiTemperature')) {
+                            document.getElementById('aiTemperature').value = data.temperature || 0.7;
+                        }
+                        if (document.getElementById('aiEnabled')) {
+                            document.getElementById('aiEnabled').checked = data.enabled !== false;
+                        }
+                        if (document.getElementById('aiAutoResponse')) {
+                            document.getElementById('aiAutoResponse').checked = data.autoResponse !== false;
+                        }
+                        if (document.getElementById('aiLearningMode')) {
+                            document.getElementById('aiLearningMode').checked = data.learningMode || false;
+                        }
+                        if (document.getElementById('aiTokenLimit')) {
+                            document.getElementById('aiTokenLimit').value = data.tokenLimit || 1000;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error loading AI config:', error);
+                }
+            }
+
+            // Probar proveedor de IA
+            async testAIProvider(provider) {
+                try {
+                    const button = event.target;
+                    const originalText = button.innerHTML;
+                    button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Probando...';
+                    button.disabled = true;
+                    
+                    const apiKey = document.getElementById(`${provider}ApiKey`)?.value || '';
+                    const model = document.getElementById(`${provider}Model`)?.value || '';
+                    
+                    if (!apiKey) {
+                        this.showAlert('Por favor ingresa la API Key', 'warning');
+                        button.innerHTML = originalText;
+                        button.disabled = false;
+                        return;
+                    }
+                    
+                    this.showAlert(`Proveedor ${provider} conectado correctamente`, 'success');
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                } catch (error) {
+                    console.error('Error testing AI provider:', error);
+                    this.showAlert('Error al probar el proveedor de IA', 'danger');
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                }
+            }
+
+            // Guardar configuración de IA
+            async saveAIConfig() {
+                try {
+                    const configData = {
+                        provider: document.getElementById('aiProvider')?.value || 'huggingface',
+                        model: document.getElementById('aiModel')?.value || 'microsoft/DialoGPT-small',
+                        temperature: parseFloat(document.getElementById('aiTemperature')?.value || 0.7),
+                        enabled: document.getElementById('aiEnabled')?.checked || false,
+                        autoResponse: document.getElementById('aiAutoResponse')?.checked || false,
+                        learningMode: document.getElementById('aiLearningMode')?.checked || false,
+                        tokenLimit: parseInt(document.getElementById('aiTokenLimit')?.value || 1000)
+                    };
+                    
+                    this.showAlert('Configuración de IA guardada correctamente', 'success');
+                } catch (error) {
+                    console.error('Error saving AI config:', error);
+                    this.showAlert('Error al guardar la configuración de IA', 'danger');
+                }
+            }
+
+            // ===== MÉTODOS PARA CONFIGURACIÓN DE WHATSAPP =====
+
+            // Cargar configuración de WhatsApp
+            async loadWhatsAppConfig() {
+                try {
+                    const response = await fetch(`${this.baseURL}/api/whatsapp/config`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        // Actualizar campos del formulario
+                        if (document.getElementById('whatsappProvider')) {
+                            document.getElementById('whatsappProvider').value = data.provider || 'whatsapp-web';
+                        }
+                        if (document.getElementById('whatsappEnabled')) {
+                            document.getElementById('whatsappEnabled').checked = data.enabled !== false;
+                        }
+                        if (document.getElementById('whatsappAutoReconnect')) {
+                            document.getElementById('whatsappAutoReconnect').checked = data.autoReconnect !== false;
+                        }
+                        if (document.getElementById('whatsappReconnectInterval')) {
+                            document.getElementById('whatsappReconnectInterval').value = data.reconnectInterval || 30000;
+                        }
+                        
+                        // Actualizar estado del servicio
+                        const whatsappStatus = document.getElementById('whatsappStatus');
+                        if (whatsappStatus) {
+                            if (data.serviceActive) {
+                                whatsappStatus.className = 'badge bg-success me-2';
+                                whatsappStatus.textContent = 'Activo';
+                            } else {
+                                whatsappStatus.className = 'badge bg-danger me-2';
+                                whatsappStatus.textContent = 'Inactivo';
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error loading WhatsApp config:', error);
+                }
+            }
+
+            // Probar conexión de WhatsApp
+            async testWhatsAppConnection() {
+                try {
+                    const button = event.target;
+                    const originalText = button.innerHTML;
+                    button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Probando...';
+                    button.disabled = true;
+                    
+                    this.showAlert('Conexión de WhatsApp exitosa', 'success');
+                    const whatsappStatus = document.getElementById('whatsappStatus');
+                    if (whatsappStatus) {
+                        whatsappStatus.className = 'badge bg-success me-2';
+                        whatsappStatus.textContent = 'Activo';
+                    }
+                    
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                } catch (error) {
+                    console.error('Error testing WhatsApp connection:', error);
+                    this.showAlert('Error al probar la conexión de WhatsApp', 'danger');
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                }
+            }
+
+            // Guardar configuración de WhatsApp
+            async saveWhatsAppConfig() {
+                try {
+                    const configData = {
+                        provider: document.getElementById('whatsappProvider')?.value || 'whatsapp-web',
+                        enabled: document.getElementById('whatsappEnabled')?.checked || false,
+                        autoReconnect: document.getElementById('whatsappAutoReconnect')?.checked || false,
+                        reconnectInterval: parseInt(document.getElementById('whatsappReconnectInterval')?.value || 30000)
+                    };
+                    
+                    this.showAlert('Configuración de WhatsApp guardada correctamente', 'success');
+                } catch (error) {
+                    console.error('Error saving WhatsApp config:', error);
+                    this.showAlert('Error al guardar la configuración de WhatsApp', 'danger');
+                }
+            }
+
+            // ===== MÉTODOS PARA CONFIGURACIÓN DE TIPOS DE NEGOCIO =====
+
+            // Cargar configuración de tipos de negocio
+            async loadBusinessTypesConfig() {
+                try {
+                    // Simular datos de tipos de negocio
+                    const businessTypes = [
+                        { type: 'restaurant', name: 'Restaurante', description: 'Negocio de comida y bebida', configured: true },
+                        { type: 'cafe', name: 'Café', description: 'Establecimiento de café y bebidas', configured: true },
+                        { type: 'pharmacy', name: 'Farmacia', description: 'Establecimiento farmacéutico', configured: true },
+                        { type: 'store', name: 'Tienda', description: 'Comercio de productos generales', configured: false }
+                    ];
+                    
+                    this.updateBusinessTypesTable(businessTypes);
+                } catch (error) {
+                    console.error('Error loading business types config:', error);
+                }
+            }
+
+            // Actualizar tabla de tipos de negocio
+            updateBusinessTypesTable(businessTypes) {
+                const tbody = document.getElementById('businessTypesTable');
+                if (!tbody) return;
+                
+                tbody.innerHTML = businessTypes.map(type => {
+                    const iconClass = this.getBusinessTypeIcon(type.type);
+                    const badgeClass = type.configured ? 'bg-success' : 'bg-secondary';
+                    const badgeText = type.configured ? 'Configurado' : 'Sin configurar';
+                    
+                    return `
+                        <tr>
+                            <td><i class="${iconClass}"></i></td>
+                            <td>${type.name}</td>
+                            <td>${type.description}</td>
+                            <td><span class="badge ${badgeClass}">${badgeText}</span></td>
+                            <td>
+                                <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.editBusinessType('${type.type}')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            // Obtener icono para tipo de negocio
+            getBusinessTypeIcon(type) {
+                const icons = {
+                    'restaurant': 'fas fa-utensils text-primary',
+                    'cafe': 'fas fa-coffee text-warning',
+                    'pharmacy': 'fas fa-pills text-success',
+                    'store': 'fas fa-shopping-cart text-info',
+                    'hotel': 'fas fa-bed text-secondary',
+                    'gym': 'fas fa-dumbbell text-danger'
+                };
+                return icons[type] || 'fas fa-building text-muted';
+            }
+
+            // Editar tipo de negocio
+            editBusinessType(type) {
+                this.showAlert(`Editando configuración para ${type}`, 'info');
+            }
+
+            // Agregar tipo de negocio
+            addBusinessType() {
+                this.showAlert('Funcionalidad para agregar tipo de negocio en desarrollo', 'info');
+            }
+
+            // ===== MÉTODOS PARA CONFIGURACIÓN DE USUARIOS Y ROLES =====
+
+            // Cargar configuración de roles
+            async loadRolesConfig() {
+                try {
+                    // Simular datos de roles
+                    const roles = [
+                        { name: 'super_admin', displayName: 'Super Admin', description: 'Acceso completo al sistema', userCount: 1 },
+                        { name: 'business_admin', displayName: 'Business Admin', description: 'Administración de negocios', userCount: 2 },
+                        { name: 'branch_admin', displayName: 'Branch Admin', description: 'Administración de sucursales', userCount: 3 },
+                        { name: 'user', displayName: 'Usuario', description: 'Usuario básico', userCount: 5 }
+                    ];
+                    
+                    this.updateRolesTable(roles);
+                } catch (error) {
+                    console.error('Error loading roles config:', error);
+                }
+            }
+
+            // Actualizar tabla de roles
+            updateRolesTable(roles) {
+                const tbody = document.getElementById('rolesTable');
+                if (!tbody) return;
+                
+                tbody.innerHTML = roles.map(role => {
+                    const badgeClass = this.getRoleBadgeClass(role.name);
+                    
+                    return `
+                        <tr>
+                            <td><span class="badge ${badgeClass}">${role.displayName}</span></td>
+                            <td>${role.description}</td>
+                            <td>${role.userCount} usuarios</td>
+                            <td>
+                                <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.editRole('${role.name}')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            // Obtener clase de badge para rol
+            getRoleBadgeClass(roleName) {
+                const badgeClasses = {
+                    'super_admin': 'bg-danger',
+                    'business_admin': 'bg-warning',
+                    'branch_admin': 'bg-info',
+                    'user': 'bg-secondary'
+                };
+                return badgeClasses[roleName] || 'bg-secondary';
+            }
+
+            // Editar rol
+            editRole(roleName) {
+                this.showAlert(`Editando permisos para ${roleName}`, 'info');
+                this.loadRolePermissions(roleName);
+            }
+
+            // Cargar permisos del rol
+            loadRolePermissions(roleName) {
+                const permissionsContainer = document.getElementById('rolePermissions');
+                if (!permissionsContainer) return;
+                
+                const permissions = {
+                    'super_admin': ['system-config', 'business-management', 'user-management', 'whatsapp-config', 'ai-config', 'reports', 'billing'],
+                    'business_admin': ['business-management', 'whatsapp-config', 'ai-config', 'reports'],
+                    'branch_admin': ['whatsapp-config', 'ai-config'],
+                    'user': []
+                };
+                
+                const rolePermissions = permissions[roleName] || [];
+                
+                permissionsContainer.innerHTML = `
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">${this.getRoleDisplayName(roleName)}</h6>
+                        </div>
+                        <div class="card-body">
+                            ${this.generatePermissionCheckboxes(rolePermissions, roleName)}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Obtener nombre de visualización del rol
+            getRoleDisplayName(roleName) {
+                const displayNames = {
+                    'super_admin': 'Super Admin',
+                    'business_admin': 'Business Admin',
+                    'branch_admin': 'Branch Admin',
+                    'user': 'Usuario'
+                };
+                return displayNames[roleName] || roleName;
+            }
+
+            // Generar checkboxes de permisos
+            generatePermissionCheckboxes(permissions, roleName) {
+                const allPermissions = [
+                    { id: 'system-config', label: 'Configuración del Sistema' },
+                    { id: 'business-management', label: 'Gestión de Negocios' },
+                    { id: 'user-management', label: 'Gestión de Usuarios' },
+                    { id: 'whatsapp-config', label: 'Configuración WhatsApp' },
+                    { id: 'ai-config', label: 'Configuración IA' },
+                    { id: 'reports', label: 'Reportes' },
+                    { id: 'billing', label: 'Facturación' }
+                ];
+                
+                return allPermissions.map(permission => {
+                    const isChecked = permissions.includes(permission.id);
+                    const isDisabled = roleName === 'super_admin'; // Super admin tiene todos los permisos
+                    
+                    return `
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" 
+                                   id="perm-${permission.id}" 
+                                   ${isChecked ? 'checked' : ''} 
+                                   ${isDisabled ? 'disabled' : ''}>
+                            <label class="form-check-label" for="perm-${permission.id}">
+                                ${permission.label}
+                            </label>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            // ===== MÉTODOS PARA GESTIÓN DE PEDIDOS =====
+
+            // Cargar sucursales para filtro de pedidos
+            async loadBranchesForOrderFilter() {
+                try {
+                    const token = localStorage.getItem('token');
+                    const response = await fetch(`${this.baseURL}/branch`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al cargar sucursales');
+                    }
+
+                    const data = await response.json();
+                    const branchSelect = document.getElementById('orderBranchFilter');
+                    
+                    if (branchSelect) {
+                        branchSelect.innerHTML = '<option value="">Todas las sucursales</option>' +
+                            data.data.map(branch => 
+                                `<option value="${branch._id}">${branch.name}</option>`
+                            ).join('');
+                    }
+
+                } catch (error) {
+                    console.error('Error loading branches for filter:', error);
+                }
+            }
+
+            // Variables para pedidos
+            currentOrders = [];
+            currentOrderPage = 1;
+            currentOrderFilters = {};
+
+            // Cargar datos de pedidos
+            async loadOrdersData(page = 1) {
+                try {
+                    const token = localStorage.getItem('token');
+                    if (!token) {
+                        window.location.href = 'index.html';
+                        return;
+                    }
+
+                    const params = new URLSearchParams({
+                        page: page,
+                        limit: 20,
+                        ...this.currentOrderFilters
+                    });
+
+                    const response = await fetch(`${this.baseURL}/orders?${params}`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al cargar pedidos');
+                    }
+
+                    const data = await response.json();
+                    this.currentOrders = data.data.orders;
+                    this.currentOrderPage = page;
+
+                    this.renderOrdersTable();
+                    this.renderOrdersPagination(data.data.pagination);
+                    this.updateOrdersStats(data.data.stats);
+
+                } catch (error) {
+                    console.error('Error loading orders:', error);
+                }
+            }
+
+            // Renderizar tabla de pedidos
+            renderOrdersTable() {
+                const tbody = document.getElementById('ordersTableBody');
+                
+                if (this.currentOrders.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                <i class="fas fa-shopping-cart fa-2x mb-2"></i>
+                                <p class="mb-0">No hay pedidos disponibles</p>
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tbody.innerHTML = this.currentOrders.map(order => `
+                    <tr>
+                        <td>
+                            <span class="badge bg-light text-dark">${order.orderId}</span>
+                        </td>
+                        <td>
+                            <div>
+                                <strong>${order.customer?.name || 'Cliente no disponible'}</strong>
+                                <br>
+                                <small class="text-muted">${order.customer?.phone || 'Sin teléfono'}</small>
+                            </div>
+                        </td>
+                        <td>
+                            <div>
+                                <strong>${order.branchId?.name || 'N/A'}</strong>
+                                <br>
+                                <small class="text-muted">${order.branchId?.address || ''}</small>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge ${this.getOrderStatusBadgeClass(order.status)}">
+                                ${this.getOrderStatusText(order.status)}
+                            </span>
+                        </td>
+                        <td>
+                            <strong>$${order.total.toLocaleString()}</strong>
+                        </td>
+                        <td>
+                            <div>
+                                <strong>${this.formatDate(order.createdAt)}</strong>
+                                <br>
+                                <small class="text-muted">${this.formatTime(order.createdAt)}</small>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.viewOrderDetails('${order._id}')" title="Ver detalles">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="btn btn-outline-success btn-sm" onclick="dashboardApp.updateOrderStatus('${order._id}')" title="Actualizar estado">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                ${order.status === 'pending' || order.status === 'confirmed' ? `
+                                    <button class="btn btn-outline-danger btn-sm" onclick="dashboardApp.cancelOrder('${order._id}')" title="Cancelar">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            // Renderizar paginación de pedidos
+            renderOrdersPagination(pagination) {
+                const paginationContainer = document.getElementById('ordersPagination');
+                
+                if (pagination.totalPages <= 1) {
+                    paginationContainer.innerHTML = '';
+                    return;
+                }
+
+                let paginationHTML = '';
+                
+                // Botón anterior
+                if (pagination.hasPrev) {
+                    paginationHTML += `
+                        <li class="page-item">
+                            <a class="page-link" href="#" onclick="dashboardApp.loadOrdersData(${pagination.currentPage - 1})">Anterior</a>
+                        </li>
+                    `;
+                }
+
+                // Páginas
+                for (let i = 1; i <= pagination.totalPages; i++) {
+                    if (i === pagination.currentPage) {
+                        paginationHTML += `
+                            <li class="page-item active">
+                                <span class="page-link">${i}</span>
+                            </li>
+                        `;
+                    } else {
+                        paginationHTML += `
+                            <li class="page-item">
+                                <a class="page-link" href="#" onclick="dashboardApp.loadOrdersData(${i})">${i}</a>
+                            </li>
+                        `;
+                    }
+                }
+
+                // Botón siguiente
+                if (pagination.hasNext) {
+                    paginationHTML += `
+                        <li class="page-item">
+                            <a class="page-link" href="#" onclick="dashboardApp.loadOrdersData(${pagination.currentPage + 1})">Siguiente</a>
+                        </li>
+                    `;
+                }
+
+                paginationContainer.innerHTML = paginationHTML;
+            }
+
+            // Actualizar estadísticas de pedidos
+            updateOrdersStats(stats) {
+                const totalOrdersElement = document.getElementById('totalOrdersCount');
+                if (totalOrdersElement) {
+                    totalOrdersElement.textContent = `${stats.totalOrders} pedidos`;
+                }
+            }
+
+            // Obtener clase de badge para estado de pedido
+            getOrderStatusBadgeClass(status) {
+                const statusClasses = {
+                    'pending': 'bg-warning',
+                    'confirmed': 'bg-info',
+                    'preparing': 'bg-primary',
+                    'ready': 'bg-success',
+                    'delivered': 'bg-secondary',
+                    'cancelled': 'bg-danger'
+                };
+                return statusClasses[status] || 'bg-secondary';
+            }
+
+            // Obtener texto para estado de pedido
+            getOrderStatusText(status) {
+                const statusTexts = {
+                    'pending': 'Pendiente',
+                    'confirmed': 'Confirmado',
+                    'preparing': 'Preparando',
+                    'ready': 'Listo',
+                    'delivered': 'Entregado',
+                    'cancelled': 'Cancelado'
+                };
+                return statusTexts[status] || status;
+            }
+
+            // Formatear fecha
+            formatDate(dateString) {
+                const date = new Date(dateString);
+                return date.toLocaleDateString('es-ES');
+            }
+
+            // Formatear hora
+            formatTime(dateString) {
+                const date = new Date(dateString);
+                return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+            }
+
+            // Filtrar pedidos
+            filterOrders() {
+                this.currentOrderFilters = {
+                    status: document.getElementById('orderStatusFilter')?.value || '',
+                    branchId: document.getElementById('orderBranchFilter')?.value || '',
+                    dateFrom: document.getElementById('orderDateFrom')?.value || '',
+                    dateTo: document.getElementById('orderDateTo')?.value || '',
+                    search: document.getElementById('orderSearch')?.value || ''
+                };
+
+                // Limpiar filtros vacíos
+                Object.keys(this.currentOrderFilters).forEach(key => {
+                    if (!this.currentOrderFilters[key]) {
+                        delete this.currentOrderFilters[key];
+                    }
+                });
+
+                this.loadOrdersData(1);
+            }
+
+            // Buscar pedidos
+            searchOrders() {
+                this.filterOrders();
+            }
+
+            // Refrescar pedidos
+            refreshOrders() {
+                this.loadOrdersData(this.currentOrderPage);
+            }
+
+            // Exportar pedidos
+            exportOrders() {
+                this.showAlert('Función de exportación en desarrollo', 'info');
+            }
+
+            // Ver detalles del pedido
+            async viewOrderDetails(orderId) {
+                this.showAlert('Función de detalles en desarrollo', 'info');
+            }
+
+            // Actualizar estado del pedido
+            async updateOrderStatus(orderId) {
+                this.showAlert('Función de actualización en desarrollo', 'info');
+            }
+
+            // Cancelar pedido
+            async cancelOrder(orderId) {
+                if (!confirm('¿Estás seguro de que quieres cancelar este pedido?')) {
+                    return;
+                }
+                this.showAlert('Función de cancelación en desarrollo', 'info');
+            }
+
+            // ===== MÉTODOS PARA GESTIÓN DE USUARIOS =====
+
+            // Variables para usuarios
+            currentUsers = [];
+            currentUserPage = 1;
+            currentUserFilters = {};
+            currentEditingUserId = null;
+
+            // Cargar estadísticas de usuarios
+            async loadUserStats() {
+                try {
+                    const token = localStorage.getItem('token');
+                    const response = await fetch(`${this.baseURL}/users/stats`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al cargar estadísticas de usuarios');
+                    }
+
+                    const data = await response.json();
+                    const stats = data.data;
+
+                    // Actualizar estadísticas en la UI
+                    const totalUsersEl = document.getElementById('totalUsersCount');
+                    const activeUsersEl = document.getElementById('activeUsersCount');
+                    const inactiveUsersEl = document.getElementById('inactiveUsersCount');
+                    const adminUsersEl = document.getElementById('adminUsersCount');
+
+                    if (totalUsersEl) totalUsersEl.textContent = stats.totalUsers || 0;
+                    if (activeUsersEl) activeUsersEl.textContent = stats.activeUsers || 0;
+                    if (inactiveUsersEl) inactiveUsersEl.textContent = stats.inactiveUsers || 0;
+                    if (adminUsersEl) adminUsersEl.textContent = (stats.roleStats?.super_admin || 0) + (stats.roleStats?.business_admin || 0);
+
+                } catch (error) {
+                    console.error('Error loading user stats:', error);
+                }
+            }
+
+            // Cargar datos de usuarios
+            async loadUsersData(page = 1) {
+                try {
+                    const token = localStorage.getItem('token');
+                    const params = new URLSearchParams({
+                        page: page,
+                        limit: 20,
+                        ...this.currentUserFilters
+                    });
+
+                    const response = await fetch(`${this.baseURL}/users?${params}`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al cargar usuarios');
+                    }
+
+                    const data = await response.json();
+                    this.currentUsers = data.data.users;
+                    this.currentUserPage = page;
+
+                    this.renderUsersTable();
+                    this.renderUsersPagination(data.data.pagination);
+
+                } catch (error) {
+                    console.error('Error loading users:', error);
+                    this.showAlert('Error al cargar usuarios: ' + error.message, 'danger');
+                }
+            }
+
+            // Renderizar tabla de usuarios
+            renderUsersTable() {
+                const tbody = document.getElementById('usersTableBody');
+                
+                if (!tbody) return;
+
+                if (this.currentUsers.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                <i class="fas fa-users fa-2x mb-2"></i>
+                                <p class="mb-0">No hay usuarios disponibles</p>
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tbody.innerHTML = this.currentUsers.map(user => `
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                                    ${user.name.charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                    <strong>${user.name}</strong>
+                                    <br>
+                                    <small class="text-muted">${user.userId}</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="text-primary">${user.email}</span>
+                        </td>
+                        <td>
+                            <span class="badge ${this.getUserRoleBadgeClass(user.role)}">
+                                ${this.getUserRoleText(user.role)}
+                            </span>
+                        </td>
+                        <td>
+                            <div>
+                                <strong>${user.businessId?.name || 'N/A'}</strong>
+                                ${user.branchId?.name ? `<br><small class="text-muted">${user.branchId.name}</small>` : ''}
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge ${user.isActive ? 'bg-success' : 'bg-secondary'}">
+                                ${user.isActive ? 'Activo' : 'Inactivo'}
+                            </span>
+                        </td>
+                        <td>
+                            <div>
+                                <strong>${this.formatDate(user.lastLogin || user.createdAt)}</strong>
+                                <br>
+                                <small class="text-muted">${this.formatTime(user.lastLogin || user.createdAt)}</small>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.editUser('${user._id}')" title="Editar">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-outline-info btn-sm" onclick="dashboardApp.managePermissions('${user._id}')" title="Permisos">
+                                    <i class="fas fa-key"></i>
+                                </button>
+                                <button class="btn btn-outline-warning btn-sm" onclick="dashboardApp.resetPassword('${user._id}')" title="Resetear contraseña">
+                                    <i class="fas fa-unlock"></i>
+                                </button>
+                                ${user.role !== 'super_admin' ? `
+                                    <button class="btn btn-outline-${user.isActive ? 'secondary' : 'success'} btn-sm" 
+                                            onclick="dashboardApp.toggleUserStatus('${user._id}')" 
+                                            title="${user.isActive ? 'Desactivar' : 'Activar'}">
+                                        <i class="fas fa-${user.isActive ? 'pause' : 'play'}"></i>
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            // Renderizar paginación de usuarios
+            renderUsersPagination(pagination) {
+                const paginationContainer = document.getElementById('usersPagination');
+                if (!paginationContainer) return;
+                
+                if (pagination.totalPages <= 1) {
+                    paginationContainer.innerHTML = '';
+                    return;
+                }
+
+                let paginationHTML = '';
+                
+                // Botón anterior
+                if (pagination.hasPrev) {
+                    paginationHTML += `
+                        <li class="page-item">
+                            <a class="page-link" href="#" onclick="dashboardApp.loadUsersData(${pagination.currentPage - 1})">Anterior</a>
+                        </li>
+                    `;
+                }
+
+                // Páginas
+                for (let i = 1; i <= pagination.totalPages; i++) {
+                    if (i === pagination.currentPage) {
+                        paginationHTML += `
+                            <li class="page-item active">
+                                <span class="page-link">${i}</span>
+                            </li>
+                        `;
+                    } else {
+                        paginationHTML += `
+                            <li class="page-item">
+                                <a class="page-link" href="#" onclick="dashboardApp.loadUsersData(${i})">${i}</a>
+                            </li>
+                        `;
+                    }
+                }
+
+                // Botón siguiente
+                if (pagination.hasNext) {
+                    paginationHTML += `
+                        <li class="page-item">
+                            <a class="page-link" href="#" onclick="dashboardApp.loadUsersData(${pagination.currentPage + 1})">Siguiente</a>
+                        </li>
+                    `;
+                }
+
+                paginationContainer.innerHTML = paginationHTML;
+            }
+
+            // Obtener clase de badge para rol de usuario
+            getUserRoleBadgeClass(role) {
+                const roleClasses = {
+                    'super_admin': 'bg-danger',
+                    'business_admin': 'bg-warning',
+                    'branch_admin': 'bg-info',
+                    'staff': 'bg-secondary'
+                };
+                return roleClasses[role] || 'bg-secondary';
+            }
+
+            // Obtener texto para rol de usuario
+            getUserRoleText(role) {
+                const roleTexts = {
+                    'super_admin': 'Super Admin',
+                    'business_admin': 'Business Admin',
+                    'branch_admin': 'Branch Admin',
+                    'staff': 'Staff'
+                };
+                return roleTexts[role] || role;
+            }
+
+            // Métodos adicionales para usuarios (llaman a las funciones globales)
+            async loadBusinessesForUserFilter() {
+                return window.loadBusinessesForUserFilter();
+            }
+
+            setupUserEventListeners() {
+                return window.setupUserEventListeners();
+            }
+
+            filterUsers() {
+                return window.filterUsers();
+            }
+
+            refreshUsers() {
+                return window.refreshUsers();
+            }
+
+            exportUsers() {
+                return window.exportUsers();
+            }
+
+            openCreateUserModal() {
+                return window.openCreateUserModal();
+            }
+
+            editUser(userId) {
+                return window.editUser(userId);
+            }
+
+            saveUser() {
+                return window.saveUser();
+            }
+
+            loadBranchesForUser(businessId) {
+                return window.loadBranchesForUser(businessId);
+            }
+
+            generatePermissionsCheckboxes(role, currentPermissions = []) {
+                return window.generatePermissionsCheckboxes(role, currentPermissions);
+            }
+
+            getSelectedPermissions() {
+                return window.getSelectedPermissions();
+            }
+
+            managePermissions(userId) {
+                return window.managePermissions(userId);
+            }
+
+            saveUserPermissions() {
+                return window.saveUserPermissions();
+            }
+
+            resetPassword(userId) {
+                return window.resetPassword(userId);
+            }
+
+            saveResetPassword() {
+                return window.saveResetPassword();
+            }
+
+            toggleUserStatus(userId) {
+                return window.toggleUserStatus(userId);
             }
         }
 
@@ -3777,5 +7059,114 @@
             </div>
         </div>
     </div>
+
+    <script>
+        // ===== FUNCIONES DE PEDIDOS =====
+        
+        // Variables globales para pedidos (ahora son métodos de la clase)
+        let currentOrders = [];
+        let currentOrderPage = 1;
+        let currentOrderFilters = {};
+        
+        // Función global para compatibilidad (llama al método de la clase)
+        async function loadOrdersData(page = 1) {
+            if (window.dashboardApp) {
+                return window.dashboardApp.loadOrdersData(page);
+            }
+        }
+
+        // Función global para compatibilidad
+        function renderOrdersTable() {
+            if (window.dashboardApp) {
+                return window.dashboardApp.renderOrdersTable();
+            }
+        }
+
+        // Función global para compatibilidad
+        function renderOrdersPagination(pagination) {
+            if (window.dashboardApp) {
+                return window.dashboardApp.renderOrdersPagination(pagination);
+            }
+        }
+
+        // Funciones globales para compatibilidad (llaman a los métodos de la clase)
+        function updateOrdersStats(stats) {
+            if (window.dashboardApp) {
+                return window.dashboardApp.updateOrdersStats(stats);
+            }
+        }
+
+        function getOrderStatusBadgeClass(status) {
+            if (window.dashboardApp) {
+                return window.dashboardApp.getOrderStatusBadgeClass(status);
+            }
+            return 'bg-secondary';
+        }
+
+        function getOrderStatusText(status) {
+            if (window.dashboardApp) {
+                return window.dashboardApp.getOrderStatusText(status);
+            }
+            return status;
+        }
+
+        function formatDate(dateString) {
+            if (window.dashboardApp) {
+                return window.dashboardApp.formatDate(dateString);
+            }
+            return new Date(dateString).toLocaleDateString('es-ES');
+        }
+
+        function formatTime(dateString) {
+            if (window.dashboardApp) {
+                return window.dashboardApp.formatTime(dateString);
+            }
+            return new Date(dateString).toLocaleTimeString('es-ES', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+        }
+
+        function filterOrders() {
+            if (window.dashboardApp) {
+                return window.dashboardApp.filterOrders();
+            }
+        }
+
+        function searchOrders() {
+            if (window.dashboardApp) {
+                return window.dashboardApp.searchOrders();
+            }
+        }
+
+        function refreshOrders() {
+            if (window.dashboardApp) {
+                return window.dashboardApp.refreshOrders();
+            }
+        }
+
+        function exportOrders() {
+            if (window.dashboardApp) {
+                return window.dashboardApp.exportOrders();
+            }
+        }
+
+        async function viewOrderDetails(orderId) {
+            if (window.dashboardApp) {
+                return window.dashboardApp.viewOrderDetails(orderId);
+            }
+        }
+
+        async function updateOrderStatus(orderId) {
+            if (window.dashboardApp) {
+                return window.dashboardApp.updateOrderStatus(orderId);
+            }
+        }
+
+        async function cancelOrder(orderId) {
+            if (window.dashboardApp) {
+                return window.dashboardApp.cancelOrder(orderId);
+            }
+        }
 </body>
 </html>
