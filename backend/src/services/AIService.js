@@ -148,8 +148,9 @@ class AIService {
           console.log('🛒 Procesando pedido automáticamente');
           const orderResponse = this.generateOrderResponse(orderAnalysis);
           
-          // Guardar pedido en historial
+          // Guardar pedido pendiente para confirmación
           if (clientId) {
+            await this.savePendingOrder(clientId, branchId, orderAnalysis);
             await this.saveOrderToHistory(clientId, branchId, orderAnalysis);
           }
           
@@ -165,6 +166,12 @@ class AIService {
           console.log('🤖 Procesando respuesta de recomendación');
           return this.processRecommendationAnswer(clientId, branchId, userMessage);
         }
+      }
+
+      // Si es confirmación de pedido, procesar
+      if (this.isOrderConfirmation(userMessage) && clientId) {
+        console.log('✅ Confirmación de pedido detectada');
+        return await this.handleOrderConfirmation(clientId, branchId, userMessage);
       }
 
       // Si es modificación de pedido, usar contexto previo
@@ -655,7 +662,7 @@ class AIService {
 
     // Obtener respuesta base según intención y sentimiento
     const baseResponse = responses[intent]?.[sentiment] || responses[intent]?.neutral || [
-      "Entiendo tu consulta. ¿En qué más puedo ayudarte?"
+      "Entiendo tu consulta. ¿Cómo puedo ayudarte?"
     ];
 
     // Seleccionar respuesta aleatoria
@@ -694,14 +701,7 @@ class AIService {
       finalResponse += '\n\n' + specificContent;
     }
 
-    // Agregar cierre según urgencia
-    if (urgency === 'alta') {
-      finalResponse += '\n\n¿Necesitas algo más urgente?';
-    } else if (urgency === 'baja') {
-      finalResponse += '\n\n¿Hay algo más en lo que pueda ayudarte?';
-    } else {
-      finalResponse += '\n\n¿En qué más puedo ayudarte?';
-    }
+    // Conversación más natural sin frases repetitivas
 
     return finalResponse;
   }
@@ -1200,6 +1200,11 @@ Escribe "recomendación" para hacer el test otra vez.`;
   processOrder(message) {
     const lowerMessage = message.toLowerCase();
     
+    console.log('🛒 ===== PROCESANDO PEDIDO =====');
+    console.log('💬 Mensaje original:', message);
+    console.log('🔍 Mensaje normalizado:', lowerMessage);
+    console.log('================================');
+    
     // Función para normalizar texto (misma que en analyzeUserIntent)
     const normalizeText = (text) => {
       return text
@@ -1217,6 +1222,133 @@ Escribe "recomendación" para hacer el test otra vez.`;
         .replace(/\s+/g, ' ')
         .trim();
     };
+
+    // Función para calcular distancia de Levenshtein (similitud entre strings)
+    const levenshteinDistance = (str1, str2) => {
+      const matrix = [];
+      
+      for (let i = 0; i <= str2.length; i++) {
+        matrix[i] = [i];
+      }
+      
+      for (let j = 0; j <= str1.length; j++) {
+        matrix[0][j] = j;
+      }
+      
+      for (let i = 1; i <= str2.length; i++) {
+        for (let j = 1; j <= str1.length; j++) {
+          if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+            matrix[i][j] = matrix[i - 1][j - 1];
+          } else {
+            matrix[i][j] = Math.min(
+              matrix[i - 1][j - 1] + 1,
+              matrix[i][j - 1] + 1,
+              matrix[i - 1][j] + 1
+            );
+          }
+        }
+      }
+      
+      return matrix[str2.length][str1.length];
+    };
+
+    // Función para calcular similitud porcentual entre dos strings
+    const calculateSimilarity = (str1, str2) => {
+      const distance = levenshteinDistance(str1.toLowerCase(), str2.toLowerCase());
+      const maxLength = Math.max(str1.length, str2.length);
+      return maxLength === 0 ? 100 : ((maxLength - distance) / maxLength) * 100;
+    };
+
+    // Función para encontrar productos similares
+    const findSimilarProducts = (searchTerm, products, threshold = 60) => {
+      const normalizedSearchTerm = normalizeText(searchTerm);
+      const similarProducts = [];
+      
+      for (const [productName, productInfo] of Object.entries(products)) {
+        const normalizedProductName = normalizeText(productName);
+        
+        // Calcular similitud con el nombre del producto
+        const nameSimilarity = calculateSimilarity(normalizedSearchTerm, normalizedProductName);
+        
+        // Calcular similitud con aliases
+        let maxAliasSimilarity = 0;
+        if (productInfo.aliases) {
+          for (const alias of productInfo.aliases) {
+            const aliasSimilarity = calculateSimilarity(normalizedSearchTerm, normalizeText(alias));
+            maxAliasSimilarity = Math.max(maxAliasSimilarity, aliasSimilarity);
+          }
+        }
+        
+        // Usar la mayor similitud encontrada
+        const maxSimilarity = Math.max(nameSimilarity, maxAliasSimilarity);
+        
+        if (maxSimilarity >= threshold) {
+          similarProducts.push({
+            name: productName,
+            info: productInfo,
+            similarity: maxSimilarity,
+            matchType: nameSimilarity >= maxAliasSimilarity ? 'name' : 'alias'
+          });
+        }
+      }
+      
+      // Ordenar por similitud descendente
+      return similarProducts.sort((a, b) => b.similarity - a.similarity);
+    };
+
+    // Función mejorada para buscar productos con detección inteligente
+    const findProductIntelligent = (searchTerm, products) => {
+      const normalizedSearchTerm = normalizeText(searchTerm);
+      
+      // 1. Búsqueda exacta primero
+      for (const [productName, productInfo] of Object.entries(products)) {
+        const normalizedProductName = normalizeText(productName);
+        
+        if (normalizedSearchTerm.includes(normalizedProductName)) {
+          return { 
+            name: productName, 
+            info: productInfo, 
+            confidence: 100,
+            matchType: 'exact'
+          };
+        }
+        
+        // Buscar en aliases
+        if (productInfo.aliases) {
+          for (const alias of productInfo.aliases) {
+            const normalizedAlias = normalizeText(alias);
+            if (normalizedSearchTerm.includes(normalizedAlias)) {
+              return { 
+                name: productName, 
+                info: productInfo, 
+                confidence: 95,
+                matchType: 'alias'
+              };
+            }
+          }
+        }
+      }
+      
+      // 2. Búsqueda por similitud si no se encuentra exacto
+      const similarProducts = findSimilarProducts(searchTerm, products, 40); // Reducir threshold más
+      
+      if (similarProducts.length > 0) {
+        const bestMatch = similarProducts[0];
+        
+        // Usar detección inteligente si la similitud es razonable
+        if (bestMatch.similarity >= 50) {
+          return {
+            name: bestMatch.name,
+            info: bestMatch.info,
+            confidence: bestMatch.similarity,
+            matchType: 'similar',
+            suggestions: similarProducts.slice(1, 3) // Top 2 alternativas
+          };
+        }
+      }
+      
+      return null;
+    };
     
     // Base de datos de productos con precios (mejorada con más aliases)
     const products = {
@@ -1233,6 +1365,8 @@ Escribe "recomendación" para hacer el test otra vez.`;
       'frappe de vainilla': { price: 4800, category: 'café', aliases: ['frappé de vainilla', 'frappe vainilla', 'frappe vainilla'] },
       'frappé de chocolate': { price: 5200, category: 'café', aliases: ['frappe chocolate', 'frappé chocolate', 'frappe chocolate', 'frappe chocolate'] },
       'frappe de chocolate': { price: 5200, category: 'café', aliases: ['frappé de chocolate', 'frappe chocolate', 'frappe chocolate'] },
+      'arepa con huevo': { price: 6500, category: 'desayuno', aliases: ['arepa huevo', 'arepa'] },
+      'calentado paisa': { price: 8000, category: 'desayuno', aliases: ['calentado', 'paisa'] },
       'café helado': { price: 4500, category: 'café', aliases: ['cafe helado', 'café frío', 'cafe helado', 'cafe helado', 'cafe helado', 'cafe helado'] },
       'cafe helado': { price: 4500, category: 'café', aliases: ['café helado', 'cafe helado', 'cafe helado'] },
       
@@ -1241,16 +1375,29 @@ Escribe "recomendación" para hacer el test otra vez.`;
       'croissant': { price: 3000, category: 'pastelería', aliases: ['croissant simple', 'croisant', 'croisant'] },
       'croisant': { price: 3000, category: 'pastelería', aliases: ['croissant', 'croissant simple', 'croisant'] },
       'croissant con jamón y queso': { price: 4500, category: 'pastelería', aliases: ['croissant jamón queso', 'croissant jamon queso'] },
+      'wrap de pollo': { price: 5500, category: 'comida', aliases: ['wrap pollo', 'wrap con pollo', 'wrap pollo'] },
       'muffin de arándanos': { price: 2500, category: 'pastelería', aliases: ['muffin arándanos', 'muffin arandanos'] },
-      'muffin de chocolate': { price: 2800, category: 'pastelería', aliases: ['muffin chocolate'] },
+      'muffin de chocolate': { price: 4000, category: 'pastelería', aliases: ['muffin chocolate'] },
       'muffin': { price: 2500, category: 'pastelería', aliases: ['muffin de arándanos'] },
       'brownie de chocolate': { price: 3200, category: 'pastelería', aliases: ['brownie', 'brownie chocolate'] },
       'brownie': { price: 3200, category: 'pastelería', aliases: ['brownie de chocolate'] },
       'cheesecake de fresa': { price: 4800, category: 'pastelería', aliases: ['cheesecake', 'cheesecake fresa'] },
       'tiramisú': { price: 5200, category: 'pastelería', aliases: ['tiramisu'] },
+      'crepes de nutella': { price: 8500, category: 'postres', aliases: ['crepes nutella', 'crepe de nutella', 'crepe nutella'] },
+      'flan de caramelo': { price: 5500, category: 'postres', aliases: ['flan', 'flan caramelo', 'flan de caramelo'] },
       
       // Bebidas
-      'limonada natural': { price: 3000, category: 'bebida', aliases: ['limonada', 'limonada natural'] },
+      'limonada de coco': { price: 4000, category: 'bebida', aliases: ['limonada coco', 'limonada con coco', 'limonada coco'] },
+      'limonada natural': { price: 3500, category: 'bebida', aliases: ['limonada', 'limonada natural'] },
+      
+      // Productos adicionales del menú real
+      'torta de zanahoria': { price: 6000, category: 'postres', aliases: ['torta zanahoria', 'torta de zanahoria'] },
+      'ensalada césar': { price: 12000, category: 'almuerzos', aliases: ['ensalada cesar', 'cesar', 'ensalada cesar'] },
+      'torta de chocolate': { price: 6500, category: 'postres', aliases: ['torta chocolate', 'torta de chocolate'] },
+      'tiramisu': { price: 7500, category: 'postres', aliases: ['tiramisu', 'tiramisú'] },
+      'sundae de chocolate': { price: 8000, category: 'postres', aliases: ['sundae chocolate', 'sundae de chocolate'] },
+      'banana split': { price: 9500, category: 'postres', aliases: ['banana split', 'banana'] },
+      'waffle con helado': { price: 10000, category: 'postres', aliases: ['waffle helado', 'waffle con helado'] },
       'smoothie de frutas': { price: 5000, category: 'bebida', aliases: ['smoothie', 'smoothie frutas'] },
       'jugo de naranja': { price: 3500, category: 'bebida', aliases: ['jugo naranja', 'naranja'] },
       'jugo de manzana': { price: 3500, category: 'bebida', aliases: ['jugo manzana', 'manzana'] },
@@ -1258,37 +1405,97 @@ Escribe "recomendación" para hacer el test otra vez.`;
       'gaseosa': { price: 3000, category: 'bebida', aliases: ['refresco', 'soda'] },
       
       // Desayunos
-      'desayuno ejecutivo': { price: 8500, category: 'desayuno', aliases: ['desayuno ejecutivo', 'ejecutivo'] },
-      'desayuno empresarial': { price: 12000, category: 'desayuno', aliases: ['desayuno empresarial', 'empresarial'] },
-      'desayuno express': { price: 6500, category: 'desayuno', aliases: ['desayuno express', 'express'] }
+      'desayuno ejecutivo': { price: 12000, category: 'desayuno', aliases: ['desayuno ejecutivo', 'ejecutivo'] },
+      'desayuno continental': { price: 8500, category: 'desayuno', aliases: ['desayuno continental', 'continental'] },
+      'desayuno saludable': { price: 10000, category: 'desayuno', aliases: ['desayuno saludable', 'saludable'] },
+      
+      // Tés e Infusiones (FALTANTES)
+      'té negro': { price: 2800, category: 'té', aliases: ['te negro', 'té negro', 'te negro'] },
+      'té verde': { price: 2800, category: 'té', aliases: ['te verde', 'té verde', 'te verde'] },
+      'té de hierbas': { price: 3000, category: 'té', aliases: ['te hierbas', 'té hierbas', 'te de hierbas'] },
+      'té de manzanilla': { price: 3000, category: 'té', aliases: ['te manzanilla', 'té manzanilla', 'te de manzanilla'] },
+      'té de jengibre': { price: 3200, category: 'té', aliases: ['te jengibre', 'té jengibre', 'te de jengibre'] },
+      'chocolate caliente': { price: 4500, category: 'bebida caliente', aliases: ['chocolate', 'chocolate caliente'] },
+      'aromática de canela': { price: 3500, category: 'bebida caliente', aliases: ['aromática canela', 'aromática de canela'] },
+      
+      // Cafés (FALTANTES)
+      'café con leche': { price: 4000, category: 'café', aliases: ['cafe con leche', 'café con leche'] },
+      'latte': { price: 4800, category: 'café', aliases: ['latte', 'café latte'] },
+      'mocha': { price: 5200, category: 'café', aliases: ['mocha', 'café mocha'] },
+      'macchiato': { price: 4700, category: 'café', aliases: ['macchiato', 'café macchiato'] },
+      'café descafeinado': { price: 3800, category: 'café', aliases: ['cafe descafeinado', 'descafeinado'] },
+      'espresso doble': { price: 4000, category: 'café', aliases: ['espresso doble', 'doble espresso'] },
+      
+      // Bebidas Frías (FALTANTES)
+      'café helado': { price: 4000, category: 'café frío', aliases: ['cafe helado', 'café helado'] },
+      'frappé de café': { price: 5500, category: 'café frío', aliases: ['frappe cafe', 'frappé cafe'] },
+      'cold brew': { price: 4500, category: 'café frío', aliases: ['cold brew', 'coldbrew'] },
+      'iced latte': { price: 5000, category: 'café frío', aliases: ['iced latte', 'latte helado'] },
+      'frappé de mocha': { price: 6000, category: 'café frío', aliases: ['frappe mocha', 'frappé mocha'] },
+      
+      // Jugos y Refrescos (FALTANTES)
+      'jugo de naranja natural': { price: 4500, category: 'jugo', aliases: ['jugo naranja', 'naranja natural'] },
+      'jugo de maracuyá': { price: 4800, category: 'jugo', aliases: ['jugo maracuyá', 'maracuyá'] },
+      'jugo de mango': { price: 4800, category: 'jugo', aliases: ['jugo mango', 'mango'] },
+      'limonada natural': { price: 3500, category: 'bebida', aliases: ['limonada', 'limonada natural'] },
+      'limonada de coco': { price: 4000, category: 'bebida', aliases: ['limonada coco', 'limonada de coco'] },
+      'agua de panela': { price: 2500, category: 'bebida', aliases: ['agua panela', 'panela'] },
+      'gaseosa': { price: 3000, category: 'bebida', aliases: ['refresco', 'soda'] },
+      
+      // Pastelería (FALTANTES)
+      'croissant simple': { price: 3500, category: 'pastelería', aliases: ['croissant', 'croissant simple'] },
+      'croissant con jamón y queso': { price: 5500, category: 'pastelería', aliases: ['croissant jamón queso', 'croissant jamon queso'] },
+      'muffin de arándanos': { price: 4000, category: 'pastelería', aliases: ['muffin arándanos', 'muffin arandanos'] },
+      'muffin de chocolate': { price: 4000, category: 'pastelería', aliases: ['muffin chocolate', 'muffin de chocolate'] },
+      'donut glaseado': { price: 3000, category: 'pastelería', aliases: ['donut', 'donas', 'donut glaseado'] },
+      'brownie': { price: 4500, category: 'pastelería', aliases: ['brownie', 'brownie chocolate'] },
+      'cheesecake': { price: 6000, category: 'pastelería', aliases: ['cheesecake', 'cheesecake de fresa'] },
+      
+      // Sopas (FALTANTES)
+      'sopa de pollo': { price: 8500, category: 'sopa', aliases: ['sopa pollo', 'crema pollo'] },
+      'crema de espinacas': { price: 7500, category: 'sopa', aliases: ['crema espinacas', 'sopa espinacas'] },
+      'sopa de lentejas': { price: 8000, category: 'sopa', aliases: ['sopa lentejas', 'lentejas'] },
+      'sopa de verduras': { price: 7000, category: 'sopa', aliases: ['sopa verduras', 'verduras'] },
+      
+      // Platos Principales (FALTANTES)
+      'ensalada césar': { price: 12000, category: 'ensalada', aliases: ['ensalada cesar', 'cesar'] },
+      'ensalada de pollo': { price: 13500, category: 'ensalada', aliases: ['ensalada pollo', 'pollo ensalada'] },
+      'sandwich club': { price: 11000, category: 'sandwich', aliases: ['club sandwich', 'sandwich club'] },
+      'hamburguesa clásica': { price: 15000, category: 'hamburguesa', aliases: ['hamburguesa', 'hamburguesa clasica'] },
+      'hamburguesa con queso': { price: 16500, category: 'hamburguesa', aliases: ['hamburguesa queso', 'hamburguesa con queso'] },
+      'wrap de pollo': { price: 10500, category: 'wrap', aliases: ['wrap pollo', 'wrap con pollo'] },
+      'wrap vegetariano': { price: 9500, category: 'wrap', aliases: ['wrap vegetal', 'wrap veggie'] },
+      'pasta alfredo': { price: 14000, category: 'pasta', aliases: ['alfredo', 'pasta alfredo'] },
+      'pasta bolognesa': { price: 15500, category: 'pasta', aliases: ['bolognesa', 'pasta bolognesa'] },
+      
+      // Acompañamientos (FALTANTES)
+      'papas a la francesa': { price: 5500, category: 'acompañamiento', aliases: ['papas francesas', 'papas fritas'] },
+      'papas rústicas': { price: 6000, category: 'acompañamiento', aliases: ['papas rusticas', 'papas rusticas'] },
+      'ensalada verde': { price: 4500, category: 'ensalada', aliases: ['ensalada verde', 'verde'] },
+      'arroz blanco': { price: 3500, category: 'acompañamiento', aliases: ['arroz', 'arroz blanco'] },
+      
+      // Postres Caseros (FALTANTES)
+      'torta de chocolate': { price: 6500, category: 'postres', aliases: ['torta chocolate', 'torta de chocolate'] },
+      'torta de zanahoria': { price: 6000, category: 'postres', aliases: ['torta zanahoria', 'torta de zanahoria'] },
+      'tiramisu': { price: 7500, category: 'postres', aliases: ['tiramisu', 'tiramisú'] },
+      'flan de caramelo': { price: 5500, category: 'postres', aliases: ['flan', 'flan caramelo'] },
+      'helado de vainilla': { price: 4000, category: 'helado', aliases: ['helado vainilla', 'vainilla'] },
+      'helado de chocolate': { price: 4000, category: 'helado', aliases: ['helado chocolate', 'chocolate helado'] },
+      'helado de fresa': { price: 4000, category: 'helado', aliases: ['helado fresa', 'fresa helado'] },
+      
+      // Postres Especiales (FALTANTES)
+      'sundae de chocolate': { price: 8000, category: 'postres', aliases: ['sundae chocolate', 'sundae de chocolate'] },
+      'banana split': { price: 9500, category: 'postres', aliases: ['banana split', 'banana'] },
+      'waffle con helado': { price: 10000, category: 'postres', aliases: ['waffle helado', 'waffle con helado'] },
+      'crepes de nutella': { price: 8500, category: 'postres', aliases: ['crepes nutella', 'crepe de nutella'] }
     };
     
     const detectedProducts = [];
     let subtotal = 0;
     
-    // Función para buscar productos con aliases y tolerancia a errores
+    // Función para buscar productos con detección inteligente de errores
     const findProduct = (searchTerm) => {
-      const normalizedSearchTerm = normalizeText(searchTerm);
-      
-      for (const [productName, productInfo] of Object.entries(products)) {
-        const normalizedProductName = normalizeText(productName);
-        
-        // Buscar coincidencia exacta (normalizada)
-        if (normalizedSearchTerm.includes(normalizedProductName)) {
-          return { name: productName, info: productInfo };
-        }
-        
-        // Buscar en aliases (normalizados)
-        if (productInfo.aliases) {
-          for (const alias of productInfo.aliases) {
-            const normalizedAlias = normalizeText(alias);
-            if (normalizedSearchTerm.includes(normalizedAlias)) {
-              return { name: productName, info: productInfo };
-            }
-          }
-        }
-      }
-      return null;
+      return findProductIntelligent(searchTerm, products);
     };
     
     // Detectar desayunos completos primero
@@ -1365,30 +1572,107 @@ Escribe "recomendación" para hacer el test otra vez.`;
         });
         
         processedParts.add(productText);
+        
+        // Logging mejorado para mostrar tipo de detección
+        let detectionInfo = '';
+        if (product.confidence === 100) {
+          detectionInfo = '✅ Detección exacta';
+        } else if (product.confidence >= 95) {
+          detectionInfo = '🎯 Detección por alias';
+        } else if (product.confidence >= 70) {
+          detectionInfo = `🔍 Detección inteligente (${Math.round(product.confidence)}% similitud)`;
+        }
+        
+        console.log(`${detectionInfo}: ${product.name} - $${product.info.price}`);
+        
+        // Mostrar sugerencias si es detección inteligente
+        if (product.suggestions && product.suggestions.length > 0) {
+          console.log(`   💡 Alternativas encontradas: ${product.suggestions.map(s => s.name).join(', ')}`);
+        }
       }
     }
     
     // Buscar productos sin cantidad específica (cantidad = 1)
-    for (const [productName, productInfo] of Object.entries(products)) {
+    // Usar una búsqueda más precisa basada en el mensaje completo
+    
+    // Buscar productos específicos en el mensaje completo
+    // Ordenar por longitud (más específicos primero) para evitar coincidencias parciales
+    const sortedProducts = Object.entries(products).sort((a, b) => b[0].length - a[0].length);
+    
+    for (const [productName, productInfo] of sortedProducts) {
       if (lowerMessage.includes(productName) && !processedParts.has(productName)) {
-        const totalPrice = productInfo.price;
-        subtotal += totalPrice;
+        // Verificar que no sea un subproducto de algo ya procesado
+        let isSubProduct = false;
+        for (const processedPart of processedParts) {
+          if (processedPart.includes(productName) && processedPart !== productName) {
+            isSubProduct = true;
+            break;
+          }
+        }
         
-        detectedProducts.push({
-          name: productName,
-          quantity: 1,
-          price: productInfo.price,
-          total: totalPrice,
-          category: productInfo.category
-        });
+        // Verificar que no haya sido procesado con cantidad específica
+        let alreadyProcessed = false;
+        for (const detectedProduct of detectedProducts) {
+          if (detectedProduct.name === productName) {
+            alreadyProcessed = true;
+            break;
+          }
+        }
         
-        processedParts.add(productName);
+        // Verificar que no haya sido procesado con cantidad específica usando processedParts
+        if (processedParts.has(productName)) {
+          alreadyProcessed = true;
+        }
+        
+        if (!isSubProduct && !alreadyProcessed) {
+          const totalPrice = productInfo.price;
+          subtotal += totalPrice;
+          
+          detectedProducts.push({
+            name: productName,
+            quantity: 1,
+            price: productInfo.price,
+            total: totalPrice,
+            category: productInfo.category
+          });
+          
+          processedParts.add(productName);
+          console.log(`✅ Producto detectado: ${productName} - $${productInfo.price}`);
+        }
       }
     }
+    
+    // Búsqueda adicional usando findProduct para aliases cortos (deshabilitada temporalmente)
+    // const messageWords = lowerMessage.split(/[,\s]+/).filter(part => part.length > 2);
+    
+    // for (const word of messageWords) {
+    //   if (!processedParts.has(word)) {
+    //     const product = findProduct(word);
+    //     if (product) {
+    //       const totalPrice = product.info.price;
+    //       subtotal += totalPrice;
+          
+    //       detectedProducts.push({
+    //         name: product.name,
+    //         quantity: 1,
+    //         price: product.info.price,
+    //         total: totalPrice,
+    //         category: product.info.category
+    //       });
+          
+    //       processedParts.add(word);
+    //       console.log(`✅ Producto detectado por alias: ${product.name} - $${product.info.price}`);
+    //     }
+    //   }
+    // }
     
     // Calcular delivery (gratis para pedidos > $20,000)
     const deliveryFee = subtotal < 20000 ? 3000 : 0;
     const total = subtotal + deliveryFee;
+    
+    console.log(`💰 Subtotal: $${subtotal.toLocaleString()}`);
+    console.log(`🚚 Delivery: $${deliveryFee.toLocaleString()}`);
+    console.log(`💵 Total: $${total.toLocaleString()}`);
     
     return {
       products: detectedProducts,
@@ -1427,7 +1711,7 @@ Escribe "recomendación" para hacer el test otra vez.`;
       response += `🎉 ¡Tu pedido califica para delivery gratis!\n\n`;
     }
     
-    response += `¿Confirmas este pedido? ¿Necesitas agregar algo más?`;
+    response += `¿Confirmas este pedido?`;
     
     return response;
   }
@@ -1867,6 +2151,158 @@ Escribe "recomendación" para hacer el test otra vez.`;
     }
     
     return personalizedResponse;
+  }
+
+  // Detectar si es confirmación de pedido
+  isOrderConfirmation(message) {
+    const confirmationKeywords = [
+      'sí', 'si', 'confirmo', 'confirmar', 'ok', 'perfecto', 'dale', 
+      'está bien', 'correcto', 'procede', 'adelante', 'yes'
+    ];
+    
+    const lowerMessage = message.toLowerCase().trim();
+    return confirmationKeywords.some(keyword => lowerMessage.includes(keyword));
+  }
+
+  // Manejar confirmación de pedido
+  async handleOrderConfirmation(clientId, branchId, message) {
+    try {
+      // Obtener el último pedido pendiente del cliente
+      const lastOrder = await this.getLastPendingOrder(clientId, branchId);
+      
+      if (!lastOrder) {
+        return 'No tengo ningún pedido pendiente para confirmar. ¿Quieres hacer un nuevo pedido?';
+      }
+
+      // Verificar si es para domicilio
+      const isDelivery = lastOrder.delivery && lastOrder.delivery.type === 'delivery';
+      
+      if (isDelivery) {
+        // Si es domicilio, pedir datos de envío
+        return await this.requestDeliveryData(clientId, branchId, lastOrder);
+      } else {
+        // Si es para recoger, confirmar directamente
+        return await this.confirmOrderDirectly(clientId, branchId, lastOrder);
+      }
+      
+    } catch (error) {
+      console.error('Error manejando confirmación de pedido:', error);
+      return 'Hubo un problema procesando tu confirmación. ¿Puedes intentar de nuevo?';
+    }
+  }
+
+  // Solicitar datos de envío para domicilio
+  async requestDeliveryData(clientId, branchId, order) {
+    // Guardar el pedido temporalmente para solicitar datos
+    await this.savePendingOrder(clientId, branchId, order);
+    
+    return `🚚 *DATOS DE ENVÍO REQUERIDOS*
+
+Para procesar tu pedido a domicilio, necesito:
+
+📍 *Dirección completa:*
+🏠 *Barrio/Zona:*
+📞 *Teléfono de contacto:*
+👤 *Nombre de quien recibe:*
+
+Por favor envía todos los datos en un solo mensaje, por ejemplo:
+"Calle 123 #45-67, Barrio Centro, 3001234567, María González"
+
+¿Cuáles son tus datos de envío?`;
+  }
+
+  // Confirmar pedido directamente (para recoger)
+  async confirmOrderDirectly(clientId, branchId, order) {
+    try {
+      // Crear el pedido en la base de datos
+      const savedOrder = await this.saveOrderToDatabase(clientId, branchId, order);
+      
+      return `✅ *PEDIDO CONFIRMADO*
+
+🆔 *Número de pedido:* ${savedOrder.orderId}
+📋 *Resumen:* ${order.products.map(p => `${p.name} x${p.quantity}`).join(', ')}
+💰 *Total:* $${order.total.toLocaleString()}
+⏰ *Tiempo estimado:* 15-20 minutos
+
+📞 *Teléfono:* ${clientId}
+🏪 *Sucursal:* Centro
+
+¡Gracias por tu pedido! Te notificaremos cuando esté listo para recoger.`;
+      
+    } catch (error) {
+      console.error('Error confirmando pedido:', error);
+      return 'Hubo un problema guardando tu pedido. ¿Puedes intentar de nuevo?';
+    }
+  }
+
+  // Obtener último pedido pendiente
+  async getLastPendingOrder(clientId, branchId) {
+    // Por ahora retornamos un pedido de ejemplo
+    // En implementación real, esto vendría de la base de datos
+    return {
+      products: [
+        { name: 'café americano', quantity: 1, price: 3500, total: 3500 }
+      ],
+      subtotal: 3500,
+      delivery: { type: 'pickup', fee: 0 },
+      total: 6500
+    };
+  }
+
+  // Guardar pedido pendiente temporalmente
+  async savePendingOrder(clientId, branchId, order) {
+    // Implementar guardado temporal en memoria o BD
+    console.log('💾 Guardando pedido pendiente:', order);
+  }
+
+  // Guardar pedido en base de datos
+  async saveOrderToDatabase(clientId, branchId, order) {
+    const Order = require('../models/Order');
+    const Branch = require('../models/Branch');
+    
+    // Obtener businessId desde branchId
+    const branch = await Branch.findById(branchId);
+    if (!branch) {
+      throw new Error('Sucursal no encontrada');
+    }
+    
+    // Generar ID único para el pedido
+    const orderId = `ORD${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+    
+    // Crear objeto del pedido
+    const orderData = {
+      orderId,
+      businessId: branch.businessId,
+      branchId,
+      customer: {
+        phone: clientId,
+        name: 'Cliente WhatsApp'
+      },
+      items: order.products.map(product => ({
+        name: product.name,
+        quantity: product.quantity,
+        unitPrice: product.price,
+        totalPrice: product.total,
+        serviceId: `SVC${Date.now()}${Math.random().toString(36).substr(2, 3).toUpperCase()}`
+      })),
+      delivery: {
+        type: order.delivery.type,
+        fee: order.delivery.fee,
+        address: order.delivery.address || null
+      },
+      subtotal: order.subtotal,
+      total: order.total,
+      status: 'confirmed',
+      source: 'whatsapp',
+      whatsappMessageId: `msg_${Date.now()}`
+    };
+
+    // Guardar en base de datos
+    const savedOrder = new Order(orderData);
+    await savedOrder.save();
+    
+    console.log('✅ Pedido guardado en BD:', savedOrder.orderId);
+    return savedOrder;
   }
 }
 

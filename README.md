@@ -42,12 +42,25 @@ EasyBranch es una plataforma completa de gestión empresarial diseñada para neg
 - ✅ **Respuestas personalizadas** basadas en el menú de cada sucursal
 - ✅ **Detección inteligente** de productos y cantidades
 - ✅ **Cálculo automático** de totales con delivery
+- ✅ **Sistema de confirmación de pedidos** con guardado automático en BD
+- ✅ **Solicitud de datos de envío** para pedidos a domicilio
+- ✅ **Detección de confirmaciones** múltiples ("sí", "confirmo", "ok", "perfecto")
 
 ### 🎨 **Interfaz de Usuario**
 - ✅ **Diseño moderno** con paleta de colores sobria
 - ✅ **Cards verticales** para mejor visualización de QR codes
 - ✅ **Responsive design** para móviles y desktop
 - ✅ **Bootstrap 5** con componentes personalizados
+
+### 🗄️ **Base de Datos y Almacenamiento**
+- ✅ **MongoDB** con 18 colecciones optimizadas
+- ✅ **Índices compuestos** para consultas rápidas
+- ✅ **Almacenamiento de pedidos** con confirmación automática
+- ✅ **Sistema de recomendaciones** con sesiones persistentes
+- ✅ **Memoria conversacional** por cliente
+- ✅ **Base de conocimiento** empresarial
+- ✅ **Estructura escalable** para múltiples sucursales
+- ✅ **Sin migraciones requeridas** - Compatible con datos existentes
 
 ### ⚙️ **Sistema de Configuración Centralizada** 🆕
 - ✅ **Panel de configuración del sistema** completo
@@ -69,6 +82,58 @@ EasyBranch es una plataforma completa de gestión empresarial diseñada para neg
 - ✅ **CSP (Content Security Policy)** configurado
 - ✅ **Validación de datos** con express-validator
 - ✅ **Autenticación JWT** robusta
+
+## 🗄️ Base de Datos
+
+### Estructura Actual
+El sistema utiliza **MongoDB** con 18 colecciones optimizadas:
+
+- **orders** - Pedidos con confirmación automática (14 pedidos almacenados)
+- **businesses** - Negocios y empresas
+- **branches** - Sucursales por negocio
+- **whatsappconnections** - Conexiones WhatsApp activas
+- **users** - Usuarios del sistema con roles
+- **services** - Productos y servicios
+- **branchaiconfigs** - Configuración IA por sucursal
+- **recommendationsessions** - Sesiones de recomendación
+- **conversationmemories** - Memoria conversacional
+- **businessknowledgebases** - Base de conocimiento
+- **conversations** - Historial de conversaciones
+- **messageanalytics** - Análisis de mensajes
+- **clientstats** - Estadísticas de clientes
+- **branchpdfs** - PDFs de menús por sucursal
+- **advanced_context** - Contexto avanzado
+- **conversationorders** - Órdenes de conversación
+- **branchprompts** - Prompts personalizados
+- **devicelinkings** - Vinculaciones de dispositivos
+
+### Índices Optimizados
+- **Índices únicos**: orderId, businessId, branchId
+- **Índices compuestos**: clientId + branchId
+- **Índices de consulta**: status, createdAt, customer.phone
+- **Sin migraciones requeridas** - Compatible con datos existentes
+
+📄 **Ver estructura completa:** [DATABASE_STRUCTURE.md](./DATABASE_STRUCTURE.md)
+
+## 🛒 Flujo de Confirmación de Pedidos
+
+### Proceso Automático
+1. **Cliente hace pedido** → Bot genera resumen con totales
+2. **Bot pregunta confirmación** → "¿Confirmas este pedido?"
+3. **Cliente confirma** → Detecta "sí", "confirmo", "ok", "perfecto", "dale"
+4. **Para recoger** → Guarda directamente en BD con estado "confirmed"
+5. **Para domicilio** → Solicita datos de envío (dirección, teléfono, nombre)
+
+### Datos Guardados
+- **orderId**: ID único del pedido (ORD1234567890ABCD)
+- **businessId**: ID del negocio
+- **branchId**: ID de la sucursal  
+- **customer**: Teléfono y nombre del cliente
+- **items**: Productos con cantidades y precios
+- **delivery**: Tipo de entrega y dirección
+- **status**: "confirmed" (confirmado)
+- **source**: "whatsapp"
+- **total**: Precio total del pedido
 
 ## 🚀 Instalación y Configuración
 
@@ -241,8 +306,15 @@ EasyBranch/
 │   ├── ai-management.html  # Gestión de IA y PDFs
 │   ├── styles.css         # Estilos personalizados
 │   └── frontend-server.js # Servidor frontend
+├── DATABASE_STRUCTURE.md   # Estructura completa de BD
 └── README.md              # Este archivo
 ```
+
+## 📚 Documentación
+
+- **[README.md](./README.md)** - Documentación principal del proyecto
+- **[DATABASE_STRUCTURE.md](./DATABASE_STRUCTURE.md)** - Estructura completa de la base de datos
+- **Scripts de prueba** - Disponibles en `backend/scripts/` para testing
 
 ## 🔧 Scripts Disponibles
 

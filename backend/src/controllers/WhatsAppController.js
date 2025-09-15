@@ -8,6 +8,8 @@ const WhatsAppServiceSimple = require('../services/WhatsAppServiceSimple');
 const AIService = require('../services/AIService');
 const WhatsAppConnectionMonitor = require('../services/WhatsAppConnectionMonitor');
 const WhatsAppQRManager = require('../services/WhatsAppQRManager');
+const RecommendationService = require('../services/RecommendationService');
+const ConversationalMemoryService = require('../services/ConversationalMemoryService');
 const QRCode = require('qrcode');
 
 class WhatsAppController {
@@ -17,6 +19,8 @@ class WhatsAppController {
         this.aiService = WhatsAppController.getSharedAIService();
         this.connectionMonitor = new WhatsAppConnectionMonitor();
         this.qrManager = new WhatsAppQRManager(this.whatsappService);
+        this.recommendationService = new RecommendationService();
+        this.conversationalMemoryService = new ConversationalMemoryService();
         this.initializeService();
         this.initializeAI();
         
@@ -296,6 +300,26 @@ class WhatsAppController {
             console.log('========================================');
 
             try {
+                // Check if message contains recommendation keywords
+                const recommendationKeywords = ['sugerencia', 'recomendar', 'sugerir', 'ayudar', 'recomendación', 'qué me recomiendas', 'qué me sugieres'];
+                const isRecommendationRequest = recommendationKeywords.some(keyword => 
+                    message.toLowerCase().includes(keyword.toLowerCase())
+                );
+
+                if (isRecommendationRequest) {
+                    console.log('🎯 ===== SOLICITUD DE RECOMENDACIÓN DETECTADA =====');
+                    await this.handleRecommendationRequest(connectionId, phoneNumber, message, connection);
+                    return;
+                }
+
+                // Check if user is in an active recommendation session
+                const activeSession = await this.recommendationService.getActiveSession(phoneNumber, connection.branchId);
+                if (activeSession) {
+                    console.log('🔄 ===== SESIÓN DE RECOMENDACIÓN ACTIVA =====');
+                    await this.handleRecommendationResponse(connectionId, phoneNumber, message, activeSession);
+                    return;
+                }
+
                 // Get business and branch info for context
                 const business = await Business.findById(connection.businessId);
                 const branch = await Branch.findById(connection.branchId);
@@ -315,13 +339,18 @@ class WhatsAppController {
                 console.log('============================================');
                 
                 // Generate AI response with branch-specific configuration
-                const aiResponse = await this.aiService.generateResponse(
+                let aiResponse;
+                
+                // Use traditional AI for other messages
+                console.log('🤖 ===== USANDO SISTEMA IA TRADICIONAL =====');
+                aiResponse = await this.aiService.generateResponse(
                     connection.branchId,
                     message,
-                    phoneNumber, // Use phone number as client ID
+                    phoneNumber,
                     businessType,
-                    branchAIConfig // Pass branch-specific configuration
+                    branchAIConfig
                 );
+                console.log('✅ Respuesta IA generada:', aiResponse);
 
                 console.log('🤖 ===== RESPUESTA IA GENERADA =====');
                 console.log('📱 Connection ID:', connectionId);
@@ -330,7 +359,8 @@ class WhatsAppController {
                 console.log('====================================');
 
                 // Send AI response
-                await this.whatsappService.sendMessage(connectionId, phoneNumber, aiResponse);
+                const messageText = typeof aiResponse === 'string' ? aiResponse : aiResponse.text;
+                await this.whatsappService.sendMessage(connectionId, phoneNumber, messageText);
 
                 // Update connection stats
                 connection.messagesToday = (connection.messagesToday || 0) + 1;
@@ -1386,6 +1416,290 @@ class WhatsAppController {
                 success: false,
                 error: 'Error limpiando QR Code'
             });
+        }
+    }
+
+    // Detectar cantidad de personas en el mensaje
+    detectPeopleCount(message) {
+        const lowerMessage = message.toLowerCase();
+        
+        // Patrones para detectar cantidad de personas
+        const patterns = [
+            /(\d+)\s*personas?/,
+            /para\s*(\d+)\s*personas?/,
+            /desayuno\s*de\s*(\d+)\s*personas?/,
+            /almuerzo\s*de\s*(\d+)\s*personas?/,
+            /cena\s*de\s*(\d+)\s*personas?/,
+            /comida\s*de\s*(\d+)\s*personas?/,
+            /(\d+)\s*comensales?/,
+            /(\d+)\s*invitados?/
+        ];
+        
+        for (const pattern of patterns) {
+            const match = lowerMessage.match(pattern);
+            if (match) {
+                const count = parseInt(match[1]);
+                if (count > 0 && count <= 20) { // Límite razonable
+                    return count;
+                }
+            }
+        }
+        
+        return 1; // Por defecto, 1 persona
+    }
+
+    // Manejar solicitud de recomendación
+    async handleRecommendationRequest(connectionId, phoneNumber, message, connection) {
+        try {
+            console.log('🎯 ===== INICIANDO SESIÓN DE RECOMENDACIÓN =====');
+            
+            // Detectar cantidad de personas en el mensaje
+            const peopleCount = this.detectPeopleCount(message);
+            console.log('👥 Cantidad de personas detectada:', peopleCount);
+            
+            // Crear nueva sesión de recomendación
+            const session = await this.recommendationService.createSession(
+                phoneNumber, 
+                connection.branchId, 
+                connection.businessId,
+                peopleCount
+            );
+
+            console.log('✅ Sesión creada:', session.sessionId);
+
+            // Obtener primera pregunta
+            const questionData = await this.recommendationService.getNextQuestion(session.sessionId);
+            
+            if (questionData.type === 'question') {
+                const welcomeMessage = `¡Hola! 😊 Me da mucho gusto ayudarte a encontrar algo delicioso.
+
+Solo necesito hacerte 5 preguntas rápidas para recomendarte la opción perfecta según tu presupuesto y gustos.
+
+📋 *Pregunta ${questionData.step}/${questionData.totalSteps}:*
+${questionData.question}
+
+${questionData.options.map((option, index) => `${index + 1}. ${option}`).join('\n')}
+
+Solo responde con el número de tu opción 😊`;
+
+                await this.whatsappService.sendMessage(connectionId, phoneNumber, welcomeMessage);
+                
+                console.log('✅ Primera pregunta enviada');
+            }
+
+        } catch (error) {
+            console.error('❌ Error iniciando recomendación:', error);
+            
+            const errorMessage = `¡Ups! 😅 Parece que hubo un pequeño problema técnico.
+
+¿Podrías intentar de nuevo escribiendo "sugerencia" o si prefieres puedes escribir "menu" para ver nuestro menú completo?`;
+            
+            await this.whatsappService.sendMessage(connectionId, phoneNumber, errorMessage);
+        }
+    }
+
+    // Manejar respuesta del usuario en sesión de recomendación
+    async handleRecommendationResponse(connectionId, phoneNumber, message, session) {
+        try {
+            console.log('🔄 ===== PROCESANDO RESPUESTA DE RECOMENDACIÓN =====');
+            console.log('📱 Session ID:', session.sessionId);
+            console.log('💬 Respuesta:', message);
+
+            // Verificar comandos especiales primero
+            const specialCommands = ['menu', 'horarios', 'ubicación', 'ayudar', 'help', 'pedir', 'ordenar', 'comprar'];
+            if (specialCommands.some(cmd => message.toLowerCase().includes(cmd))) {
+                // Cancelar sesión de recomendación y procesar comando normal
+                await this.recommendationService.cancelSession(session.sessionId);
+                
+                // Si es "pedir", procesar como pedido basado en la recomendación
+                if (message.toLowerCase().includes('pedir') || message.toLowerCase().includes('ordenar') || message.toLowerCase().includes('comprar')) {
+                    const orderMessage = `¡Perfecto! 🛒 Vamos a procesar tu pedido.
+
+Basándome en tu recomendación anterior, ¿quieres pedir la *Hamburguesa con Queso* por $16.500?
+
+O si prefieres algo diferente, puedes escribir:
+• "sí" para confirmar la Hamburguesa con Queso
+• "otra cosa" para elegir algo diferente del menú
+• "menu" para ver todas las opciones disponibles
+
+¿Qué prefieres? 😊`;
+
+                    await this.whatsappService.sendMessage(connectionId, phoneNumber, orderMessage);
+                    return;
+                }
+                
+                // Procesar otros comandos como mensaje normal
+                const connection = await WhatsAppConnection.findById(connectionId);
+                if (connection) {
+                    await this.handleMessageReceived({
+                        connectionId,
+                        from: phoneNumber + '@c.us',
+                        message,
+                        timestamp: new Date(),
+                        messageId: 'special_cmd_' + Date.now()
+                    });
+                }
+                return;
+            }
+
+            // Verificar si el usuario quiere cancelar
+            const cancelKeywords = ['cancelar', 'salir', 'parar', 'stop', 'no', 'nunca'];
+            if (cancelKeywords.some(keyword => message.toLowerCase().includes(keyword))) {
+                await this.recommendationService.cancelSession(session.sessionId);
+                
+                const cancelMessage = `¡No hay problema! 😊 
+
+Puedes escribir:
+• "menu" para ver nuestro menú completo
+• "horarios" para conocer nuestros horarios
+• "ubicación" para saber dónde estamos
+• O simplemente pregúntame lo que necesites 😊`;
+
+                await this.whatsappService.sendMessage(connectionId, phoneNumber, cancelMessage);
+                return;
+            }
+
+            // Obtener la pregunta actual
+            const currentQuestion = await this.recommendationService.getNextQuestion(session.sessionId);
+            
+            if (currentQuestion.type === 'question') {
+                // Procesar respuesta numérica
+                const answerNumber = parseInt(message.trim());
+                const question = currentQuestion.question;
+                const options = currentQuestion.options;
+                
+                if (isNaN(answerNumber) || answerNumber < 1 || answerNumber > options.length) {
+                    const errorMessage = `¡Ups! 😅 Ese número no está en las opciones.
+
+Por favor responde con un número del 1 al ${options.length}
+
+${question}
+
+${options.map((option, index) => `${index + 1}. ${option}`).join('\n')}
+
+¡Es súper fácil! 😊`;
+
+                    await this.whatsappService.sendMessage(connectionId, phoneNumber, errorMessage);
+                    return;
+                }
+
+                // Procesar respuesta válida
+                const selectedAnswer = options[answerNumber - 1];
+                await this.recommendationService.processAnswer(session.sessionId, selectedAnswer);
+
+                console.log('✅ Respuesta procesada:', selectedAnswer);
+
+                // Obtener siguiente pregunta o recomendaciones
+                const nextData = await this.recommendationService.getNextQuestion(session.sessionId);
+                
+                if (nextData.type === 'question') {
+                    const nextMessage = `¡Perfecto! 😊 
+
+📋 *Pregunta ${nextData.step}/${nextData.totalSteps}:*
+${nextData.question}
+
+${nextData.options.map((option, index) => `${index + 1}. ${option}`).join('\n')}
+
+Solo responde con el número 😊`;
+
+                    await this.whatsappService.sendMessage(connectionId, phoneNumber, nextMessage);
+                } else if (nextData.type === 'recommendations') {
+                    await this.sendRecommendations(connectionId, phoneNumber, nextData);
+                }
+
+            } else if (currentQuestion.type === 'recommendations') {
+                await this.sendRecommendations(connectionId, phoneNumber, currentQuestion);
+            }
+
+        } catch (error) {
+            console.error('❌ Error procesando respuesta:', error);
+            
+            // Determinar el tipo de error y enviar mensaje apropiado
+            let errorMessage;
+            
+            if (error.message.includes('Sesión no encontrada')) {
+                errorMessage = `¡Ups! 😅 Parece que la sesión expiró.
+
+¿Quieres empezar de nuevo? Solo escribe "sugerencia" o si prefieres puedes escribir "menu" para ver nuestro menú completo 😊`;
+            } else if (error.message.includes('Menú no disponible')) {
+                errorMessage = `¡Ay! 😔 No puedo acceder al menú en este momento.
+
+Puedes escribir "menu" para ver nuestro menú completo o preguntarme cualquier cosa que necesites 😊`;
+            } else if (error.message.includes('No se encontraron productos')) {
+                errorMessage = `¡Hmm! 🤔 Con las preferencias que me diste, no encontré algo específico.
+
+¿Qué te parece si:
+• Escribes "menu" para ver todo nuestro menú
+• Escribes "sugerencia" para intentar con diferentes gustos
+• O simplemente me preguntas lo que necesites 😊`;
+            } else {
+                errorMessage = `¡Ups! 😅 Hubo un pequeño problema técnico.
+
+¿Qué te parece si:
+• Escribes "menu" para ver nuestro menú completo
+• Escribes "sugerencia" para intentar las recomendaciones de nuevo
+• O me preguntas cualquier cosa que necesites 😊`;
+            }
+            
+            await this.whatsappService.sendMessage(connectionId, phoneNumber, errorMessage);
+        }
+    }
+
+    // Enviar recomendaciones finales
+    async sendRecommendations(connectionId, phoneNumber, recommendationData) {
+        try {
+            const { mainRecommendation, alternatives } = recommendationData;
+            
+            // Determinar cantidad de personas
+            const peopleCount = mainRecommendation.quantity || 1;
+            const peopleText = peopleCount === 1 ? 'para ti' : `para ${peopleCount} personas`;
+            
+            let message = `¡Perfecto! 🎉 Creo que encontré algo que te va a encantar ${peopleText}:
+
+🍽️ *MI RECOMENDACIÓN ${peopleCount > 1 ? `PARA ${peopleCount} PERSONAS` : 'PARA TI'}:*
+*${mainRecommendation.productName}* 
+💰 *Precio unitario:* $${mainRecommendation.price.toLocaleString()}
+${peopleCount > 1 ? `👥 *Cantidad:* ${peopleCount} unidades\n💰 *Total:* $${mainRecommendation.totalPrice.toLocaleString()}` : ''}
+📋 *Categoría:* ${mainRecommendation.category}
+💡 *¿Por qué te lo recomiendo?* ${mainRecommendation.reasoning}
+
+`;
+
+            if (alternatives && alternatives.length > 0) {
+                message += `🔄 *También podrías considerar:*
+`;
+                alternatives.forEach((alt, index) => {
+                    message += `${index + 1}. *${alt.productName}* 
+   💰 *Precio:* $${alt.price.toLocaleString()}${peopleCount > 1 ? ` (Total: $${alt.totalPrice.toLocaleString()})` : ''}
+   💡 ${alt.reason}
+`;
+                });
+            }
+
+            message += `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+¿Te gusta esta recomendación? 😊
+
+Puedes:
+• Escribir "pedir" para hacer tu pedido
+• Escribir "menu" para ver todo el menú
+• Escribir "otra sugerencia" para buscar algo diferente
+• O preguntarme cualquier cosa que necesites 😊`;
+
+            await this.whatsappService.sendMessage(connectionId, phoneNumber, message);
+            
+            console.log('✅ Recomendaciones enviadas exitosamente');
+
+        } catch (error) {
+            console.error('❌ Error enviando recomendaciones:', error);
+            
+            const fallbackMessage = `¡Listo! 🎉 Aunque hubo un pequeño problema mostrando los detalles, puedo ayudarte con:
+
+• Escribir "menu" para ver nuestro menú completo
+• Escribir "pedir" para hacer tu pedido
+• O preguntarme cualquier cosa que necesites 😊`;
+
+            await this.whatsappService.sendMessage(connectionId, phoneNumber, fallbackMessage);
         }
     }
 }
