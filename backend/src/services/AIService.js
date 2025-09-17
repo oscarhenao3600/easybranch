@@ -186,8 +186,30 @@ Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "env
         }
       }
 
+      // Si hay un pedido pendiente que necesita clarificación, procesar la respuesta
+      if (clientId) {
+        const pendingOrder = await this.getLastPendingOrder(clientId, branchId);
+        if (pendingOrder && pendingOrder.needsClarification) {
+          const clarificationHandled = await this.handleClarificationResponse(clientId, branchId, userMessage, pendingOrder);
+          if (clarificationHandled) {
+            return clarificationHandled;
+          }
+        }
+      }
+
       // Si es un pedido, procesar automáticamente
       if (intent === 'hacer_pedido') {
+        // Si hay una recomendación activa y el usuario dice "pedir", procesar la recomendación
+        if (clientId && userMessage.toLowerCase().includes('pedir')) {
+          const profile = this.getRecommendationProfile(clientId, branchId);
+          if (profile.questionsAnswered === 5) {
+            console.log('🤖 Procesando pedido desde recomendación');
+            return await this.processRecommendationOrder(clientId, branchId, profile);
+          }
+        }
+        
+        // Obtener el customPrompt de la configuración cargada
+        const customPrompt = this.aiPrompts.get(branchId) || null;
         const orderAnalysis = this.processOrder(userMessage, branchId, customPrompt);
         if (orderAnalysis.hasProducts) {
           console.log('🛒 Procesando pedido automáticamente');
@@ -752,6 +774,7 @@ Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "env
       specificContent = this.getPriceInfo(businessType);
     } else if (intent === 'hacer_pedido') {
       // Procesar pedido automáticamente si detecta productos específicos
+      const customPrompt = this.aiPrompts.get(branchId) || null;
       const orderAnalysis = this.processOrder(userMessage, branchId, customPrompt);
       if (orderAnalysis.products.length > 0) {
         specificContent = this.generateOrderResponse(orderAnalysis);
@@ -769,7 +792,12 @@ Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "env
     // Construir respuesta final
     let finalResponse = selectedResponse;
     if (specificContent) {
-      finalResponse += '\n\n' + specificContent;
+      // Para menús de alitas mix, mostrar solo el contenido formateado
+      if (intent === 'consulta_menu' && specificContent.includes('MENÚ ALITAS MIX')) {
+        finalResponse = specificContent;
+      } else {
+        finalResponse += '\n\n' + specificContent;
+      }
     }
 
     // Conversación más natural sin frases repetitivas
@@ -837,10 +865,53 @@ Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "env
     return menus[businessType] || menus.cafe;
   }
 
+  // Formatear menú específico para alitas mix
+  formatAlitasMenu(menuContent) {
+    return `🍗 *MENÚ ALITAS MIX*
+
+🍽️ *COMBOS PERSONALES*
+• Combo 1: 5 alitas + acompañante + salsas - $21.900
+• Combo 2: 7 alitas + acompañante + salsas - $26.900
+• Combo 3: 9 alitas + acompañante + salsas - $30.900
+• Combo 4: 14 alitas + acompañante + salsas - $42.900
+
+👨‍👩‍👧‍👦 *COMBOS FAMILIARES*
+• Familiar 1: 20 alitas + acompañante + salsas + gaseosa 1.5L - $65.900
+• Familiar 2: 30 alitas + acompañante + salsas + gaseosa 1.5L - $62.900
+• Familiar 3: 40 alitas + acompañante + salsas + gaseosa 1.5L - $87.900
+• Familiar 4: 50 alitas + 2 acompañantes + salsas + gaseosa 1.5L - $107.900
+
+💑 *COMBO EMPAREJADO*
+• Emparejado: 16 alitas + 2 acompañantes + salsas + 2 limonadas - $123.900
+
+🍟 *ACOMPAÑANTES*
+• Papas criollas - $9.000
+• Cascos - $9.000
+• Yucas - $9.000
+• Arepitas - $9.000
+• Papas francesa - $9.000
+
+🌶️ *SALSAS TRADICIONALES*
+BBQ, Miel mostaza, Picante suave/full, Envinada, Frutos rojos, Parmesano, Maracuyá, Limón pimienta
+
+⭐ *SALSAS PREMIUM* (gratis una)
+Dulce maíz, La original, Cheddar, Sour cream, Pepinillo
+
+💰 *PRECIOS ADICIONALES*
+• Alita individual: $3.000
+• Salsa premium adicional: $3.000
+
+Si quieres el PDF completo, dime: "menú pdf".`;
+  }
+
   // Obtener resumen breve del menú (resumido) usando menú cargado si existe
   getMenuSummary(businessType, branchId) {
     const loaded = branchId && this.menuContent.has(branchId) ? this.menuContent.get(branchId) : null;
     if (loaded) {
+      // Formatear menú específicamente para alitas mix
+      if ((loaded.includes('ALITAS') || loaded.includes('A LITAS')) && (loaded.includes('COMBO') || loaded.includes('combo'))) {
+        return this.formatAlitasMenu(loaded);
+      }
       // Extraer primeras líneas por categorías comunes
       const lines = loaded.split(/\r?\n/).filter(Boolean);
       const top = lines.slice(0, 12).join('\n');
@@ -992,15 +1063,45 @@ Bogotá, Colombia
     return locations[businessType] || locations.cafe;
   }
 
-  // Sistema de recomendaciones estilo Akinator
-  getRecommendationQuestion(clientId, branchId) {
-    // Obtener o crear perfil de recomendaciones del cliente
-    const recommendationProfile = this.getRecommendationProfile(clientId, branchId);
+  // Obtener preguntas de recomendación específicas según el tipo de negocio
+  getRecommendationQuestions(branchId) {
+    // Verificar si es un menú de alitas mix
+    const menuContent = this.menuContent.get(branchId) || '';
+    const isAlitasMix = (menuContent.includes('ALITAS') || menuContent.includes('A LITAS')) && 
+                       (menuContent.includes('COMBO') || menuContent.includes('combo'));
     
-    // Determinar qué pregunta hacer basada en el progreso
-    const questionNumber = recommendationProfile.questionsAnswered;
+    if (isAlitasMix) {
+      return [
+        {
+          question: "¿Para cuántas personas es tu pedido?",
+          options: ["Solo para mí", "Para 2-3 personas", "Para 4-5 personas", "Para 6+ personas"],
+          category: "people_count"
+        },
+        {
+          question: "¿Qué tipo de salsas prefieres?",
+          options: ["Salsas tradicionales (BBQ, miel mostaza)", "Salsas premium (cheddar, sour cream)", "Me gustan ambas", "No sé"],
+          category: "sauce_preference"
+        },
+        {
+          question: "¿Cómo prefieres las alitas?",
+          options: ["Bañadas con salsa", "Con salsa aparte", "Me da igual", "No sé"],
+          category: "sauce_style"
+        },
+        {
+          question: "¿Qué acompañante prefieres?",
+          options: ["Papas criollas", "Cascos o yucas", "Arepitas", "No sé"],
+          category: "side_preference"
+        },
+        {
+          question: "¿Cuál es tu presupuesto aproximado?",
+          options: ["$20,000 - $30,000", "$30,000 - $50,000", "$50,000 - $80,000", "No importa"],
+          category: "budget"
+        }
+      ];
+    }
     
-    const questions = [
+    // Preguntas por defecto para cafetería
+    return [
       {
         question: "¿Qué prefieres para desayunar?",
         options: ["Algo dulce", "Algo salado", "Algo balanceado", "No sé"],
@@ -1027,6 +1128,18 @@ Bogotá, Colombia
         category: "budget"
       }
     ];
+  }
+
+  // Sistema de recomendaciones estilo Akinator
+  getRecommendationQuestion(clientId, branchId) {
+    // Obtener o crear perfil de recomendaciones del cliente
+    const recommendationProfile = this.getRecommendationProfile(clientId, branchId);
+    
+    // Determinar qué pregunta hacer basada en el progreso
+    const questionNumber = recommendationProfile.questionsAnswered;
+    
+    // Obtener preguntas específicas según el tipo de negocio
+    const questions = this.getRecommendationQuestions(branchId);
     
     if (questionNumber >= questions.length) {
       // Generar recomendación final
@@ -1072,7 +1185,12 @@ Responde con el número de tu opción preferida (1, 2, 3 o 4)`;
     // Obtener productos del menú cargado en la sucursal
     const menuProducts = this.getMenuProductsFromBranch(branchId);
     
-    // Lógica de recomendación basada en respuestas
+    // Si es un menú de alitas mix, usar lógica específica
+    if (menuProducts.length > 0 && menuProducts[0].category === 'alitas') {
+      return this.generateAlitasRecommendation(profile, menuProducts);
+    }
+    
+    // Lógica de recomendación basada en respuestas (método original)
     if (profile.answers[0] === "Algo dulce") {
       recommendations.push(...this.filterProductsByCategory(menuProducts, ['frappé', 'muffin', 'cheesecake', 'tiramisú', 'brownie', 'postres']));
     } else if (profile.answers[0] === "Algo salado") {
@@ -1120,7 +1238,13 @@ Escribe "recomendación" para hacer el test otra vez.`;
     // Extraer productos del menú cargado en memoria
     const menuContent = this.menuContent.get(branchId) || '';
     
-    // Parsear el menú para extraer productos y precios
+    // Si es un menú de alitas mix, usar parser específico
+    if ((menuContent.includes('ALITAS') || menuContent.includes('A LITAS')) && 
+        (menuContent.includes('COMBO') || menuContent.includes('combo'))) {
+      return this.getAlitasProductsFromMenu(menuContent);
+    }
+    
+    // Parsear el menú para extraer productos y precios (método original)
     const products = [];
     
     // Buscar patrones de productos con precios
@@ -1139,6 +1263,136 @@ Escribe "recomendación" para hacer el test otra vez.`;
     }
     
     return products;
+  }
+
+  // Extraer productos específicos del menú de alitas mix
+  getAlitasProductsFromMenu(menuContent) {
+    const products = [];
+    
+    // Extraer precios de la línea de precios
+    const priceMatch = menuContent.match(/\$([0-9,\.\s]+)/g);
+    const prices = priceMatch ? priceMatch.map(p => parseInt(p.replace(/[$,\.\s]/g, ''))) : [];
+    
+    // Mapear combos con sus precios correspondientes
+    const comboMappings = [
+      // Combos personales
+      { name: 'Combo 1', alitas: 5, price: prices[0] || 21900, type: 'personal' },
+      { name: 'Combo 2', alitas: 7, price: prices[1] || 26900, type: 'personal' },
+      { name: 'Combo 3', alitas: 9, price: prices[2] || 30900, type: 'personal' },
+      { name: 'Combo 4', alitas: 14, price: prices[3] || 42900, type: 'personal' },
+      
+      // Combos familiares
+      { name: 'Combo Familiar 1', alitas: 20, price: prices[4] || 65900, type: 'familiar' },
+      { name: 'Combo Familiar 2', alitas: 30, price: prices[5] || 62900, type: 'familiar' },
+      { name: 'Combo Familiar 3', alitas: 40, price: prices[6] || 87900, type: 'familiar' },
+      { name: 'Combo Familiar 4', alitas: 50, price: prices[7] || 107900, type: 'familiar' },
+      
+      // Combo emparejado
+      { name: 'Combo Emparejado', alitas: 16, price: prices[8] || 123900, type: 'emparejado' }
+    ];
+    
+    comboMappings.forEach(combo => {
+      products.push({
+        name: combo.name,
+        price: combo.price,
+        category: 'alitas',
+        type: combo.type,
+        alitasCount: combo.alitas
+      });
+    });
+    
+    return products;
+  }
+
+  // Generar recomendación específica para alitas mix
+  generateAlitasRecommendation(profile, menuProducts) {
+    const recommendations = [];
+    
+    // Filtrar por número de personas (respuesta 0 - people_count)
+    const peopleAnswer = profile.answers[0];
+    let numPeople = 1;
+    
+    if (peopleAnswer === "Solo para mí") {
+      numPeople = 1;
+    } else if (peopleAnswer === "Para 2-3 personas") {
+      numPeople = 3;
+    } else if (peopleAnswer === "Para 4-5 personas") {
+      numPeople = 5;
+    } else if (peopleAnswer === "Para 6+ personas") {
+      numPeople = 6;
+    }
+    
+    if (numPeople === 1) {
+      // Para 1 persona, recomendar combos personales
+      recommendations.push(...menuProducts.filter(p => p.type === 'personal'));
+    } else if (numPeople >= 2 && numPeople <= 3) {
+      // Para 2-3 personas, recomendar combos familiares pequeños (20-30 alitas)
+      recommendations.push(...menuProducts.filter(p => p.type === 'familiar' && p.alitasCount <= 30));
+    } else if (numPeople >= 4 && numPeople <= 5) {
+      // Para 4-5 personas, recomendar combos familiares medianos (30-40 alitas)
+      recommendations.push(...menuProducts.filter(p => p.type === 'familiar' && p.alitasCount >= 30 && p.alitasCount <= 40));
+    } else if (numPeople >= 6) {
+      // Para 6+ personas, recomendar combos familiares grandes (40+ alitas)
+      recommendations.push(...menuProducts.filter(p => p.type === 'familiar' && p.alitasCount >= 40));
+    }
+    
+    // Si no hay recomendaciones específicas, usar todas las alitas
+    if (recommendations.length === 0) {
+      recommendations.push(...menuProducts);
+    }
+    
+    // Aplicar filtro de presupuesto si está disponible (respuesta 4 - budget)
+    if (profile.answers[4]) {
+      const budgetAnswer = profile.answers[4];
+      let maxBudget = 0;
+      
+      if (budgetAnswer === "$20,000 - $30,000") {
+        maxBudget = 30000;
+      } else if (budgetAnswer === "$30,000 - $50,000") {
+        maxBudget = 50000;
+      } else if (budgetAnswer === "$50,000 - $80,000") {
+        maxBudget = 80000;
+      }
+      
+      if (maxBudget > 0) {
+        recommendations.splice(0, recommendations.length, 
+          ...recommendations.filter(p => p.price <= maxBudget)
+        );
+      }
+    }
+    
+    // Seleccionar la mejor recomendación
+    if (recommendations.length > 0) {
+      const bestRecommendation = recommendations[0];
+      return this.formatAlitasRecommendation(bestRecommendation);
+    }
+    
+    return null;
+  }
+
+  // Formatear recomendación de alitas
+  formatAlitasRecommendation(product) {
+    return `Perfecto! 🎉 Creo que encontré algo que te va a encantar:
+
+🍗 *MI RECOMENDACIÓN PARA TI:*
+• ${product.name} - $${product.price.toLocaleString()}
+${product.alitasCount ? `• ${product.alitasCount} alitas deliciosas` : ''}
+${product.type === 'personal' ? '• Perfecto para ti solo' : ''}
+${product.type === 'familiar' ? '• Ideal para compartir en familia' : ''}
+${product.type === 'emparejado' ? '• Perfecto para una pareja' : ''}
+
+💰 *Precio:* $${product.price.toLocaleString()}
+📋 *Categoría:* ${product.type === 'personal' ? 'Combo Personal' : product.type === 'familiar' ? 'Combo Familiar' : 'Combo Emparejado'}
+💡 *¿Por qué te lo recomiendo?* Se ajusta perfectamente a tus preferencias
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+¿Te gusta esta recomendación? 😊
+
+Puedes:
+* Escribir "pedir" para hacer tu pedido
+* Escribir "menu" para ver todo el menú
+* Escribir "otra sugerencia" para buscar algo diferente
+* O preguntarme cualquier cosa que necesites 😊`;
   }
 
   // Categorizar producto basado en su nombre
@@ -1202,13 +1456,7 @@ Escribe "recomendación" para hacer el test otra vez.`;
     // Si es un número, es una respuesta a la pregunta
     if (/^[1-4]$/.test(answer.trim())) {
       const questionNumber = profile.questionsAnswered;
-      const questions = [
-        { options: ["Algo dulce", "Algo salado", "Algo balanceado", "No sé"] },
-        { options: ["Fuerte", "Suave", "No me gusta el café", "Me da igual"] },
-        { options: ["Calientes", "Frías", "Ambas", "No sé"] },
-        { options: ["Sí, mucho", "A veces", "No mucho", "No me gustan"] },
-        { options: ["$3,000 - $5,000", "$5,000 - $8,000", "$8,000 - $12,000", "No importa"] }
-      ];
+      const questions = this.getRecommendationQuestions(branchId);
       
       const selectedOption = questions[questionNumber].options[parseInt(answer) - 1];
       profile.answers[questionNumber] = selectedOption;
@@ -1216,6 +1464,11 @@ Escribe "recomendación" para hacer el test otra vez.`;
       profile.lastActivity = new Date();
       
       return this.getRecommendationQuestion(clientId, branchId);
+    }
+    
+    // Si es "pedir", procesar el pedido de la recomendación
+    if (answer.toLowerCase().includes('pedir')) {
+      return this.processRecommendationOrder(clientId, branchId, profile);
     }
     
     // Si es "otra", dar más opciones
@@ -1232,6 +1485,158 @@ Escribe "recomendación" para hacer el test otra vez.`;
     }
     
     return "No entendí tu respuesta. Por favor responde con un número (1, 2, 3 o 4) o escribe 'otra' para más opciones.";
+  }
+
+  // Procesar pedido basado en recomendación
+  async processRecommendationOrder(clientId, branchId, profile) {
+    try {
+      // Generar la recomendación final
+      const recommendation = this.generateFinalRecommendation(profile, branchId);
+      
+      if (!recommendation) {
+        return "Lo siento, no pude generar una recomendación. ¿Podrías intentar de nuevo?";
+      }
+      
+      // Extraer el nombre del producto de la recomendación
+      const productMatch = recommendation.match(/\•\s*([^-]+?)\s*-\s*\$/);
+      if (!productMatch) {
+        return "Lo siento, no pude identificar el producto recomendado. ¿Podrías intentar de nuevo?";
+      }
+      
+      const productName = productMatch[1].trim();
+      
+      // Crear un pedido personalizado con las respuestas de la recomendación
+      const customOrder = this.createOrderFromRecommendation(productName, profile);
+      
+      // Procesar el pedido personalizado
+      const customPrompt = this.aiPrompts.get(branchId) || null;
+      const orderAnalysis = this.processOrder(customOrder.message, branchId, customPrompt);
+      
+      // Aplicar las respuestas de la recomendación al análisis del pedido
+      if (orderAnalysis.hasProducts) {
+        this.applyRecommendationAnswers(orderAnalysis, profile);
+        
+        // Guardar pedido pendiente
+        await this.savePendingOrder(clientId, branchId, orderAnalysis);
+        await this.saveOrderToHistory(clientId, branchId, orderAnalysis);
+        
+        // Generar respuesta del pedido
+        return this.generateOrderResponse(orderAnalysis);
+      } else {
+        return `Perfecto! Quieres pedir ${productName}. 
+
+🛒 *INFORMACIÓN DE PEDIDOS*
+
+Para hacer tu pedido, necesito saber:
+• ¿Qué productos quieres?
+• ¿Cuántas unidades de cada uno?
+• ¿Es para llevar o consumo en sitio?
+
+¿Qué te gustaría pedir?`;
+      }
+    } catch (error) {
+      console.error('Error procesando pedido de recomendación:', error);
+      return "Lo siento, hubo un problema procesando tu pedido. ¿Podrías intentar de nuevo?";
+    }
+  }
+
+  // Crear mensaje de pedido basado en recomendación
+  createOrderFromRecommendation(productName, profile) {
+    let message = `quiero ${productName}`;
+    
+    // Agregar detalles basados en las respuestas
+    const answers = profile.answers;
+    
+    // Agregar tipo de salsas (respuesta 1)
+    if (answers[1]) {
+      if (answers[1].includes('tradicionales')) {
+        message += ' con salsa bbq';
+      } else if (answers[1].includes('premium')) {
+        message += ' con salsa cheddar';
+      } else if (answers[1].includes('ambas')) {
+        message += ' con salsa bbq y cheddar';
+      }
+    }
+    
+    // Agregar tipo de alitas (respuesta 2)
+    if (answers[2]) {
+      if (answers[2].includes('Bañadas')) {
+        message += ' bañadas';
+      } else if (answers[2].includes('apart')) {
+        message += ' con salsa aparte';
+      }
+    }
+    
+    // Agregar acompañante (respuesta 3)
+    if (answers[3]) {
+      if (answers[3].includes('Papas criollas')) {
+        message += ' y papas criollas';
+      } else if (answers[3].includes('Cascos')) {
+        message += ' y cascos';
+      } else if (answers[3].includes('Arepitas')) {
+        message += ' y arepitas';
+      }
+    }
+    
+    return { message, answers };
+  }
+
+  // Aplicar respuestas de recomendación al análisis del pedido
+  applyRecommendationAnswers(orderAnalysis, profile) {
+    if (!orderAnalysis.hasProducts) return;
+    
+    const answers = profile.answers;
+    
+    orderAnalysis.products.forEach(product => {
+      if (product.details) {
+        // Aplicar tipo de alitas (respuesta 2)
+        if (answers[2]) {
+          if (answers[2].includes('Bañadas')) {
+            product.details.tipoAlitas = 'bañadas';
+          } else if (answers[2].includes('apart')) {
+            product.details.tipoAlitas = 'salsa aparte';
+          }
+        }
+        
+        // Aplicar salsas (respuesta 1)
+        if (answers[1]) {
+          if (answers[1].includes('tradicionales')) {
+            product.details.salsas = [{ nombre: 'bbq', tipo: 'tradicional' }];
+          } else if (answers[1].includes('premium')) {
+            product.details.salsas = [{ nombre: 'cheddar', tipo: 'premium' }];
+          } else if (answers[1].includes('ambas')) {
+            product.details.salsas = [
+              { nombre: 'bbq', tipo: 'tradicional' },
+              { nombre: 'cheddar', tipo: 'premium' }
+            ];
+          }
+        }
+        
+        // Aplicar acompañante (respuesta 3)
+        if (answers[3]) {
+          if (answers[3].includes('Papas criollas')) {
+            product.details.acompanantes = ['papas criollas'];
+          } else if (answers[3].includes('Cascos')) {
+            product.details.acompanantes = ['cascos'];
+          } else if (answers[3].includes('Arepitas')) {
+            product.details.acompanantes = ['arepitas'];
+          }
+        }
+      }
+    });
+    
+    // Marcar que no necesita clarificación si ya tenemos toda la información
+    const hasAllInfo = orderAnalysis.products.every(product => {
+      if (!product.details) return false;
+      return product.details.tipoAlitas && 
+             product.details.salsas && 
+             product.details.acompanantes;
+    });
+    
+    if (hasAllInfo) {
+      orderAnalysis.needsClarification = false;
+      orderAnalysis.clarificationQuestions = [];
+    }
   }
 
   // Obtener recomendaciones adicionales
@@ -1363,10 +1768,22 @@ Escribe "recomendación" para hacer el test otra vez.`;
     // Detectar combo
     for (const [tipo, combos] of Object.entries(comboPatterns)) {
       for (const [comboName, comboInfo] of Object.entries(combos)) {
-        if (lowerMessage.includes(comboName)) {
-          detectedCombo = { tipo, comboName, ...comboInfo };
-          break;
+        // Crear patrones flexibles para detectar combos con o sin espacios
+        const flexiblePatterns = [
+          comboName, // "combo 2"
+          comboName.replace(/\s+/g, ''), // "combo2"
+          comboName.replace(/\s+/g, '\\s*') // "combo\\s*2" para regex
+        ];
+        
+        let found = false;
+        for (const pattern of flexiblePatterns) {
+          if (lowerMessage.includes(pattern)) {
+            detectedCombo = { tipo, comboName, ...comboInfo };
+            found = true;
+            break;
+          }
         }
+        if (found) break;
       }
       if (detectedCombo) break;
     }
@@ -2005,10 +2422,10 @@ Escribe "recomendación" para hacer el test otra vez.`;
     });
     
     response += `\n💰 *TOTALES*\n`;
-    response += `Subtotal: $${orderAnalysis.subtotal.toLocaleString()}\n`;
+    response += `Subtotal: $${(orderAnalysis.subtotal || orderAnalysis.total || 0).toLocaleString()}\n`;
     
     if (orderAnalysis.delivery) {
-      response += `Delivery: $${orderAnalysis.deliveryFee.toLocaleString()}\n`;
+      response += `Delivery: $${(orderAnalysis.deliveryFee || 0).toLocaleString()}\n`;
     } else {
       response += `Delivery: ¡Gratis! (pedido > $20,000)\n`;
     }
@@ -2716,7 +3133,7 @@ Por favor envía todos los datos en un solo mensaje, por ejemplo:
         fee: (order.delivery && typeof order.delivery.fee === 'number') ? order.delivery.fee : 0,
         address: (order.delivery && order.delivery.address) ? order.delivery.address : null
       },
-      subtotal: order.subtotal,
+      subtotal: order.subtotal || order.total || 0,
       total: order.total,
       status: 'confirmed',
       source: 'whatsapp',
@@ -2729,6 +3146,174 @@ Por favor envía todos los datos en un solo mensaje, por ejemplo:
     
     console.log('✅ Pedido guardado en BD:', savedOrder.orderId);
     return savedOrder;
+  }
+
+  // Manejar respuestas a preguntas de clarificación
+  async handleClarificationResponse(clientId, branchId, userMessage, pendingOrder) {
+    try {
+      const lowerMessage = userMessage.toLowerCase();
+      
+      // Obtener el customPrompt para procesar la respuesta
+      const customPrompt = this.aiPrompts.get(branchId) || null;
+      
+      // Procesar la respuesta del usuario con el pedido existente
+      const updatedOrder = await this.processOrderWithClarification(userMessage, branchId, customPrompt, pendingOrder);
+      
+      if (updatedOrder.hasProducts && !updatedOrder.needsClarification) {
+        // El pedido está completo, mostrar resumen final
+        await this.savePendingOrder(clientId, branchId, updatedOrder);
+        const orderResponse = this.generateOrderResponse(updatedOrder);
+        return orderResponse;
+      } else if (updatedOrder.needsClarification) {
+        // Aún necesita más información
+        await this.savePendingOrder(clientId, branchId, updatedOrder);
+        const clarificationResponse = this.generateClarificationResponse(updatedOrder);
+        return clarificationResponse;
+      }
+      
+      return null; // No se pudo procesar la respuesta
+    } catch (error) {
+      console.error('Error procesando respuesta de clarificación:', error);
+      return null;
+    }
+  }
+
+  // Procesar pedido con información de clarificación adicional
+  async processOrderWithClarification(userMessage, branchId, customPrompt, existingOrder) {
+    // Usar el análisis existente como base
+    const orderAnalysis = { ...existingOrder };
+    
+    // Procesar la nueva información del usuario
+    const lowerMessage = userMessage.toLowerCase();
+    
+    // Detectar tipo de alitas (bañadas o salsa aparte)
+    if (lowerMessage.includes('bañadas') || lowerMessage.includes('bañada')) {
+      orderAnalysis.products.forEach(product => {
+        if (product.details) {
+          product.details.tipoAlitas = 'bañadas';
+        }
+      });
+    } else if (lowerMessage.includes('salsa aparte') || lowerMessage.includes('apart')) {
+      orderAnalysis.products.forEach(product => {
+        if (product.details) {
+          product.details.tipoAlitas = 'salsa aparte';
+        }
+      });
+    }
+    
+    // Detectar salsas
+    const salsasTradicionales = ['bbq', 'miel mostaza', 'picante', 'envinada', 'frutos rojos', 'parmesano', 'maracuyá', 'limón pimienta'];
+    const salsasPremium = ['dulce maíz', 'la original', 'cheddar', 'sour cream', 'pepinillo'];
+    
+    salsasTradicionales.forEach(salsa => {
+      if (lowerMessage.includes(salsa)) {
+        orderAnalysis.products.forEach(product => {
+          if (product.details && product.details.salsas) {
+            product.details.salsas.push({ nombre: salsa, tipo: 'tradicional' });
+          }
+        });
+      }
+    });
+    
+    salsasPremium.forEach(salsa => {
+      if (lowerMessage.includes(salsa)) {
+        orderAnalysis.products.forEach(product => {
+          if (product.details && product.details.salsas) {
+            product.details.salsas.push({ nombre: salsa, tipo: 'premium' });
+          }
+        });
+      }
+    });
+    
+    // Detectar acompañantes
+    const acompanantes = ['papas criollas', 'cascos', 'yucas', 'arepitas', 'papas francesa'];
+    acompanantes.forEach(acompanante => {
+      if (lowerMessage.includes(acompanante)) {
+        orderAnalysis.products.forEach(product => {
+          if (product.details && product.details.acompanantes) {
+            product.details.acompanantes.push(acompanante);
+          }
+        });
+      }
+    });
+    
+    // Detectar bebidas
+    const bebidas = ['gaseosa', 'limonada', 'coca cola', 'pepsi'];
+    bebidas.forEach(bebida => {
+      if (lowerMessage.includes(bebida)) {
+        orderAnalysis.products.forEach(product => {
+          if (product.details && product.details.bebidas) {
+            product.details.bebidas.push(bebida);
+          }
+        });
+      }
+    });
+    
+    // Verificar si aún necesita clarificación
+    orderAnalysis.needsClarification = false;
+    orderAnalysis.clarificationQuestions = [];
+    
+    orderAnalysis.products.forEach(product => {
+      if (product.details) {
+        // Verificar si falta información crítica
+        if (!product.details.tipoAlitas) {
+          orderAnalysis.needsClarification = true;
+          if (!orderAnalysis.clarificationQuestions.includes('¿Quieres las alitas bañadas o con la salsa aparte?')) {
+            orderAnalysis.clarificationQuestions.push('¿Quieres las alitas bañadas o con la salsa aparte?');
+          }
+        }
+        
+        if (!product.details.salsas || product.details.salsas.length === 0) {
+          orderAnalysis.needsClarification = true;
+          if (!orderAnalysis.clarificationQuestions.includes('¿Qué salsas prefieres?')) {
+            orderAnalysis.clarificationQuestions.push('¿Qué salsas prefieres? Tenemos tradicionales (BBQ, miel mostaza, picante) y premium (cheddar, sour cream).');
+          }
+        }
+        
+        if (!product.details.acompanantes || product.details.acompanantes.length === 0) {
+          orderAnalysis.needsClarification = true;
+          if (!orderAnalysis.clarificationQuestions.includes('¿Qué acompañante prefieres?')) {
+            orderAnalysis.clarificationQuestions.push('¿Qué acompañante prefieres? Papas criollas, cascos, yucas o arepitas.');
+          }
+        }
+      }
+    });
+    
+    return orderAnalysis;
+  }
+
+  // Generar respuesta de clarificación
+  generateClarificationResponse(orderAnalysis) {
+    let response = `🍗 *ACTUALIZANDO TU PEDIDO*\n\n`;
+    
+    orderAnalysis.products.forEach((product, index) => {
+      response += `${index + 1}. ${product.name} - $${product.total.toLocaleString()}\n`;
+      if (product.details) {
+        if (product.details.tipoAlitas) {
+          response += `   • Tipo: ${product.details.tipoAlitas}\n`;
+        }
+        if (product.details.salsas && product.details.salsas.length > 0) {
+          response += `   • Salsas: ${product.details.salsas.map(s => s.nombre).join(', ')}\n`;
+        }
+        if (product.details.acompanantes && product.details.acompanantes.length > 0) {
+          response += `   • Acompañantes: ${product.details.acompanantes.join(', ')}\n`;
+        }
+        if (product.details.bebidas && product.details.bebidas.length > 0) {
+          response += `   • Bebidas: ${product.details.bebidas.join(', ')}\n`;
+        }
+      }
+    });
+    
+    response += `\n💰 *TOTAL: $${orderAnalysis.total.toLocaleString()}*\n\n`;
+    
+    if (orderAnalysis.clarificationQuestions.length > 0) {
+      response += `❓ *AÚN NECESITO SABER:*\n`;
+      orderAnalysis.clarificationQuestions.forEach((question, index) => {
+        response += `${index + 1}. ${question}\n`;
+      });
+    }
+    
+    return response;
   }
 }
 
