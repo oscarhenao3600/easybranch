@@ -94,30 +94,99 @@ router.get('/', authMiddleware.verifyToken, authMiddleware.requireRole(['super_a
 router.get('/services', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin']), async (req, res) => {
     try {
         logger.info('Starting services endpoint');
-        
-        // Simple test first - just return empty array
-        return res.json({
+        const { page = 1, limit = 12, category, available, search } = req.query;
+
+        // Obtener todas las configuraciones de IA con menú
+        const BranchAIConfig = require('../models/BranchAIConfig');
+        const configs = await BranchAIConfig.find({ isActive: true, menuContent: { $exists: true, $ne: '' } })
+            .populate('branchId', 'name businessId')
+            .populate('createdBy', 'name email');
+
+        // Extraer productos de cada menú
+        const allProducts = [];
+        for (const config of configs) {
+            if (!config.menuContent) continue;
+            const products = parseMenuToProducts(config.menuContent, config.branchId, config.branchId?.businessId);
+            allProducts.push(...products);
+        }
+
+        // Aplicar filtros
+        let filtered = allProducts;
+        if (search) {
+            const s = search.toLowerCase();
+            filtered = filtered.filter(p => p.name.toLowerCase().includes(s) || (p.description && p.description.toLowerCase().includes(s)));
+        }
+        if (category) {
+            filtered = filtered.filter(p => p.category === category);
+        }
+        if (available === 'true') {
+            filtered = filtered.filter(p => p.availability?.isAvailable);
+        }
+
+        // Paginación
+        const total = filtered.length;
+        const start = (page - 1) * limit;
+        const end = start + parseInt(limit);
+        const data = filtered.slice(start, end);
+
+        res.json({
             success: true,
-            data: [],
+            data,
             pagination: {
-                page: 1,
-                limit: 12,
-                total: 0,
-                pages: 0
-            },
-            message: 'Servicios endpoint funcionando - sin datos aún'
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                pages: Math.ceil(total / limit)
+            }
         });
-        
     } catch (error) {
         logger.error('Error getting all services:', error);
-        logger.error('Error stack:', error.stack);
-        res.status(500).json({ 
-            success: false, 
-            message: 'Error interno del servidor',
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
-        });
+        res.status(500).json({ success: false, message: 'Error interno del servidor' });
     }
 });
+
+// Función auxiliar para parsear menú a productos
+function parseMenuToProducts(menuContent, branchId, businessId) {
+    const products = [];
+    const lines = menuContent.split(/\r?\n/).filter(Boolean);
+    let currentCategory = 'General';
+    const productPattern = /^[•\-\*]\s*(.+?)\s*-\s*\$?([0-9,]+)/i;
+    const categoryPattern = /^[#*]?\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s]+)[#*]?$/;
+
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        const catMatch = categoryPattern.exec(trimmed);
+        if (catMatch) {
+            currentCategory = catMatch[1].trim();
+            continue;
+        }
+
+        const match = productPattern.exec(trimmed);
+        if (match) {
+            const name = match[1].trim();
+            const price = parseInt(match[2].replace(/[,\s]/g, ''));
+            products.push({
+                serviceId: `SVC_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                businessId: businessId ? String(businessId) : '',
+                branchId: branchId ? String(branchId) : '',
+                name,
+                description: null,
+                category: currentCategory,
+                subcategory: null,
+                price,
+                currency: 'COP',
+                images: [],
+                options: [],
+                availability: { isAvailable: true, stock: -1, preparationTime: 15 },
+                tags: [],
+                isActive: true
+            });
+        }
+    }
+    return products;
+}
 
 // GET /api/branch/:branchId - Get specific branch
 router.get('/:branchId', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
