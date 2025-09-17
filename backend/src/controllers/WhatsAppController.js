@@ -328,7 +328,7 @@ class WhatsAppController {
                 const branchAIConfig = await BranchAIConfig.findOne({ branchId: connection.branchId });
                 
                 // Determine business type
-                const businessType = business?.type || 'restaurant';
+                const businessType = business?.businessType || 'restaurant';
                 
                 console.log('🔍 ===== CONFIGURACIÓN DE IA ENCONTRADA =====');
                 console.log('🏪 Branch:', branch?.name || 'No encontrada');
@@ -575,7 +575,6 @@ class WhatsAppController {
             
             if (businessId === 'business1' || typeof businessId === 'string') {
                 // Create or find default business
-                const Business = require('../models/Business');
                 let business = await Business.findOne({ name: 'Restaurante El Sabor' });
                 if (!business) {
                     business = new Business({
@@ -609,7 +608,6 @@ class WhatsAppController {
 
             if (branchId === 'branch1' || typeof branchId === 'string') {
                 // Create or find default branch
-                const Branch = require('../models/Branch');
                 let branch = await Branch.findOne({ name: 'Sucursal Centro' });
                 if (!branch) {
                     branch = new Branch({
@@ -723,50 +721,57 @@ class WhatsAppController {
             const business = await Business.findById(businessObjectId);
             const branch = await Branch.findById(branchObjectId);
 
-            // Generate QR code using the new QR manager
+            // Generate real WhatsApp QR code
             let qrCodeDataURL = null;
             let qrExpiresAt = null;
             
             try {
-                const qrResult = await this.qrManager.generateQRCode(connection._id, {
-                    phoneNumber,
-                    branchName: branch.name,
-                    businessName: business.name
-                });
-                
-                if (qrResult.success) {
-                    qrCodeDataURL = qrResult.qrCodeDataURL;
-                    qrExpiresAt = qrResult.expiresAt;
-                    connection.status = 'connecting';
+                console.log('📱 ===== GENERANDO QR CODE REAL DE WHATSAPP =====');
+                console.log('🔗 Connection ID:', connection._id);
+                console.log('📞 Phone:', phoneNumber);
+                console.log('🏪 Branch:', branch?.name);
+                console.log('===============================================');
+
+                // Usar el servicio de WhatsApp para generar QR real
+                if (this.whatsappService) {
+                    console.log('🔄 Generando QR Code usando WhatsAppService...');
                     
-                    // Update connection with QR code
-                    connection.qrCodeDataURL = qrCodeDataURL;
-                    connection.qrExpiresAt = qrExpiresAt;
-                    await connection.save();
+                    qrCodeDataURL = await this.whatsappService.generateQRCode(connection._id, phoneNumber);
                     
-                    // Registrar conexión para monitoreo
-                    this.connectionMonitor.registerConnection(connection._id, {
-                        phoneNumber,
-                        branchName: branch.name,
-                        businessName: business.name,
-                        status: 'connecting'
-                    });
-                    
-                    this.logger.info('QR code generated successfully', { connectionId: connection._id });
+                    if (qrCodeDataURL) {
+                        connection.qrCodeDataURL = qrCodeDataURL;
+                        connection.status = 'connecting';
+                        qrExpiresAt = new Date(Date.now() + (5 * 60 * 1000)); // 5 minutos
+                        connection.qrExpiresAt = qrExpiresAt;
+                        await connection.save();
+                        
+                        console.log('✅ QR Code real generado exitosamente');
+                        this.logger.info('Real WhatsApp QR code generated', { 
+                            connectionId: connection._id,
+                            phoneNumber 
+                        });
+                    } else {
+                        throw new Error('No se pudo generar el QR code');
+                    }
+                } else {
+                    throw new Error('WhatsApp service no está disponible');
                 }
             } catch (error) {
-                this.logger.error('Failed to generate QR code', { 
+                console.log('❌ Error generando QR real:', error.message);
+                this.logger.error('Failed to generate real WhatsApp QR code', { 
                     connectionId: connection._id, 
                     error: error.message 
                 });
                 
-                // Fallback: generate a simple QR code with connection info
+                // Fallback: generar QR con información de conexión
+                console.log('🔄 Generando QR de fallback...');
                 const qrData = {
                     connectionId: connection._id,
                     businessName: business?.name || 'Business',
                     branchName: branch?.name || 'Branch',
                     phoneNumber,
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    message: 'Escanea este código para vincular WhatsApp'
                 };
 
                 qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrData), {
@@ -783,6 +788,8 @@ class WhatsAppController {
                 connection.qrCodeDataURL = qrCodeDataURL;
                 connection.status = 'disconnected';
                 await connection.save();
+                
+                console.log('✅ QR de fallback generado');
             }
 
             // Populate references
@@ -1322,26 +1329,85 @@ class WhatsAppController {
                 });
             }
 
-            const qrResult = await this.qrManager.refreshQRCode(id);
-            
-            if (qrResult) {
-                // Actualizar conexión en BD
-                connection.qrCodeDataURL = qrResult.qrCodeDataURL;
-                connection.qrExpiresAt = qrResult.expiresAt;
-                await connection.save();
+            console.log('🔄 ===== REFRESCANDO QR CODE REAL DE WHATSAPP =====');
+            console.log('🔗 Connection ID:', id);
+            console.log('📞 Phone:', connection.phoneNumber);
+            console.log('===============================================');
 
+            let qrCodeDataURL = null;
+            let expiresAt = null;
+
+            try {
+                // Usar el servicio de WhatsApp para generar QR real
+                if (this.whatsappService) {
+                    console.log('🔄 Generando nuevo QR Code usando WhatsAppService...');
+                    
+                    qrCodeDataURL = await this.whatsappService.generateQRCode(id, connection.phoneNumber);
+                    
+                    if (qrCodeDataURL) {
+                        expiresAt = new Date(Date.now() + (5 * 60 * 1000)); // 5 minutos
+                        
+                        // Actualizar conexión en BD
+                        connection.qrCodeDataURL = qrCodeDataURL;
+                        connection.qrExpiresAt = expiresAt;
+                        connection.status = 'connecting';
+                        await connection.save();
+                        
+                        console.log('✅ QR Code real refrescado exitosamente');
+                        
+                        res.json({
+                            success: true,
+                            data: {
+                                qrCodeDataURL: qrCodeDataURL,
+                                expiresAt: expiresAt
+                            },
+                            message: 'QR Code refrescado exitosamente'
+                        });
+                    } else {
+                        throw new Error('No se pudo generar el QR code');
+                    }
+                } else {
+                    throw new Error('WhatsApp service no está disponible');
+                }
+            } catch (error) {
+                console.log('❌ Error refrescando QR real:', error.message);
+                
+                // Fallback: generar QR con información de conexión
+                console.log('🔄 Generando QR de fallback...');
+                const qrData = {
+                    connectionId: id,
+                    phoneNumber: connection.phoneNumber,
+                    timestamp: Date.now(),
+                    message: 'Escanea este código para vincular WhatsApp',
+                    refresh: true
+                };
+
+                qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrData), {
+                    errorCorrectionLevel: 'M',
+                    type: 'image/png',
+                    quality: 0.92,
+                    margin: 1,
+                    color: {
+                        dark: '#000000',
+                        light: '#FFFFFF'
+                    }
+                });
+
+                expiresAt = new Date(Date.now() + (5 * 60 * 1000));
+                connection.qrCodeDataURL = qrCodeDataURL;
+                connection.qrExpiresAt = expiresAt;
+                connection.status = 'disconnected';
+                await connection.save();
+                
+                console.log('✅ QR de fallback refrescado');
+                
                 res.json({
                     success: true,
                     data: {
-                        qrCodeDataURL: qrResult.qrCodeDataURL,
-                        expiresAt: qrResult.expiresAt
+                        qrCodeDataURL: qrCodeDataURL,
+                        expiresAt: expiresAt
                     },
-                    message: 'QR Code refrescado exitosamente'
-                });
-            } else {
-                res.status(400).json({
-                    success: false,
-                    error: 'No se pudo refrescar el QR Code'
+                    message: 'QR Code refrescado exitosamente (modo fallback)'
                 });
             }
 
@@ -1511,20 +1577,68 @@ Solo responde con el número de tu opción 😊`;
                 // Cancelar sesión de recomendación y procesar comando normal
                 await this.recommendationService.cancelSession(session.sessionId);
                 
-                // Si es "pedir", procesar como pedido basado en la recomendación
+                // Si es "pedir", procesar como pedido basado en la recomendación real
                 if (message.toLowerCase().includes('pedir') || message.toLowerCase().includes('ordenar') || message.toLowerCase().includes('comprar')) {
-                    const orderMessage = `¡Perfecto! 🛒 Vamos a procesar tu pedido.
+                    try {
+                        // Obtener última recomendación completa de la sesión antes de cancelarla
+                        const finalData = await this.recommendationService.getNextQuestion(session.sessionId);
+                        let recommendation = null;
+                        if (finalData && finalData.type === 'recommendations') {
+                            recommendation = finalData.mainRecommendation;
+                        }
 
-Basándome en tu recomendación anterior, ¿quieres pedir la *Hamburguesa con Queso* por $16.500?
+                        // Si no se pudo obtener por getNextQuestion, intentar leer la sesión directamente
+                        if (!recommendation) {
+                            const RecommendationSession = require('../models/RecommendationSession');
+                            const sess = await RecommendationSession.findOne({ sessionId: session.sessionId });
+                            recommendation = sess?.finalRecommendation || null;
+                        }
 
-O si prefieres algo diferente, puedes escribir:
-• "sí" para confirmar la Hamburguesa con Queso
-• "otra cosa" para elegir algo diferente del menú
-• "menu" para ver todas las opciones disponibles
+                        // Preparar pedido pendiente a partir de la recomendación
+                        if (recommendation) {
+                            const peopleQty = recommendation.quantity || 1;
+                            const products = [{
+                                name: recommendation.productName.toLowerCase(),
+                                quantity: peopleQty,
+                                price: recommendation.price,
+                                total: recommendation.price * peopleQty,
+                                category: recommendation.category
+                            }];
 
-¿Qué prefieres? 😊`;
+                            const subtotal = products.reduce((s, p) => s + p.total, 0);
+                            const deliveryFee = subtotal < 20000 ? 3000 : 0;
+                            const total = subtotal + deliveryFee;
 
-                    await this.whatsappService.sendMessage(connectionId, phoneNumber, orderMessage);
+                            // Guardar como pedido pendiente para confirmación con AIService
+                            const connection = await WhatsAppConnection.findById(connectionId);
+                            const branchId = connection.branchId;
+                            await this.aiService.savePendingOrder(phoneNumber, branchId, {
+                                products,
+                                subtotal,
+                                delivery: { type: 'pickup', fee: deliveryFee },
+                                total,
+                                hasProducts: true
+                            });
+
+                            const summary = this.aiService.generateOrderResponse({
+                                products,
+                                subtotal,
+                                delivery: deliveryFee > 0,
+                                deliveryFee,
+                                total,
+                                hasProducts: true
+                            });
+
+                            await this.whatsappService.sendMessage(connectionId, phoneNumber, summary);
+                            return;
+                        }
+                    } catch (e) {
+                        console.error('❌ Error preparando pedido desde recomendación:', e);
+                    }
+
+                    // Fallback si no se pudo armar desde recomendación
+                    const fallback = `Claro, te ayudo con tu pedido. ¿Qué cantidad y presentación deseas de la recomendación?`;
+                    await this.whatsappService.sendMessage(connectionId, phoneNumber, fallback);
                     return;
                 }
                 

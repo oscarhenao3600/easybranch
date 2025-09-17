@@ -31,10 +31,15 @@ const storage = multer.diskStorage({
     }
 });
 
+// Configurar límite de tamaño usando variables de entorno (por defecto 50MB)
+const MAX_FILE_SIZE_BYTES = process.env.MAX_FILE_SIZE_BYTES
+    ? parseInt(process.env.MAX_FILE_SIZE_BYTES)
+    : (process.env.MAX_FILE_SIZE_MB ? parseInt(process.env.MAX_FILE_SIZE_MB) * 1024 * 1024 : 50 * 1024 * 1024);
+
 const upload = multer({
     storage: storage,
     limits: {
-        fileSize: 10 * 1024 * 1024 // 10MB
+        fileSize: MAX_FILE_SIZE_BYTES
     },
     fileFilter: (req, file, cb) => {
         if (file.mimetype === 'application/pdf') {

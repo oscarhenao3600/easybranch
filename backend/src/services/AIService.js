@@ -130,6 +130,12 @@ class AIService {
   // Generar respuesta usando IA con configuración específica de sucursal
   async generateResponse(branchId, userMessage, clientId = null, businessType = 'restaurant', branchConfig = null) {
     try {
+      // Cargar configuración específica de la sucursal automáticamente
+      if (branchId && !this.menuContent.has(branchId)) {
+        console.log('🔄 Cargando configuración automáticamente para sucursal:', branchId);
+        await this.loadBranchConfig(branchId);
+      }
+
       // Generando respuesta IA contextualizada
 
       // Analizar intención del usuario
@@ -141,9 +147,48 @@ class AIService {
         await this.saveConversationMessage(clientId, branchId, userMessage, intent);
       }
 
+      // Si es saludo, responder incluyendo el nombre de la sucursal
+      if (intent === 'saludo' || intent === 'greeting') {
+        try {
+          const Branch = require('../models/Branch');
+          let branchName = 'nuestra sucursal';
+          try {
+            const branchDoc = await Branch.findById(branchId) || await Branch.findOne({ branchId });
+            if (branchDoc && branchDoc.name) branchName = branchDoc.name;
+          } catch (_) {}
+          return `¡Hola! 😊 Somos ${branchName}. ¿Cómo andas? ¿En qué te puedo ayudar?
+
+Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "envíame el menú".`;
+        } catch (_) {
+          return `¡Hola! 😊 ¿Cómo andas? ¿En qué te puedo ayudar?
+
+Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "envíame el menú".`;
+        }
+      }
+
+      // Si estamos esperando que el cliente elija domicilio o recoger
+      if (clientId && this._awaitingDeliveryChoice && this._awaitingDeliveryChoice.has(`${clientId}::${branchId}`)) {
+        const pendingOrder = await this.getLastPendingOrder(clientId, branchId);
+        if (pendingOrder) {
+          const choiceHandled = await this.handleDeliveryChoice(clientId, branchId, userMessage, pendingOrder);
+          if (choiceHandled) {
+            return choiceHandled;
+          }
+        }
+      }
+
+      // Si estamos esperando datos de envío para un pedido de domicilio y el usuario envía datos, procesarlos
+      if (clientId) {
+        const pendingOrder = await this.getLastPendingOrder(clientId, branchId);
+        if (pendingOrder && pendingOrder.delivery && pendingOrder.delivery.type === 'delivery' && !pendingOrder.delivery.address) {
+          const handled = await this.tryHandleDeliveryData(clientId, branchId, userMessage, pendingOrder);
+          if (handled) return handled;
+        }
+      }
+
       // Si es un pedido, procesar automáticamente
       if (intent === 'hacer_pedido') {
-        const orderAnalysis = this.processOrder(userMessage);
+        const orderAnalysis = this.processOrder(userMessage, branchId, customPrompt);
         if (orderAnalysis.hasProducts) {
           console.log('🛒 Procesando pedido automáticamente');
           const orderResponse = this.generateOrderResponse(orderAnalysis);
@@ -174,6 +219,16 @@ class AIService {
         return await this.handleOrderConfirmation(clientId, branchId, userMessage);
       }
 
+      // Si el usuario menciona que quiere dar datos de envío y hay pedido pendiente de domicilio,
+      // re-envía el formato de solicitud de datos de entrega para guiarlo correctamente
+      if (clientId && this.isDeliveryDataRequest && this.isDeliveryDataRequest(userMessage)) {
+        const pendingOrder = await this.getLastPendingOrder(clientId, branchId);
+        if (pendingOrder && pendingOrder.delivery && pendingOrder.delivery.type === 'delivery') {
+          console.log('📦 Usuario menciona datos de envío; enviando formato');
+          return await this.requestDeliveryData(clientId, branchId, pendingOrder);
+        }
+      }
+
       // Si es modificación de pedido, usar contexto previo
       if (intent === 'modificar_pedido' && clientId) {
         const previousOrder = await this.getLastOrder(clientId, branchId);
@@ -189,6 +244,13 @@ class AIService {
       const menuContent = this.menuContent.get(branchId);
       const customPrompt = this.aiPrompts.get(branchId);
       const businessSettings = branchConfig || {};
+
+      console.log('🔍 ===== CONFIGURACIÓN DE IA CARGADA =====');
+      console.log('🏪 Branch ID:', branchId);
+      console.log('📋 Menu Content:', menuContent ? 'Disponible' : 'No disponible');
+      console.log('🤖 Custom Prompt:', customPrompt ? 'Disponible' : 'No disponible');
+      console.log('📏 Menu Length:', menuContent ? menuContent.length : 0, 'caracteres');
+      console.log('==========================================');
 
       // Construir contexto completo con historial
       const fullContext = this.buildMenuContext(menuContent, userMessage);
@@ -358,7 +420,7 @@ class AIService {
     console.log(`   Urgencia: ${urgency}`);
     
     // Generar respuesta basada en análisis
-    return this.buildIntelligentResponse(intent, sentiment, urgency, businessType, userMessage, context, branchId, clientId);
+    return await this.buildIntelligentResponse(intent, sentiment, urgency, businessType, userMessage, context, branchId, clientId);
   }
 
   // Analizar intención del usuario con tolerancia a errores de escritura
@@ -413,13 +475,23 @@ class AIService {
       return 'hacer_pedido';
     }
     
-    // PRIORIDAD 2: Saludos
-    if (lowerMessage.includes('hola') || lowerMessage.includes('buenos') || lowerMessage.includes('buenas') ||
-        lowerMessage.includes('buen dia') || lowerMessage.includes('buenas tardes') || lowerMessage.includes('buenas noches')) {
+    // PRIORIDAD 2: Saludos (variantes comunes: hola/ola/holi/oli/hi/hello/hey)
+    const isGreetingMsg = (
+      lowerMessage.includes('hola') ||
+      lowerMessage === 'ola' || lowerMessage.startsWith('ola ') || lowerMessage.endsWith(' ola') || lowerMessage.includes(' ola ')
+      || lowerMessage.includes('holi') || lowerMessage.includes('oli')
+      || lowerMessage.includes('hi') || lowerMessage.includes('hello') || lowerMessage.includes('hey')
+      || lowerMessage.includes('buenos') || lowerMessage.includes('buenas')
+      || lowerMessage.includes('buen dia') || lowerMessage.includes('buenas tardes') || lowerMessage.includes('buenas noches')
+    );
+    if (isGreetingMsg) {
       return 'saludo';
     }
     
     // PRIORIDAD 3: Consultas de menú
+    if (lowerMessage.includes('menú pdf') || lowerMessage.includes('menu pdf') || lowerMessage.includes('pdf')) {
+      return 'consulta_menu_pdf';
+    }
     if (lowerMessage.includes('menú') || lowerMessage.includes('menu') || lowerMessage.includes('qué tienen') ||
         lowerMessage.includes('bebidas') || lowerMessage.includes('café') || lowerMessage.includes('cafe') ||
         lowerMessage.includes('tienes') || lowerMessage.includes('tienen')) {
@@ -485,7 +557,7 @@ class AIService {
   }
 
   // Construir respuesta inteligente mejorada
-  buildIntelligentResponse(intent, sentiment, urgency, businessType, userMessage, context, branchId = null, clientId = null) {
+  async buildIntelligentResponse(intent, sentiment, urgency, businessType, userMessage, context, branchId = null, clientId = null) {
     const responses = {
       saludo: {
         positivo: [
@@ -671,17 +743,16 @@ class AIService {
     // Agregar contenido específico según el tipo de negocio
     let specificContent = '';
     if (intent === 'consulta_menu') {
-      // Usar el menú específico de la sucursal si está disponible
-      if (branchId && this.menuContent.has(branchId)) {
-        specificContent = this.menuContent.get(branchId);
-      } else {
-        specificContent = this.getMenuContent(businessType);
-      }
+      // Resumen del menú siempre (resumido)
+      specificContent = this.getMenuSummary(businessType, branchId);
+    } else if (intent === 'consulta_menu_pdf') {
+      // Enviar indicaciones de PDF si existe, si no, enviar el resumen como fallback
+      specificContent = await this.getMenuPDFOrSummary(branchId, businessType);
     } else if (intent === 'consulta_precio') {
       specificContent = this.getPriceInfo(businessType);
     } else if (intent === 'hacer_pedido') {
       // Procesar pedido automáticamente si detecta productos específicos
-      const orderAnalysis = this.processOrder(userMessage);
+      const orderAnalysis = this.processOrder(userMessage, branchId, customPrompt);
       if (orderAnalysis.products.length > 0) {
         specificContent = this.generateOrderResponse(orderAnalysis);
       } else {
@@ -764,6 +835,35 @@ class AIService {
     };
 
     return menus[businessType] || menus.cafe;
+  }
+
+  // Obtener resumen breve del menú (resumido) usando menú cargado si existe
+  getMenuSummary(businessType, branchId) {
+    const loaded = branchId && this.menuContent.has(branchId) ? this.menuContent.get(branchId) : null;
+    if (loaded) {
+      // Extraer primeras líneas por categorías comunes
+      const lines = loaded.split(/\r?\n/).filter(Boolean);
+      const top = lines.slice(0, 12).join('\n');
+      return `📄 *MENÚ RESUMIDO*\n\n${top}\n\nSi quieres el PDF completo, dime: "menú pdf".`;
+    }
+    // Resumen por defecto según tipo
+    const full = this.getMenuContent(businessType);
+    const lines = full.split(/\r?\n/).filter(Boolean);
+    const top = lines.slice(0, 12).join('\n');
+    return `📄 *MENÚ RESUMIDO*\n\n${top}\n\nSi quieres el PDF completo, dime: "menú pdf".`;
+  }
+
+  // Obtener link/indicaciones de PDF o fallback al resumen
+  async getMenuPDFOrSummary(branchId, businessType) {
+    try {
+      const BranchAIConfig = require('../models/BranchAIConfig');
+      const config = await BranchAIConfig.findOne({ branchId: branchId }) || await BranchAIConfig.findOne({ branchId });
+      const pdfPath = config?.files?.menuPDF?.path;
+      if (pdfPath) {
+        return `📎 *MENÚ PDF*\n\nPuedes revisar el menú completo aquí (PDF): ${pdfPath}`;
+      }
+    } catch (_) {}
+    return this.getMenuSummary(businessType, branchId);
   }
 
   // Obtener información de precios
@@ -1196,13 +1296,180 @@ Escribe "recomendación" para hacer el test otra vez.`;
     this.conversationHistory.set(clientId, history);
   }
 
-  // Procesar pedido automáticamente
-  processOrder(message) {
+  // Procesar pedidos específicos de alitas con todos los detalles
+  processAlitasOrder(message, lowerMessage, customPrompt) {
+    console.log('🍗 ===== PROCESANDO PEDIDO DE ALITAS =====');
+    
+    const order = {
+      products: [],
+      total: 0,
+      hasProducts: false,
+      needsClarification: false,
+      clarificationQuestions: [],
+      orderType: 'alitas'
+    };
+
+    // Detectar tipo de combo
+    const comboPatterns = {
+      personal: {
+        'combo 1': { alitas: 5, price: 21900 },
+        'combo 2': { alitas: 7, price: 26900 },
+        'combo 3': { alitas: 9, price: 30900 },
+        'combo 4': { alitas: 14, price: 42900 },
+        '5 alitas': { alitas: 5, price: 21900 },
+        '7 alitas': { alitas: 7, price: 26900 },
+        '9 alitas': { alitas: 9, price: 30900 },
+        '14 alitas': { alitas: 14, price: 42900 }
+      },
+      familiar: {
+        'familiar 1': { alitas: 20, price: 65900 },
+        'familiar 2': { alitas: 30, price: 62900 },
+        'familiar 3': { alitas: 40, price: 87900 },
+        'familiar 4': { alitas: 50, price: 107900 },
+        '20 alitas': { alitas: 20, price: 65900 },
+        '30 alitas': { alitas: 30, price: 62900 },
+        '40 alitas': { alitas: 40, price: 87900 },
+        '50 alitas': { alitas: 50, price: 107900 }
+      },
+      emparejado: {
+        'combo emparejado': { alitas: 16, price: 123900 },
+        '16 alitas': { alitas: 16, price: 123900 }
+      }
+    };
+
+    // Detectar salsas
+    const salsasTradicionales = ['bbq', 'miel mostaza', 'picante suave', 'picante full', 'envinada', 'frutos rojos', 'parmesano', 'maracuyá', 'limón pimienta'];
+    const salsasPremium = ['dulce maíz', 'la original', 'cheddar', 'sour cream', 'pepinillo'];
+
+    // Detectar acompañantes
+    const acompanantes = ['papas criollas', 'cascos', 'yucas', 'arepitas', 'papas francesa', 'papas fritas'];
+
+    // Detectar bebidas
+    const bebidas = ['gaseosa', 'limonada', 'coca cola', 'pepsi'];
+
+    // Detectar tipo de alitas
+    const tipoAlitas = {
+      bañadas: ['bañadas', 'con salsa', 'bañada'],
+      separadas: ['con salsa aparte', 'salsa aparte', 'separadas']
+    };
+
+    // Analizar el mensaje
+    let detectedCombo = null;
+    let detectedSalsas = [];
+    let detectedAcompanantes = [];
+    let detectedBebidas = [];
+    let detectedTipoAlitas = null;
+
+    // Detectar combo
+    for (const [tipo, combos] of Object.entries(comboPatterns)) {
+      for (const [comboName, comboInfo] of Object.entries(combos)) {
+        if (lowerMessage.includes(comboName)) {
+          detectedCombo = { tipo, comboName, ...comboInfo };
+          break;
+        }
+      }
+      if (detectedCombo) break;
+    }
+
+    // Detectar salsas
+    for (const salsa of salsasTradicionales) {
+      if (lowerMessage.includes(salsa)) {
+        detectedSalsas.push({ nombre: salsa, tipo: 'tradicional' });
+      }
+    }
+    for (const salsa of salsasPremium) {
+      if (lowerMessage.includes(salsa)) {
+        detectedSalsas.push({ nombre: salsa, tipo: 'premium' });
+      }
+    }
+
+    // Detectar acompañantes
+    for (const acompanante of acompanantes) {
+      if (lowerMessage.includes(acompanante)) {
+        detectedAcompanantes.push(acompanante);
+      }
+    }
+
+    // Detectar bebidas
+    for (const bebida of bebidas) {
+      if (lowerMessage.includes(bebida)) {
+        detectedBebidas.push(bebida);
+      }
+    }
+
+    // Detectar tipo de alitas
+    for (const [tipo, keywords] of Object.entries(tipoAlitas)) {
+      for (const keyword of keywords) {
+        if (lowerMessage.includes(keyword)) {
+          detectedTipoAlitas = tipo;
+          break;
+        }
+      }
+      if (detectedTipoAlitas) break;
+    }
+
+    // Si se detectó un combo, procesar
+    if (detectedCombo) {
+      order.hasProducts = true;
+      
+      const product = {
+        name: `Combo ${detectedCombo.comboName}`,
+        quantity: 1,
+        price: detectedCombo.price,
+        total: detectedCombo.price,
+        details: {
+          alitas: detectedCombo.alitas,
+          tipo: detectedCombo.tipo,
+          salsas: detectedSalsas,
+          acompanantes: detectedAcompanantes,
+          bebidas: detectedBebidas,
+          tipoAlitas: detectedTipoAlitas
+        }
+      };
+
+      order.products.push(product);
+      order.total += product.total;
+
+      // Generar preguntas de clarificación si faltan detalles
+      if (!detectedTipoAlitas) {
+        order.needsClarification = true;
+        order.clarificationQuestions.push('¿Quieres las alitas bañadas o con la salsa aparte?');
+      }
+
+      if (detectedSalsas.length === 0) {
+        order.needsClarification = true;
+        order.clarificationQuestions.push('¿Qué salsas prefieres? Tenemos tradicionales (BBQ, miel mostaza, picante) y premium (cheddar, sour cream).');
+      }
+
+      if (detectedAcompanantes.length === 0) {
+        order.needsClarification = true;
+        order.clarificationQuestions.push('¿Qué acompañante prefieres? Papas criollas, cascos, yucas o arepitas.');
+      }
+
+      if (detectedCombo.tipo === 'familiar' && detectedBebidas.length === 0) {
+        order.needsClarification = true;
+        order.clarificationQuestions.push('¿Qué bebida prefieres? Incluye gaseosa de 1.5L.');
+      }
+
+      if (detectedCombo.tipo === 'emparejado' && detectedBebidas.length < 2) {
+        order.needsClarification = true;
+        order.clarificationQuestions.push('¿Qué bebidas prefieres? Incluye 2 limonadas.');
+      }
+    }
+
+    console.log('🍗 Pedido de alitas procesado:', order);
+    return order;
+  }
+
+  // Procesar pedido automáticamente con configuración específica de sucursal
+  processOrder(message, branchId = null, customPrompt = null) {
     const lowerMessage = message.toLowerCase();
     
     console.log('🛒 ===== PROCESANDO PEDIDO =====');
     console.log('💬 Mensaje original:', message);
     console.log('🔍 Mensaje normalizado:', lowerMessage);
+    console.log('🏪 Branch ID:', branchId);
+    console.log('🤖 Custom Prompt:', customPrompt ? 'Disponible' : 'No disponible');
     console.log('================================');
     
     // Función para normalizar texto (misma que en analyzeUserIntent)
@@ -1295,6 +1562,11 @@ Escribe "recomendación" para hacer el test otra vez.`;
       // Ordenar por similitud descendente
       return similarProducts.sort((a, b) => b.similarity - a.similarity);
     };
+
+    // Procesar pedidos específicos de alitas usando prompt personalizado
+    if (customPrompt && customPrompt.toLowerCase().includes('alitas')) {
+      return this.processAlitasOrder(message, lowerMessage, customPrompt);
+    }
 
     // Función mejorada para buscar productos con detección inteligente
     const findProductIntelligent = (searchTerm, products) => {
@@ -1625,18 +1897,18 @@ Escribe "recomendación" para hacer el test otra vez.`;
         }
         
         if (!isSubProduct && !alreadyProcessed) {
-          const totalPrice = productInfo.price;
-          subtotal += totalPrice;
-          
-          detectedProducts.push({
-            name: productName,
-            quantity: 1,
-            price: productInfo.price,
-            total: totalPrice,
-            category: productInfo.category
-          });
-          
-          processedParts.add(productName);
+        const totalPrice = productInfo.price;
+        subtotal += totalPrice;
+        
+        detectedProducts.push({
+          name: productName,
+          quantity: 1,
+          price: productInfo.price,
+          total: totalPrice,
+          category: productInfo.category
+        });
+        
+        processedParts.add(productName);
           console.log(`✅ Producto detectado: ${productName} - $${productInfo.price}`);
         }
       }
@@ -1688,6 +1960,42 @@ Escribe "recomendación" para hacer el test otra vez.`;
   generateOrderResponse(orderAnalysis) {
     if (!orderAnalysis.hasProducts) {
       return `No pude identificar productos específicos en tu pedido. ¿Podrías ser más específico? Por ejemplo: "quiero 2 cafés americanos"`;
+    }
+    
+    // Si necesita clarificación (específico para alitas)
+    if (orderAnalysis.needsClarification && orderAnalysis.orderType === 'alitas') {
+      let response = `🍗 *PEDIDO DE ALITAS DETECTADO*\n\n`;
+      
+      orderAnalysis.products.forEach((product, index) => {
+        response += `${index + 1}. ${product.name} - $${product.total.toLocaleString()}\n`;
+        if (product.details) {
+          response += `   📋 Detalles:\n`;
+          if (product.details.alitas) response += `   • ${product.details.alitas} alitas\n`;
+          if (product.details.salsas && product.details.salsas.length > 0) {
+            response += `   • Salsas: ${product.details.salsas.map(s => s.nombre).join(', ')}\n`;
+          }
+          if (product.details.acompanantes && product.details.acompanantes.length > 0) {
+            response += `   • Acompañantes: ${product.details.acompanantes.join(', ')}\n`;
+          }
+          if (product.details.bebidas && product.details.bebidas.length > 0) {
+            response += `   • Bebidas: ${product.details.bebidas.join(', ')}\n`;
+          }
+          if (product.details.tipoAlitas) {
+            response += `   • Tipo: ${product.details.tipoAlitas}\n`;
+          }
+        }
+      });
+      
+      response += `\n💰 *TOTAL: $${orderAnalysis.total.toLocaleString()}*\n\n`;
+      response += `❓ *NECESITO ALGUNOS DETALLES MÁS:*\n\n`;
+      
+      orderAnalysis.clarificationQuestions.forEach((question, index) => {
+        response += `${index + 1}. ${question}\n`;
+      });
+      
+      response += `\nPor favor responde cada pregunta para completar tu pedido.`;
+      
+      return response;
     }
     
     let response = `🛒 *RESUMEN DE TU PEDIDO*\n\n`;
@@ -2156,12 +2464,24 @@ Escribe "recomendación" para hacer el test otra vez.`;
   // Detectar si es confirmación de pedido
   isOrderConfirmation(message) {
     const confirmationKeywords = [
-      'sí', 'si', 'confirmo', 'confirmar', 'ok', 'perfecto', 'dale', 
-      'está bien', 'correcto', 'procede', 'adelante', 'yes'
+      'sí', 'si', 'confirmo', 'confirmar', 'ok', 'perfecto', 'dale',
+      'está bien', 'correcto', 'procede', 'adelante', 'yes',
+      'acepto', 'aceptar', 'lo confirmo', 'confirmado', 'listo', 'vale', 'de una', 'hágale', 'hagale'
     ];
     
     const lowerMessage = message.toLowerCase().trim();
     return confirmationKeywords.some(keyword => lowerMessage.includes(keyword));
+  }
+
+  // Detectar si el usuario está pidiendo/proponiendo enviar datos de envío
+  isDeliveryDataRequest(message) {
+    const lower = message.toLowerCase();
+    const keywords = [
+      'datos de envío', 'datos para el envío', 'mis datos', 'mis datos para el envío',
+      'dirección', 'direccion', 'teléfono', 'telefono', 'quien recibe', 'persona que recibe',
+      'enviar direccion', 'enviar dirección', 'enviar datos', 'requiere mis datos', 'requieren mis datos'
+    ];
+    return keywords.some(k => lower.includes(k));
   }
 
   // Manejar confirmación de pedido
@@ -2174,14 +2494,20 @@ Escribe "recomendación" para hacer el test otra vez.`;
         return 'No tengo ningún pedido pendiente para confirmar. ¿Quieres hacer un nuevo pedido?';
       }
 
+      // Si aún no se definió el tipo de entrega, preguntar al cliente
+      const hasType = lastOrder.delivery && lastOrder.delivery.type;
+      if (!hasType) {
+        await this.savePendingOrder(clientId, branchId, lastOrder);
+        if (!this._awaitingDeliveryChoice) this._awaitingDeliveryChoice = new Map();
+        this._awaitingDeliveryChoice.set(`${clientId}::${branchId}`, true);
+        return '¿Quieres domicilio o recoger en tienda? Responde con "domicilio" o "recoger".';
+      }
+
       // Verificar si es para domicilio
       const isDelivery = lastOrder.delivery && lastOrder.delivery.type === 'delivery';
-      
       if (isDelivery) {
-        // Si es domicilio, pedir datos de envío
         return await this.requestDeliveryData(clientId, branchId, lastOrder);
       } else {
-        // Si es para recoger, confirmar directamente
         return await this.confirmOrderDirectly(clientId, branchId, lastOrder);
       }
       
@@ -2189,6 +2515,45 @@ Escribe "recomendación" para hacer el test otra vez.`;
       console.error('Error manejando confirmación de pedido:', error);
       return 'Hubo un problema procesando tu confirmación. ¿Puedes intentar de nuevo?';
     }
+  }
+
+  // Manejar elección de entrega (domicilio o recoger)
+  async handleDeliveryChoice(clientId, branchId, message, order) {
+    const msg = message.toLowerCase();
+    const key = `${clientId}::${branchId}`;
+    // Aceptar variantes y errores comunes: domicilio/domisi(l)io, recoger/recojer/recojo, etc.
+    const saysDelivery = /(domicilio|domisilio|domicillio|domicillio|a domicilio|a domisilio|enviar|env[íi]o|envio|delivery)/i.test(msg);
+    const saysPickup = /(recoger|recojer|recojo|recogo|recogida|para recoger|para recojer|pickup|voy por|paso por|retirar|retiro|lo recojo)/i.test(msg);
+
+    if (!saysDelivery && !saysPickup) {
+      return null;
+    }
+
+    // Ya no estamos esperando elección
+    if (this._awaitingDeliveryChoice) this._awaitingDeliveryChoice.delete(key);
+
+    if (saysDelivery) {
+      const fee = typeof order.deliveryFee === 'number' ? order.deliveryFee : 3000;
+      const updated = {
+        ...order,
+        delivery: { type: 'delivery', fee },
+        total: (typeof order.subtotal === 'number' ? order.subtotal : order.total - (order.deliveryFee || 0)) + fee
+      };
+      await this.savePendingOrder(clientId, branchId, updated);
+      return await this.requestDeliveryData(clientId, branchId, updated);
+    }
+
+    if (saysPickup) {
+      const updated = {
+        ...order,
+        delivery: { type: 'pickup', fee: 0 },
+        total: typeof order.subtotal === 'number' ? order.subtotal : order.total
+      };
+      await this.savePendingOrder(clientId, branchId, updated);
+      return await this.confirmOrderDirectly(clientId, branchId, updated);
+    }
+
+    return null;
   }
 
   // Solicitar datos de envío para domicilio
@@ -2209,6 +2574,60 @@ Por favor envía todos los datos en un solo mensaje, por ejemplo:
 "Calle 123 #45-67, Barrio Centro, 3001234567, María González"
 
 ¿Cuáles son tus datos de envío?`;
+  }
+
+  // Intentar procesar datos de envío proporcionados en texto libre
+  async tryHandleDeliveryData(clientId, branchId, message, order) {
+    const text = message.trim();
+    // Heurística simple: buscar teléfono como dígitos 7-12, separar por comas
+    const phoneMatch = text.match(/(\+?\d[\d\s-]{6,14}\d)/);
+    const parts = text.split(/[,\n]/).map(s => s.trim()).filter(Boolean);
+    if (!phoneMatch || parts.length < 2) {
+      return null; // no parece datos completos
+    }
+
+    // Asignación tentativa: dirección = primera parte, barrio/extra = segunda si existe, nombre = última parte
+    const addressLine = parts[0];
+    const neighborhood = parts.length >= 3 ? parts[1] : '';
+    const phone = phoneMatch[1].replace(/[^\d]/g, '');
+    const recipient = parts[parts.length - 1];
+
+    const updated = {
+      ...order,
+      delivery: {
+        type: 'delivery',
+        fee: typeof order.deliveryFee === 'number' ? order.deliveryFee : (order.delivery?.fee ?? 3000),
+        address: {
+          street: `${addressLine}${neighborhood ? `, ${neighborhood}` : ''}`,
+          city: undefined,
+          state: undefined,
+          zipCode: undefined
+        }
+      },
+      customer: {
+        ...(order.customer || {}),
+        phone,
+        name: recipient || 'Cliente WhatsApp'
+      }
+    };
+
+    await this.savePendingOrder(clientId, branchId, updated);
+
+    // Guardar pedido en BD
+    const saved = await this.saveOrderToDatabase(clientId, branchId, updated);
+
+    const etaMin = 25 + Math.floor(Math.random() * 11); // 25-35
+    return `✅ *PEDIDO CONFIRMADO*
+
+🆔 *Número de pedido:* ${saved.orderId}
+📍 *Entrega:* A domicilio
+📦 *Dirección:* ${updated.delivery.address.street}
+📞 *Contacto:* ${phone}
+👤 *Recibe:* ${recipient}
+💰 *Total:* $${updated.total.toLocaleString()}
+⏰ *Tiempo estimado:* ${etaMin} minutos
+
+¡Gracias por tu pedido! Tu domicilio va en camino. Fue un gusto atenderte, espero poder ayudarte de nuevo pronto.`;
   }
 
   // Confirmar pedido directamente (para recoger)
@@ -2237,22 +2656,21 @@ Por favor envía todos los datos en un solo mensaje, por ejemplo:
 
   // Obtener último pedido pendiente
   async getLastPendingOrder(clientId, branchId) {
-    // Por ahora retornamos un pedido de ejemplo
-    // En implementación real, esto vendría de la base de datos
-    return {
-      products: [
-        { name: 'café americano', quantity: 1, price: 3500, total: 3500 }
-      ],
-      subtotal: 3500,
-      delivery: { type: 'pickup', fee: 0 },
-      total: 6500
-    };
+    const key = `${clientId}::${branchId}`;
+    if (this._pendingOrders && this._pendingOrders.has(key)) {
+      return this._pendingOrders.get(key);
+    }
+    return null;
   }
 
   // Guardar pedido pendiente temporalmente
   async savePendingOrder(clientId, branchId, order) {
-    // Implementar guardado temporal en memoria o BD
-    console.log('💾 Guardando pedido pendiente:', order);
+    if (!this._pendingOrders) {
+      this._pendingOrders = new Map();
+    }
+    const key = `${clientId}::${branchId}`;
+    this._pendingOrders.set(key, { ...order, savedAt: Date.now() });
+    console.log('💾 Guardando pedido pendiente:', { key, items: order.products?.length || 0, total: order.total });
   }
 
   // Guardar pedido en base de datos
@@ -2260,8 +2678,16 @@ Por favor envía todos los datos en un solo mensaje, por ejemplo:
     const Order = require('../models/Order');
     const Branch = require('../models/Branch');
     
-    // Obtener businessId desde branchId
-    const branch = await Branch.findById(branchId);
+    // Obtener businessId desde branchId (aceptar ObjectId o branchId string)
+    let branch = null;
+    try {
+      branch = await Branch.findById(branchId);
+    } catch (e) {
+      branch = null;
+    }
+    if (!branch) {
+      branch = await Branch.findOne({ branchId: branchId });
+    }
     if (!branch) {
       throw new Error('Sucursal no encontrada');
     }
@@ -2272,8 +2698,8 @@ Por favor envía todos los datos en un solo mensaje, por ejemplo:
     // Crear objeto del pedido
     const orderData = {
       orderId,
-      businessId: branch.businessId,
-      branchId,
+      businessId: (branch.businessId && branch.businessId.toString) ? branch.businessId.toString() : String(branch.businessId || ''),
+      branchId: (branch._id && branch._id.toString) ? branch._id.toString() : String(branchId),
       customer: {
         phone: clientId,
         name: 'Cliente WhatsApp'
@@ -2286,9 +2712,9 @@ Por favor envía todos los datos en un solo mensaje, por ejemplo:
         serviceId: `SVC${Date.now()}${Math.random().toString(36).substr(2, 3).toUpperCase()}`
       })),
       delivery: {
-        type: order.delivery.type,
-        fee: order.delivery.fee,
-        address: order.delivery.address || null
+        type: (order.delivery && order.delivery.type) ? order.delivery.type : 'pickup',
+        fee: (order.delivery && typeof order.delivery.fee === 'number') ? order.delivery.fee : 0,
+        address: (order.delivery && order.delivery.address) ? order.delivery.address : null
       },
       subtotal: order.subtotal,
       total: order.total,
