@@ -5416,7 +5416,7 @@
                     if (availability === 'available') params.append('available', 'true');
 
                     const response = await this.authService.makeRequest(`${url}?${params}`);
-                    const data = response.data;
+                    const data = response;
 
                     this.renderServicesList(data.data || []);
                     this.updateServicesStats(data.data || []);
