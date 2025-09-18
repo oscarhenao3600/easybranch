@@ -120,7 +120,7 @@ class WhatsAppController {
 
     async initializeService() {
         try {
-            this.whatsappService = new WhatsAppServiceSimple();
+            this.whatsappService = WhatsAppServiceSimple.getInstance();
             
             // Actualizar el QRManager con el servicio de WhatsApp
             this.qrManager.setWhatsAppService(this.whatsappService);
@@ -290,6 +290,27 @@ class WhatsAppController {
 
             // Extract phone number from WhatsApp format (remove @c.us)
             const phoneNumber = from.replace('@c.us', '');
+
+            // Upsert persistent session for timers
+            try {
+                const SessionTimerService = require('../services/SessionTimerService');
+                const UserSession = require('../models/UserSession');
+                const branchDoc = await Branch.findById(connection.branchId);
+                const branchName = branchDoc?.name || 'nuestra sucursal';
+                if (!this._sessionTimerService) {
+                    this._sessionTimerService = new SessionTimerService();
+                    this._sessionTimerService.start();
+                }
+                await this._sessionTimerService.upsertActivity({
+                    phoneNumber,
+                    branchId: connection.branchId,
+                    connectionId: connection._id,
+                    branchName,
+                    hasActiveOrder: true
+                });
+            } catch (e) {
+                console.warn('⚠️ No se pudo actualizar la sesión persistente:', e.message);
+            }
             
             console.log('🤖 ===== PROCESANDO MENSAJE CON IA =====');
             console.log('📱 Connection ID:', connectionId);

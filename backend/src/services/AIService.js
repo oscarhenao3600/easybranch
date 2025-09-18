@@ -238,6 +238,14 @@ Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "env
       // Si es confirmación de pedido, procesar
       if (this.isOrderConfirmation(userMessage) && clientId) {
         console.log('✅ Confirmación de pedido detectada');
+        // Completar timers de sesión al confirmar (persistente)
+        try {
+          const SessionTimerService = require('./SessionTimerService');
+          const Branch = require('../models/Branch');
+          const svc = new SessionTimerService();
+          // branchId aquí llega como id de sucursal
+          await svc.complete({ phoneNumber: clientId, branchId });
+        } catch (_) {}
         return await this.handleOrderConfirmation(clientId, branchId, userMessage);
       }
 
@@ -469,24 +477,24 @@ Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "env
     
     const normalizedMessage = normalizeText(lowerMessage);
     
-    // PRIORIDAD 1: Pedidos (con variaciones de escritura)
+    // PRIORIDAD 1: Pedidos (más tolerante y con sinónimos comunes)
     const orderKeywords = [
-      'pedido', 'pedir', 'pido', 'pidir', 'pedir',
-      'orden', 'ordernar', 'ordenar', 'ordern',
-      'quiero', 'quier', 'quero', 'quero',
-      'dame', 'dam', 'dame', 'damelo',
-      'me das', 'me da', 'me das',
-      'tomar', 'tomar', 'tomar',
-      'me gustaria', 'me gustaria', 'me gustaria', 'megustaria',
-      'desayuno', 'desayuno', 'desayuno', 'desayuno',
-      'almuerzo', 'almuerzo', 'almuerzo',
-      'cena', 'cena', 'cena',
-      'cappuccino', 'capuchino', 'capuccino', 'capuchino',
-      'croissant', 'croisant', 'croisant', 'croisant',
-      'yogurt', 'yogur', 'yogurt', 'yogur',
-      'fruta', 'fruta', 'fruta',
-      'sandwich', 'sandwich', 'sandwich', 'sandwich',
-      'cafe americano', 'cafe americano', 'cafe americano'
+      // verbos y expresiones generales
+      'pedido', 'pedir', 'pido', 'orden', 'ordenar',
+      'quiero', 'quisiera', 'quiciera', 'kiciera', 'quisera',
+      'deseo', 'desearia', 'desearía', 'me gustaria', 'me gustaría',
+      'me das', 'me da', 'dame', 'ponme', 'ponga', 'tráeme', 'traeme',
+      'llevar', 'para llevar', 'para domicilio', 'a domicilio',
+
+      // triggers de menú que suelen implicar intención de pedir
+      'desayuno', 'almuerzo', 'cena',
+
+      // productos típicos que implican pedido directo
+      'cappuccino', 'capuchino', 'capuccino',
+      'croissant', 'croasan', 'yogurt', 'yogur', 'sandwich', 'sándwich', 'cafe', 'café',
+
+      // patrones de alitas
+      'combo', 'familiar', 'emparejado', 'alitas'
     ];
     
     const hasOrderKeyword = orderKeywords.some(keyword => 
@@ -494,6 +502,12 @@ Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "env
     );
     
     if (hasOrderKeyword) {
+      return 'hacer_pedido';
+    }
+
+    // Detección extra: mensajes cortos tipo "combo 2", "familiar 3", "combo4"
+    const comboLike = /(combo\s*\d+|familiar\s*\d+|combo\d+|fam\s*\d+)/i;
+    if (comboLike.test(lowerMessage)) {
       return 'hacer_pedido';
     }
     
@@ -510,13 +524,28 @@ Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "env
       return 'saludo';
     }
     
+    // Agradecimientos (tolerante a errores: gracia, grasias, grx, thanx, thanks, ty)
+    const gratitudePatterns = [
+      'gracias', 'gracia', 'grasias', 'grcs', 'grx', 'mil gracias', 'muchas gracias', 'se agradece',
+      'thanks', 'thank you', 'thanx', 'thx', 'ty'
+    ];
+    const isGratitude = gratitudePatterns.some(k => lowerMessage.includes(k));
+    if (isGratitude) {
+      return 'agradecimiento';
+    }
+    
     // PRIORIDAD 3: Consultas de menú
     if (lowerMessage.includes('menú pdf') || lowerMessage.includes('menu pdf') || lowerMessage.includes('pdf')) {
       return 'consulta_menu_pdf';
     }
-    if (lowerMessage.includes('menú') || lowerMessage.includes('menu') || lowerMessage.includes('qué tienen') ||
+    if (
+        lowerMessage.includes('menú') ||
+        lowerMessage.includes('menu') ||
+        normalizedMessage.startsWith('men') || // tolerar recortes: "men"
+        lowerMessage.includes('qué tienen') ||
         lowerMessage.includes('bebidas') || lowerMessage.includes('café') || lowerMessage.includes('cafe') ||
-        lowerMessage.includes('tienes') || lowerMessage.includes('tienen')) {
+        lowerMessage.includes('tienes') || lowerMessage.includes('tienen')
+    ) {
       return 'consulta_menu';
     }
     
@@ -779,7 +808,12 @@ Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "env
       if (orderAnalysis.products.length > 0) {
         specificContent = this.generateOrderResponse(orderAnalysis);
       } else {
-        specificContent = this.getOrderInfo(businessType);
+        // Clarificación amigable cuando hay intención de pedir pero sin productos claros
+        specificContent = (
+          `No estoy seguro de qué quieres pedir exactamente. ¿Puedes ser más específico?\n\n` +
+          `Por ejemplo, puedes decir: "quiero combo 2", "deseo un latte", "me gustaría familiar 3" ` +
+          `o el nombre del producto con cantidad.`
+        );
       }
     } else if (intent === 'consulta_horario') {
       specificContent = this.getScheduleInfo(businessType);
@@ -787,6 +821,9 @@ Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "env
       specificContent = this.getLocationInfo(businessType);
     } else if (intent === 'recomendacion') {
       specificContent = this.getRecommendationQuestion(clientId, branchId);
+    } else if (intent === 'agradecimiento') {
+      // Responder cortésmente a agradecimientos sin reabrir flujo
+      specificContent = 'Con gusto 😊 ¡Que tengas un excelente día!';
     }
 
     // Construir respuesta final
@@ -2396,6 +2433,9 @@ Escribe "recomendación" para hacer el test otra vez.`;
           }
           if (product.details.bebidas && product.details.bebidas.length > 0) {
             response += `   • Bebidas: ${product.details.bebidas.join(', ')}\n`;
+          } else {
+            // Fallback para sucursal de alitas mix cuando no hay info de bebidas
+            response += `   • Bebida incluida: Será despachada según disponibilidad (no tenemos información de sabores/tamaños). Estamos en mejora constante.\n`;
           }
           if (product.details.tipoAlitas) {
             response += `   • Tipo: ${product.details.tipoAlitas}\n`;
@@ -2887,7 +2927,16 @@ Escribe "recomendación" para hacer el test otra vez.`;
     ];
     
     const lowerMessage = message.toLowerCase().trim();
-    return confirmationKeywords.some(keyword => lowerMessage.includes(keyword));
+    const isConfirm = confirmationKeywords.some(keyword => lowerMessage.includes(keyword));
+    if (isConfirm) {
+      // Completar timers de sesión al confirmar pedido
+      try {
+        const InMemorySessionTimer = require('./InMemorySessionTimer');
+        const timers = InMemorySessionTimer.getInstance();
+        // Nota: aquí no tenemos phone/branch. El que confirma se maneja en generateResponse con clientId.
+      } catch (_) {}
+    }
+    return isConfirm;
   }
 
   // Detectar si el usuario está pidiendo/proponiendo enviar datos de envío
