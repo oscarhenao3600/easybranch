@@ -68,11 +68,10 @@ class DashboardController {
         Order.find({ isActive: true })
           .sort({ createdAt: -1 })
           .limit(5)
-          .populate('businessId', 'name')
-          .populate('branchId', 'name'),
+          .populate('businessId', 'name'),
         Order.aggregate([
           { $match: { isActive: true } },
-          { $group: { _id: null, total: { $sum: 500 } } }
+          { $group: { _id: null, total: { $sum: '$total' } } }
         ])
       ]);
 
@@ -123,11 +122,10 @@ class DashboardController {
         }),
         Order.find({ businessId, isActive: true })
           .sort({ createdAt: -1 })
-          .limit(5)
-          .populate('branchId', 'name'),
+          .limit(5),
         Order.aggregate([
           { $match: { businessId, isActive: true } },
-          { $group: { _id: null, total: { $sum: 500 } } }
+          { $group: { _id: null, total: { $sum: '$total' } } }
         ])
       ]);
 
@@ -178,7 +176,7 @@ class DashboardController {
           .populate('customer', 'name phone'),
         Order.aggregate([
           { $match: { branchId, isActive: true } },
-          { $group: { _id: null, total: { $sum: 500 } } }
+          { $group: { _id: null, total: { $sum: '$total' } } }
         ])
       ]);
 
@@ -265,13 +263,12 @@ class DashboardController {
       })
         .sort({ createdAt: -1 })
         .limit(3)
-        .populate('businessId', 'name')
-        .populate('branchId', 'name');
+        .populate('businessId', 'name');
 
       recentOrders.forEach(order => {
         activities.push({
           type: 'order',
-          message: `Nuevo pedido en ${order.branchId?.name || 'Sucursal'}`,
+          message: `Nuevo pedido en sucursal ${order.branchId}`,
           time: this.getTimeAgo(order.createdAt),
           timestamp: order.createdAt
         });
@@ -283,14 +280,13 @@ class DashboardController {
         ...(branchId && { branchId })
       })
         .sort({ updatedAt: -1 })
-        .limit(2)
-        .populate('branchId', 'name');
+        .limit(2);
 
       recentWhatsApp.forEach(connection => {
         if (connection.status === 'connected') {
           activities.push({
             type: 'whatsapp',
-            message: `WhatsApp conectado en ${connection.branchId?.name || 'Sucursal'}`,
+            message: `WhatsApp conectado en sucursal ${connection.branchId}`,
             time: this.getTimeAgo(connection.updatedAt),
             timestamp: connection.updatedAt
           });

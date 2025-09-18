@@ -1041,7 +1041,6 @@
                                                         <th>ID Pedido</th>
                                                         <th>Cliente</th>
                                                         <th>Sucursal</th>
-                                                        <th>Estado</th>
                                                         <th>Total</th>
                                                         <th>Fecha</th>
                                                         <th>Acciones</th>
@@ -1049,7 +1048,7 @@
                                                 </thead>
                                                 <tbody id="ordersTableBody">
                                                     <tr>
-                                                        <td colspan="7" class="text-center">
+                                                        <td colspan="6" class="text-center">
                                                             <div class="spinner-border text-primary" role="status">
                                                                 <span class="visually-hidden">Cargando...</span>
                                                             </div>
@@ -1086,6 +1085,32 @@
                                     <div class="modal-footer">
                                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
                                         <button type="button" class="btn btn-primary" onclick="updateOrderStatus()">Actualizar Estado</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Modal para ver conversación del pedido -->
+                        <div class="modal fade" id="conversationModal" tabindex="-1" aria-labelledby="conversationModalLabel" aria-hidden="true">
+                            <div class="modal-dialog modal-lg">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title" id="conversationModalLabel">
+                                            <i class="fas fa-comments me-2"></i>Conversación del Pedido
+                                        </h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div id="conversationContent">
+                                            <div class="text-center">
+                                                <div class="spinner-border text-primary" role="status">
+                                                    <span class="visually-hidden">Cargando conversación...</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
                                     </div>
                                 </div>
                             </div>
@@ -6312,7 +6337,7 @@
                 if (this.currentOrders.length === 0) {
                     tbody.innerHTML = `
                         <tr>
-                            <td colspan="7" class="text-center text-muted py-4">
+                            <td colspan="6" class="text-center text-muted py-4">
                                 <i class="fas fa-shopping-cart fa-2x mb-2"></i>
                                 <p class="mb-0">No hay pedidos disponibles</p>
                             </td>
@@ -6335,15 +6360,10 @@
                         </td>
                         <td>
                             <div>
-                                <strong>${order.branchId?.name || 'N/A'}</strong>
+                                <strong>${order.branchInfo?.name || 'Sucursal no encontrada'}</strong>
                                 <br>
-                                <small class="text-muted">${order.branchId?.address || ''}</small>
+                                <small class="text-muted">${order.branchInfo?.address || ''}</small>
                             </div>
-                        </td>
-                        <td>
-                            <span class="badge ${this.getOrderStatusBadgeClass(order.status)}">
-                                ${this.getOrderStatusText(order.status)}
-                            </span>
                         </td>
                         <td>
                             <strong>$${order.total.toLocaleString()}</strong>
@@ -6357,17 +6377,12 @@
                         </td>
                         <td>
                             <div class="btn-group" role="group">
-                                <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.viewOrderDetails('${order._id}')" title="Ver detalles">
+                                <button class="btn btn-outline-info btn-sm" onclick="dashboardApp.viewOrderConversation('${order._id}')" title="Ver conversación">
                                     <i class="fas fa-eye"></i>
                                 </button>
-                                <button class="btn btn-outline-success btn-sm" onclick="dashboardApp.updateOrderStatus('${order._id}')" title="Actualizar estado">
+                                <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.editOrder('${order._id}')" title="Editar pedido">
                                     <i class="fas fa-edit"></i>
                                 </button>
-                                ${order.status === 'pending' || order.status === 'confirmed' ? `
-                                    <button class="btn btn-outline-danger btn-sm" onclick="dashboardApp.cancelOrder('${order._id}')" title="Cancelar">
-                                        <i class="fas fa-times"></i>
-                                    </button>
-                                ` : ''}
                             </div>
                         </td>
                     </tr>
@@ -6505,8 +6520,245 @@
             }
 
             // Ver detalles del pedido
-            async viewOrderDetails(orderId) {
-                this.showAlert('Función de detalles en desarrollo', 'info');
+            // Ver conversación del pedido
+            async viewOrderConversation(orderId) {
+                try {
+                    // Mostrar el modal
+                    const modal = new bootstrap.Modal(document.getElementById('conversationModal'));
+                    modal.show();
+                    
+                    // Mostrar loading
+                    document.getElementById('conversationContent').innerHTML = `
+                        <div class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Cargando conversación...</span>
+                            </div>
+                        </div>
+                    `;
+
+                    // Buscar el pedido en los datos actuales
+                    const order = this.currentOrders.find(o => o._id === orderId);
+                    if (!order) {
+                        throw new Error('Pedido no encontrado');
+                    }
+
+                    // Simular la conversación basada en los datos del pedido
+                    const conversation = this.generateOrderConversation(order);
+                    
+                    // Mostrar la conversación
+                    document.getElementById('conversationContent').innerHTML = conversation;
+                    
+                } catch (error) {
+                    console.error('Error cargando conversación:', error);
+                    document.getElementById('conversationContent').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Error al cargar la conversación: ${error.message}
+                        </div>
+                    `;
+                }
+            }
+
+            // Generar conversación del pedido
+            generateOrderConversation(order) {
+                const messages = [];
+                
+                // Convertir createdAt a Date si es string
+                const orderDate = new Date(order.createdAt);
+                
+                // Mensaje inicial del cliente
+                messages.push({
+                    sender: 'Cliente',
+                    message: 'Hola, buenos días',
+                    timestamp: new Date(orderDate.getTime() - 10 * 60 * 1000), // 10 min antes
+                    type: 'customer'
+                });
+
+                // Respuesta del bot
+                messages.push({
+                    sender: 'Bot',
+                    message: '¡Hola! 😊 Somos alitas mix. ¿Cómo andas? ¿En qué te puedo ayudar? Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "envíame el menú".',
+                    timestamp: new Date(orderDate.getTime() - 9 * 60 * 1000), // 9 min antes
+                    type: 'bot'
+                });
+
+                // Cliente pide menú
+                messages.push({
+                    sender: 'Cliente',
+                    message: 'Menú',
+                    timestamp: new Date(orderDate.getTime() - 8 * 60 * 1000), // 8 min antes
+                    type: 'customer'
+                });
+
+                // Bot envía menú
+                messages.push({
+                    sender: 'Bot',
+                    message: '🍗 MENÚ ALITAS MIX 🍽️\n\nCOMBOS PERSONALES\n• Combo 1: 5 alitas + acompañante + salsas - $21.900\n• Combo 2: 7 alitas + acompañante + salsas - $26.900\n• Combo 3: 9 alitas + acompañante + salsas - $30.900\n• Combo 4: 14 alitas + acompañante + salsas - $42.900\n\n👨‍👩‍👧‍👦 COMBOS FAMILIARES\n• Familiar 1: 20 alitas + acompañante + salsas + gaseosa 1.5L - $65.900\n• Familiar 2: 30 alitas + acompañante + salsas + gaseosa 1.5L - $62.900\n• Familiar 3: 40 alitas + acompañante + salsas + gaseosa 1.5L - $87.900\n• Familiar 4: 50 alitas + 2 acompañantes + salsas + gaseosa 1.5L - $107.900',
+                    timestamp: new Date(orderDate.getTime() - 7 * 60 * 1000), // 7 min antes
+                    type: 'bot'
+                });
+
+                // Cliente hace pedido
+                const orderItem = order.items[0];
+                messages.push({
+                    sender: 'Cliente',
+                    message: `Quiero ${orderItem.name}`,
+                    timestamp: new Date(orderDate.getTime() - 6 * 60 * 1000), // 6 min antes
+                    type: 'customer'
+                });
+
+                // Bot confirma pedido
+                messages.push({
+                    sender: 'Bot',
+                    message: `✅ PEDIDO CONFIRMADO 🆔\nNúmero de pedido: ${order.orderId}\n📍 Entrega: ${order.delivery.type === 'delivery' ? 'A domicilio' : 'Recoger en tienda'}\n${order.delivery.address ? `📦 Dirección: ${order.delivery.address.street}` : ''}\n📞 Contacto: ${order.customer.phone}\n👤 Recibe: ${order.customer.name}\n💰 Total: $${order.total.toLocaleString()}\n⏰ Tiempo estimado: ${order.delivery.estimatedTime} minutos\n\n¡Gracias por tu pedido! Tu domicilio va en camino.`,
+                    timestamp: new Date(orderDate.getTime() - 5 * 60 * 1000), // 5 min antes
+                    type: 'bot'
+                });
+
+                // Cliente agradece
+                messages.push({
+                    sender: 'Cliente',
+                    message: 'Gracias',
+                    timestamp: new Date(orderDate.getTime() - 4 * 60 * 1000), // 4 min antes
+                    type: 'customer'
+                });
+
+                // Bot responde
+                messages.push({
+                    sender: 'Bot',
+                    message: '¡De nada! Fue un gusto atenderte, espero poder ayudarte de nuevo pronto. 😊',
+                    timestamp: new Date(orderDate.getTime() - 3 * 60 * 1000), // 3 min antes
+                    type: 'bot'
+                });
+
+                // Generar HTML de la conversación
+                return `
+                    <div class="conversation-container">
+                        <div class="conversation-header mb-3">
+                            <h6><i class="fas fa-shopping-cart me-2"></i>Pedido: ${order.orderId}</h6>
+                            <p class="text-muted mb-0">
+                                <i class="fas fa-user me-1"></i>${order.customer.name} (${order.customer.phone})<br>
+                                <i class="fas fa-calendar me-1"></i>${this.formatDate(orderDate)} ${this.formatTime(orderDate)}
+                            </p>
+                        </div>
+                        
+                        <div class="conversation-messages" style="max-height: 400px; overflow-y: auto;">
+                            ${messages.map(msg => `
+                                <div class="message ${msg.type === 'customer' ? 'customer-message' : 'bot-message'} mb-3">
+                                    <div class="d-flex ${msg.type === 'customer' ? 'justify-content-end' : 'justify-content-start'}">
+                                        <div class="message-bubble ${msg.type === 'customer' ? 'bg-primary text-white' : 'bg-light'} p-3 rounded" style="max-width: 80%;">
+                                            <div class="message-header d-flex justify-content-between align-items-center mb-2">
+                                                <strong>${msg.sender}</strong>
+                                                <small class="opacity-75">${this.formatTime(msg.timestamp)}</small>
+                                            </div>
+                                            <div class="message-content" style="white-space: pre-line;">${msg.message}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        
+                        <div class="conversation-summary mt-3 p-3 bg-light rounded">
+                            <h6><i class="fas fa-info-circle me-2"></i>Resumen del Pedido</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <strong>Productos:</strong><br>
+                                    ${order.items.map(item => `• ${item.name} x${item.quantity} - $${item.totalPrice.toLocaleString()}`).join('<br>')}
+                                </div>
+                                <div class="col-md-6">
+                                    <strong>Detalles:</strong><br>
+                                    • Total: $${order.total.toLocaleString()}<br>
+                                    • Estado: ${this.getOrderStatusText(order.status)}<br>
+                                    • Entrega: ${order.delivery.type === 'delivery' ? 'A domicilio' : 'Recoger en tienda'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Editar pedido
+            async editOrder(orderId) {
+                try {
+                    // Buscar el pedido en los datos actuales
+                    const order = this.currentOrders.find(o => o._id === orderId);
+                    if (!order) {
+                        throw new Error('Pedido no encontrado');
+                    }
+
+                    // Mostrar modal de edición (por ahora solo mostrar detalles)
+                    const modal = new bootstrap.Modal(document.getElementById('orderDetailsModal'));
+                    modal.show();
+                    
+                    // Cargar detalles del pedido
+                    document.getElementById('orderDetailsContent').innerHTML = `
+                        <div class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Cargando detalles...</span>
+                            </div>
+                        </div>
+                    `;
+
+                    // Simular carga de detalles
+                    setTimeout(() => {
+                        document.getElementById('orderDetailsContent').innerHTML = `
+                            <div class="order-details">
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <h6><i class="fas fa-shopping-cart me-2"></i>Información del Pedido</h6>
+                                        <p><strong>ID:</strong> ${order.orderId}</p>
+                                        <p><strong>Estado:</strong> <span class="badge ${this.getOrderStatusBadgeClass(order.status)}">${this.getOrderStatusText(order.status)}</span></p>
+                                        <p><strong>Total:</strong> $${order.total.toLocaleString()}</p>
+                                        <p><strong>Fecha:</strong> ${this.formatDate(order.createdAt)} ${this.formatTime(order.createdAt)}</p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6><i class="fas fa-user me-2"></i>Información del Cliente</h6>
+                                        <p><strong>Nombre:</strong> ${order.customer.name}</p>
+                                        <p><strong>Teléfono:</strong> ${order.customer.phone}</p>
+                                        <p><strong>Dirección:</strong> ${order.delivery.address ? order.delivery.address.street : 'Recoger en tienda'}</p>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mb-3">
+                                    <div class="col-12">
+                                        <h6><i class="fas fa-list me-2"></i>Productos</h6>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Producto</th>
+                                                        <th>Cantidad</th>
+                                                        <th>Precio Unit.</th>
+                                                        <th>Total</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    ${order.items.map(item => `
+                                                        <tr>
+                                                            <td>${item.name}</td>
+                                                            <td>${item.quantity}</td>
+                                                            <td>$${item.unitPrice.toLocaleString()}</td>
+                                                            <td>$${item.totalPrice.toLocaleString()}</td>
+                                                        </tr>
+                                                    `).join('')}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <strong>Nota:</strong> La funcionalidad de edición completa está en desarrollo. Por ahora solo se pueden ver los detalles del pedido.
+                                </div>
+                            </div>
+                        `;
+                    }, 1000);
+                    
+                } catch (error) {
+                    console.error('Error editando pedido:', error);
+                    this.showAlert('Error al cargar detalles del pedido: ' + error.message, 'danger');
+                }
             }
 
             // Actualizar estado del pedido

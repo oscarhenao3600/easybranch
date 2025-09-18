@@ -57,17 +57,34 @@ router.get('/orders', authMiddleware.verifyToken, authMiddleware.requireRole(['s
 
         // Obtener pedidos con información de sucursal
         const orders = await Order.find(filter)
-            .populate('branchId', 'name businessId')
             .populate('businessId', 'name')
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(parseInt(limit));
 
+        // Obtener información de sucursales por separado ya que branchId es string
+        const branchIds = [...new Set(orders.map(order => order.branchId).filter(Boolean))];
+        const branches = await Branch.find({ branchId: { $in: branchIds } });
+        const branchMap = {};
+        branches.forEach(branch => {
+            branchMap[branch.branchId] = branch;
+        });
+
+        // Agregar información de sucursal a cada pedido
+        orders.forEach(order => {
+            if (order.branchId && branchMap[order.branchId]) {
+                order.branchInfo = {
+                    name: branchMap[order.branchId].name,
+                    businessId: branchMap[order.branchId].businessId
+                };
+            }
+        });
+
         // Contar total
         const total = await Order.countDocuments(filter);
 
         // Obtener sucursales disponibles para filtros
-        const branches = await Branch.find(
+        const availableBranches = await Branch.find(
             req.user.role === 'business_admin' ? { businessId: req.user.businessId } : {}
         ).select('branchId name businessId').populate('businessId', 'name');
 
@@ -77,7 +94,7 @@ router.get('/orders', authMiddleware.verifyToken, authMiddleware.requireRole(['s
                 orders: orders.map(order => ({
                     orderId: order.orderId,
                     businessName: order.businessId?.name,
-                    branchName: order.branchId?.name,
+                    branchName: order.branchInfo?.name || 'Sucursal no encontrada',
                     customer: order.customer,
                     items: order.items,
                     total: order.total,
@@ -87,7 +104,7 @@ router.get('/orders', authMiddleware.verifyToken, authMiddleware.requireRole(['s
                     payment: order.payment,
                     billingInfo: order.billingInfo || null
                 })),
-                branches,
+                branches: availableBranches,
                 pagination: {
                     page: parseInt(page),
                     limit: parseInt(limit),
@@ -221,7 +238,6 @@ router.post('/generate-invoice', authMiddleware.verifyToken, authMiddleware.requ
 
         // Obtener el pedido
         const order = await Order.findOne({ orderId })
-            .populate('branchId', 'name businessId billingInfo')
             .populate('businessId', 'name');
 
         if (!order) {
@@ -300,7 +316,6 @@ router.post('/send-invoice', authMiddleware.verifyToken, authMiddleware.requireR
 
         // Obtener el pedido
         const order = await Order.findOne({ orderId })
-            .populate('branchId', 'name businessId billingInfo')
             .populate('businessId', 'name');
 
         if (!order) {
@@ -414,7 +429,6 @@ router.get('/invoices', authMiddleware.verifyToken, authMiddleware.requireRole([
 
         // Obtener pedidos con cuentas de cobro
         const orders = await Order.find(filter)
-            .populate('branchId', 'name businessId')
             .populate('businessId', 'name')
             .sort({ 'billingInfo.generatedAt': -1 })
             .skip(skip)

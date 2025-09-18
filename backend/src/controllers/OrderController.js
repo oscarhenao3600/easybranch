@@ -50,11 +50,49 @@ class OrderController {
       // Obtener pedidos con información de negocio y sucursal
       const orders = await Order.find(filters)
         .populate('businessId', 'name businessType')
-        .populate('branchId', 'name address')
         .populate('assignedTo', 'name email')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit));
+
+      // Obtener información de sucursales por separado ya que branchId puede ser string o ObjectId
+      const branchIds = [...new Set(orders.map(order => order.branchId).filter(Boolean))];
+      
+      // Separar ObjectIds válidos de strings
+      const mongoose = require('mongoose');
+      const validObjectIds = branchIds.filter(id => mongoose.Types.ObjectId.isValid(id));
+      const stringIds = branchIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
+      
+      // Construir consulta condicionalmente
+      const query = {};
+      if (validObjectIds.length > 0 && stringIds.length > 0) {
+        query.$or = [
+          { branchId: { $in: stringIds } },
+          { _id: { $in: validObjectIds } }
+        ];
+      } else if (validObjectIds.length > 0) {
+        query._id = { $in: validObjectIds };
+      } else if (stringIds.length > 0) {
+        query.branchId = { $in: stringIds };
+      }
+      
+      const branches = await Branch.find(query);
+      const branchMap = {};
+      branches.forEach(branch => {
+        // Mapear tanto por branchId como por _id
+        branchMap[branch.branchId] = branch;
+        branchMap[branch._id.toString()] = branch;
+      });
+
+      // Agregar información de sucursal a cada pedido
+      orders.forEach(order => {
+        if (order.branchId && branchMap[order.branchId]) {
+          order.branchInfo = {
+            name: branchMap[order.branchId].name,
+            address: branchMap[order.branchId].address
+          };
+        }
+      });
 
       // Contar total de pedidos
       const totalOrders = await Order.countDocuments(filters);
@@ -94,7 +132,6 @@ class OrderController {
       
       const order = await Order.findById(id)
         .populate('businessId', 'name businessType')
-        .populate('branchId', 'name address phone')
         .populate('assignedTo', 'name email phone');
 
       if (!order) {
@@ -102,6 +139,18 @@ class OrderController {
           success: false,
           message: 'Pedido no encontrado'
         });
+      }
+
+      // Obtener información de sucursal por separado
+      if (order.branchId) {
+        const branch = await Branch.findOne({ branchId: order.branchId });
+        if (branch) {
+          order.branchInfo = {
+            name: branch.name,
+            address: branch.address,
+            phone: branch.contact?.phone
+          };
+        }
       }
 
       res.json({
