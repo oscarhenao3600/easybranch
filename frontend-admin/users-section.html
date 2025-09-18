@@ -1,63 +1,130 @@
 <!-- Sección de Gestión de Usuarios -->
+<style>
+    .whatsapp-btn {
+        border: none;
+        border-radius: 20px;
+        padding: 10px 20px;
+        font-weight: 500;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        text-decoration: none;
+    }
+    
+    .whatsapp-btn-primary {
+        background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+        color: white;
+        box-shadow: 0 2px 4px rgba(37, 211, 102, 0.3);
+    }
+    
+    .whatsapp-btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(37, 211, 102, 0.4);
+        color: white;
+    }
+    
+    .whatsapp-header {
+        background: #ffffff;
+        border-bottom: 1px solid #e9edef;
+        padding: 16px 20px;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    
+    .header-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    
+    .header-left {
+        flex: 1;
+    }
+    
+    .header-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #111b21;
+        margin: 0;
+        display: flex;
+        align-items: center;
+    }
+    
+    .header-subtitle {
+        font-size: 0.9rem;
+        color: #667781;
+        margin: 4px 0 0 0;
+    }
+    
+    .header-right {
+        flex-shrink: 0;
+    }
+</style>
 <div class="container-fluid">
-    <!-- Header con estadísticas -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h4 class="mb-0">
-                            <i class="fas fa-users me-2"></i>
-                            Gestión de Usuarios
-                        </h4>
-                        <button class="btn btn-light" onclick="dashboardApp.openCreateUserModal()">
-                            <i class="fas fa-plus me-2"></i>
-                            Nuevo Usuario
-                        </button>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <!-- Estadísticas -->
-                    <div class="row" id="userStats">
+    <!-- WhatsApp-style Header -->
+    <div class="whatsapp-header">
+        <div class="header-content">
+            <div class="header-left">
+                <h4 class="header-title">
+                    <i class="fas fa-users me-2"></i>
+                    Gestión de Usuarios
+                </h4>
+                <p class="header-subtitle">Gestiona usuarios y permisos del sistema</p>
+            </div>
+            <div class="header-right">
+                <button class="whatsapp-btn whatsapp-btn-primary" onclick="dashboardApp.openCreateUserModal()">
+                    <i class="fas fa-plus me-1"></i>
+                    Nuevo Usuario
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Content Area -->
+    <div class="p-4">
+        <!-- Estadísticas -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <!-- Estadísticas -->
+                        <div class="row" id="userStats">
                         <div class="col-md-3">
-                            <div class="card stat-card">
-                                <div class="card-body text-center">
-                                    <h3 id="totalUsersCount" class="text-primary">0</h3>
-                                    <p class="mb-0">Total Usuarios</p>
-                                </div>
+                            <div class="stat-item">
+                                <h3 id="totalUsersCount" style="color: #000; padding: 10px; border-radius: 8px; margin-bottom: 10px;">0</h3>
+                                <p class="mb-0">Total Usuarios</p>
                             </div>
                         </div>
                         <div class="col-md-3">
-                            <div class="card stat-card">
-                                <div class="card-body text-center">
-                                    <h3 id="activeUsersCount" class="text-success">0</h3>
-                                    <p class="mb-0">Usuarios Activos</p>
-                                </div>
+                            <div class="stat-item">
+                                <h3 id="activeUsersCount" style="color: #000; padding: 10px; border-radius: 8px; margin-bottom: 10px;">0</h3>
+                                <p class="mb-0">Usuarios Activos</p>
                             </div>
                         </div>
                         <div class="col-md-3">
-                            <div class="card stat-card">
-                                <div class="card-body text-center">
-                                    <h3 id="inactiveUsersCount" class="text-warning">0</h3>
-                                    <p class="mb-0">Usuarios Inactivos</p>
-                                </div>
+                            <div class="stat-item">
+                                <h3 id="inactiveUsersCount" style="color: #000; padding: 10px; border-radius: 8px; margin-bottom: 10px;">0</h3>
+                                <p class="mb-0">Usuarios Inactivos</p>
                             </div>
                         </div>
                         <div class="col-md-3">
-                            <div class="card stat-card">
-                                <div class="card-body text-center">
-                                    <h3 id="adminUsersCount" class="text-info">0</h3>
-                                    <p class="mb-0">Administradores</p>
-                                </div>
+                            <div class="stat-item">
+                                <h3 id="adminUsersCount" style="color: #000; padding: 10px; border-radius: 8px; margin-bottom: 10px;">0</h3>
+                                <p class="mb-0">Administradores</p>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Filtros y búsqueda -->
+        <!-- Filtros y búsqueda -->
     <div class="row mb-4">
         <div class="col-12">
             <div class="card">
@@ -308,5 +375,7 @@
                 </div>
             </form>
         </div>
+    </div>
+</div>
     </div>
 </div>
