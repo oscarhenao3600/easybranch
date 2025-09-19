@@ -874,6 +874,11 @@ Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "env
 
     // Conversación más natural sin frases repetitivas
 
+    // Guardar respuesta del asistente en el historial
+    if (clientId) {
+      await this.saveAssistantResponse(clientId, branchId, finalResponse);
+    }
+
     return finalResponse;
   }
 
@@ -2516,11 +2521,59 @@ Escribe "recomendación" para hacer el test otra vez.`;
     return response;
   }
 
-  // Guardar mensaje en historial de conversación
-  async saveConversationMessage(clientId, branchId, userMessage, intent) {
+  // Guardar respuesta del asistente en el último mensaje
+  async saveAssistantResponse(clientId, branchId, assistantResponse) {
     try {
       const mongoose = require('mongoose');
       const db = mongoose.connection.db;
+      
+      // Buscar la conversación del cliente
+      const conversation = await db.collection('conversations').findOne({
+        clientId: clientId,
+        branchId: branchId
+      });
+      
+      if (conversation && conversation.messages && conversation.messages.length > 0) {
+        // Actualizar el último mensaje con la respuesta del asistente
+        const lastMessageIndex = conversation.messages.length - 1;
+        
+        await db.collection('conversations').updateOne(
+          { 
+            clientId: clientId,
+            branchId: branchId
+          },
+          { 
+            $set: {
+              [`messages.${lastMessageIndex}.assistant`]: assistantResponse,
+              lastActivity: new Date(),
+              updatedAt: new Date()
+            }
+          }
+        );
+        
+        this.logger.info(`🤖 Respuesta del asistente guardada para cliente ${clientId}`);
+      }
+    } catch (error) {
+      this.logger.error('Error guardando respuesta del asistente:', error);
+    }
+  }
+
+  // Guardar mensaje en historial de conversación
+  async saveConversationMessage(clientId, branchId, userMessage, intent, assistantResponse = null) {
+    try {
+      const mongoose = require('mongoose');
+      const db = mongoose.connection.db;
+      
+      const messageData = {
+        user: userMessage,
+        timestamp: new Date(),
+        intent: intent
+      };
+      
+      // Agregar respuesta del asistente si está disponible
+      if (assistantResponse) {
+        messageData.assistant = assistantResponse;
+      }
       
       await db.collection('conversations').updateOne(
         { 
@@ -2529,11 +2582,7 @@ Escribe "recomendación" para hacer el test otra vez.`;
         },
         { 
           $push: { 
-            messages: {
-              user: userMessage,
-              timestamp: new Date(),
-              intent: intent
-            }
+            messages: messageData
           },
           $set: {
             lastActivity: new Date(),

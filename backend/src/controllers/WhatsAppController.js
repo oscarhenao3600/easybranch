@@ -338,6 +338,9 @@ class WhatsAppController {
                         phoneNumber,
                         branchId: connection.branchId
                     });
+                    
+                    // Enviar resumen del pedido a la sucursal
+                    await this.sendOrderSummaryToBranch(connection, phoneNumber, message);
                 } else {
                     // Cualquier otro mensaje reinicia el timer
                     await this._sessionTimerService.onMessageReceived({
@@ -1922,6 +1925,203 @@ Puedes:
 
             await this.whatsappService.sendMessage(connectionId, phoneNumber, fallbackMessage);
         }
+    }
+
+    // Enviar resumen del pedido a la sucursal
+    async sendOrderSummaryToBranch(connection, clientPhoneNumber, clientMessage) {
+        try {
+            console.log('📤 ===== ENVIANDO RESUMEN DE PEDIDO A SUCURSAL =====');
+            console.log('📱 Connection ID:', connection._id);
+            console.log('👤 Cliente:', clientPhoneNumber);
+            console.log('🏪 Sucursal:', connection.customerServiceNumber);
+            console.log('💬 Mensaje del cliente:', clientMessage);
+
+            // Verificar que existe el número de servicio al cliente
+            if (!connection.customerServiceNumber) {
+                console.log('❌ No hay número de servicio al cliente configurado');
+                this.logger.warn('No customer service number configured for connection', { 
+                    connectionId: connection._id 
+                });
+                return;
+            }
+
+            // Obtener información de la sucursal
+            const Branch = require('../models/Branch');
+            const branch = await Branch.findById(connection.branchId);
+            const branchName = branch?.name || 'Sucursal';
+            
+            console.log('🏪 Información de sucursal:');
+            console.log('   Nombre:', branchName);
+            console.log('   Teléfono sucursal:', branch?.whatsapp?.phoneNumber);
+            console.log('   Customer Service Number:', connection.customerServiceNumber);
+
+            // Verificar que el customerServiceNumber coincida con el teléfono de la sucursal
+            if (branch?.whatsapp?.phoneNumber) {
+                const branchPhone = branch.whatsapp.phoneNumber.replace(/[^0-9]/g, '');
+                const servicePhone = connection.customerServiceNumber.replace(/[^0-9]/g, '');
+                
+                console.log('🔍 Verificación de teléfonos:');
+                console.log('   Teléfono sucursal limpio:', branchPhone);
+                console.log('   Customer service limpio:', servicePhone);
+                console.log('   ¿Coinciden?:', branchPhone === servicePhone ? 'SÍ' : 'NO');
+                
+                if (branchPhone !== servicePhone) {
+                    console.log('⚠️ ADVERTENCIA: El customerServiceNumber no coincide con el teléfono de la sucursal');
+                    console.log('   Continuando con el envío usando customerServiceNumber...');
+                }
+            } else {
+                console.log('⚠️ ADVERTENCIA: No hay teléfono configurado en la sucursal');
+            }
+
+            // Obtener el último pedido del cliente para generar el resumen
+            const Order = require('../models/Order');
+            const lastOrder = await Order.findOne({
+                'customer.phone': clientPhoneNumber,
+                branchId: connection.branchId
+            }).sort({ createdAt: -1 });
+
+            if (!lastOrder) {
+                console.log('❌ No se encontró pedido para el cliente');
+                this.logger.warn('No order found for client', { 
+                    clientPhoneNumber, 
+                    branchId: connection.branchId 
+                });
+                return;
+            }
+
+            console.log('📦 Pedido encontrado:');
+            console.log('   Order ID:', lastOrder.orderId);
+            console.log('   Cliente:', lastOrder.customer.name);
+            console.log('   Total:', lastOrder.total);
+            console.log('   Estado:', lastOrder.status);
+
+            // Generar resumen del pedido
+            const orderSummary = this.generateOrderSummary(lastOrder, branchName, clientPhoneNumber);
+            
+            console.log('📋 Resumen generado (primeros 200 caracteres):');
+            console.log(orderSummary.substring(0, 200) + '...');
+
+            // Enviar mensaje a la sucursal
+            const branchPhoneNumber = connection.customerServiceNumber.replace('@c.us', '');
+            const connectionIdStr = String(connection._id);
+            
+            console.log('📤 Preparando envío:');
+            console.log('   Connection ID:', connectionIdStr);
+            console.log('   Teléfono destino:', branchPhoneNumber);
+            console.log('   Longitud del mensaje:', orderSummary.length, 'caracteres');
+            
+            // Verificar que el cliente WhatsApp esté disponible
+            const whatsappService = this.whatsappService;
+            const client = whatsappService.clients.get(connectionIdStr);
+            
+            if (!client) {
+                console.log('❌ Cliente WhatsApp no encontrado para la conexión');
+                this.logger.error('WhatsApp client not found for connection', { connectionId: connectionIdStr });
+                return;
+            }
+            
+            console.log('✅ Cliente WhatsApp encontrado, estado:', client.info ? 'Ready' : 'Not ready');
+            
+            // Enviar el mensaje
+            console.log('🚀 Enviando mensaje a la sucursal...');
+            const messageId = await whatsappService.sendMessage(connectionIdStr, branchPhoneNumber, orderSummary);
+            
+            console.log('✅ ===== RESUMEN ENVIADO EXITOSAMENTE =====');
+            console.log('📱 Connection ID:', connectionIdStr);
+            console.log('📞 Teléfono destino:', branchPhoneNumber);
+            console.log('🆔 Message ID:', messageId);
+            console.log('📦 Order ID:', lastOrder.orderId);
+            console.log('👤 Cliente:', clientPhoneNumber);
+            console.log('==========================================');
+            
+            this.logger.info('Order summary sent to branch successfully', {
+                connectionId: connection._id,
+                branchPhoneNumber,
+                orderId: lastOrder.orderId,
+                clientPhoneNumber,
+                messageId
+            });
+
+        } catch (error) {
+            console.error('❌ ===== ERROR ENVIANDO RESUMEN A SUCURSAL =====');
+            console.error('Error:', error.message);
+            console.error('Stack:', error.stack);
+            console.error('===============================================');
+            
+            this.logger.error('Error sending order summary to branch', {
+                error: error.message,
+                stack: error.stack,
+                connectionId: connection._id,
+                clientPhoneNumber
+            });
+        }
+    }
+
+    // Generar resumen del pedido para enviar a la sucursal
+    generateOrderSummary(order, branchName, clientPhoneNumber) {
+        const orderDate = new Date(order.createdAt).toLocaleString('es-CO', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+
+        let summary = `🍽️ *NUEVO PEDIDO CONFIRMADO* 🍽️\n\n`;
+        summary += `📋 *Pedido:* ${order.orderId}\n`;
+        summary += `🏪 *Sucursal:* ${branchName}\n`;
+        summary += `👤 *Cliente:* ${order.customer.name}\n`;
+        summary += `📞 *Teléfono:* ${clientPhoneNumber}\n`;
+        summary += `📅 *Fecha:* ${orderDate}\n\n`;
+
+        // Agregar items del pedido
+        if (order.items && order.items.length > 0) {
+            summary += `🛒 *ITEMS DEL PEDIDO:*\n`;
+            order.items.forEach((item, index) => {
+                const price = item.price || 0;
+                summary += `${index + 1}. ${item.name} - $${price.toLocaleString()}\n`;
+                if (item.quantity > 1) {
+                    summary += `   Cantidad: ${item.quantity}\n`;
+                }
+                if (item.notes) {
+                    summary += `   Notas: ${item.notes}\n`;
+                }
+            });
+            summary += `\n`;
+        }
+
+        // Agregar información de entrega
+        if (order.delivery) {
+            summary += `🚚 *INFORMACIÓN DE ENTREGA:*\n`;
+            summary += `📍 *Dirección:* ${order.delivery.address}\n`;
+            summary += `📞 *Teléfono:* ${order.delivery.phone}\n`;
+            summary += `👤 *Contacto:* ${order.delivery.contactName}\n`;
+            if (order.delivery.instructions) {
+                summary += `📝 *Instrucciones:* ${order.delivery.instructions}\n`;
+            }
+            summary += `\n`;
+        }
+
+        // Agregar totales
+        summary += `💰 *RESUMEN DE PAGOS:*\n`;
+        summary += `Subtotal: $${order.subtotal.toLocaleString()}\n`;
+        if (order.tax > 0) {
+            summary += `Impuestos: $${order.tax.toLocaleString()}\n`;
+        }
+        if (order.serviceFee > 0) {
+            summary += `Servicio: $${order.serviceFee.toLocaleString()}\n`;
+        }
+        summary += `*TOTAL: $${order.total.toLocaleString()}*\n\n`;
+
+        // Agregar estado del pedido
+        summary += `📊 *Estado:* ${order.status.toUpperCase()}\n`;
+        summary += `💳 *Pago:* ${order.payment.method.toUpperCase()}\n\n`;
+
+        summary += `✅ *El cliente ha confirmado este pedido*\n`;
+        summary += `📱 *Fuente:* WhatsApp\n\n`;
+        summary += `¡Gracias por usar nuestro servicio! 🎉`;
+
+        return summary;
     }
 }
 

@@ -6726,74 +6726,157 @@
                 const { orderId, orderDate, customerPhone, customerName, branchName, conversation, orderDetails } = data;
                 
                 let html = `
-                    <div class="conversation-header mb-3">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <h6 class="mb-1"><i class="fas fa-shopping-cart me-2"></i>Pedido: ${orderId}</h6>
-                                <small class="text-muted">Cliente: ${customerName} (${customerPhone})</small>
-                            </div>
-                            <div class="col-md-6">
-                                <h6 class="mb-1"><i class="fas fa-store me-2"></i>Sucursal: ${branchName}</h6>
-                                <small class="text-muted">Fecha: ${new Date(orderDate).toLocaleString()}</small>
-                            </div>
-                        </div>
-                    </div>
+                    <style>
+                        .whatsapp-chat {
+                            background: #e5ddd5;
+                            border-radius: 10px;
+                            padding: 15px;
+                            max-height: 500px;
+                            overflow-y: auto;
+                            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                        }
+                        .whatsapp-message {
+                            margin-bottom: 10px;
+                            display: flex;
+                            align-items: flex-end;
+                        }
+                        .whatsapp-message.user {
+                            justify-content: flex-end;
+                        }
+                        .whatsapp-message.bot {
+                            justify-content: flex-start;
+                        }
+                        .message-bubble {
+                            max-width: 70%;
+                            padding: 8px 12px;
+                            border-radius: 18px;
+                            position: relative;
+                            word-wrap: break-word;
+                            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+                        }
+                        .message-bubble.user {
+                            background: #dcf8c6;
+                            color: #000;
+                            border-bottom-right-radius: 4px;
+                        }
+                        .message-bubble.bot {
+                            background: #ffffff;
+                            color: #000;
+                            border-bottom-left-radius: 4px;
+                        }
+                        .message-time {
+                            font-size: 11px;
+                            color: #999;
+                            margin-top: 2px;
+                            text-align: right;
+                        }
+                        .message-time.bot {
+                            text-align: left;
+                        }
+                        .message-sender {
+                            font-size: 12px;
+                            font-weight: bold;
+                            margin-bottom: 2px;
+                            color: #075e54;
+                        }
+                        .conversation-header {
+                            background: #075e54;
+                            color: white;
+                            padding: 15px;
+                            border-radius: 10px 10px 0 0;
+                            margin-bottom: 0;
+                        }
+                        .order-summary {
+                            background: #f0f0f0;
+                            padding: 15px;
+                            border-radius: 0 0 10px 10px;
+                            margin-bottom: 0;
+                        }
+                        .whatsapp-chat-container {
+                            border: 1px solid #ddd;
+                            border-radius: 10px;
+                            overflow: hidden;
+                        }
+                    </style>
                     
-                    <div class="order-summary mb-3 p-3 bg-light rounded">
-                        <h6><i class="fas fa-list me-2"></i>Resumen del Pedido:</h6>
-                        <div class="row">
-                            <div class="col-md-8">
-                                <ul class="list-unstyled mb-0">
-                                    ${orderDetails.items.map(item => `
-                                        <li><strong>${item.name}</strong> x${item.quantity} - $${item.totalPrice.toLocaleString()}</li>
-                                    `).join('')}
-                                </ul>
-                            </div>
-                            <div class="col-md-4 text-end">
-                                <div class="fw-bold">Total: $${orderDetails.total.toLocaleString()}</div>
-                                <small class="text-muted">${orderDetails.delivery.type === 'delivery' ? 'Domicilio' : 'Recoger'}</small>
+                    <div class="whatsapp-chat-container">
+                        <div class="conversation-header">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6 class="mb-1"><i class="fas fa-shopping-cart me-2"></i>Pedido: ${orderId}</h6>
+                                    <small>Cliente: ${customerName} (${customerPhone})</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6 class="mb-1"><i class="fas fa-store me-2"></i>Sucursal: ${branchName}</h6>
+                                    <small>Fecha: ${new Date(orderDate).toLocaleString()}</small>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                        
+                        <div class="order-summary">
+                            <h6><i class="fas fa-list me-2"></i>Resumen del Pedido:</h6>
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <ul class="list-unstyled mb-0">
+                                        ${orderDetails.items.map(item => `
+                                            <li><strong>${item.name}</strong> x${item.quantity} - $${item.totalPrice.toLocaleString()}</li>
+                                        `).join('')}
+                                    </ul>
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <div class="fw-bold">Total: $${orderDetails.total.toLocaleString()}</div>
+                                    <small class="text-muted">${orderDetails.delivery.type === 'delivery' ? 'Domicilio' : 'Recoger'}</small>
+                                </div>
+                            </div>
+                        </div>
                 `;
 
                 if (conversation && conversation.length > 0) {
                     html += `
-                        <div class="conversation-messages">
-                            <h6><i class="fas fa-comments me-2"></i>Conversación (${conversation.length} mensajes):</h6>
-                            <div class="messages-container" style="max-height: 400px; overflow-y: auto;">
+                        <div class="whatsapp-chat">
+                            <div class="text-center mb-3">
+                                <small class="text-muted">
+                                    <i class="fab fa-whatsapp me-1"></i>
+                                    Conversación de WhatsApp (${conversation.length} mensajes)
+                                </small>
+                            </div>
                     `;
 
                     conversation.forEach((msg, index) => {
                         const isUser = msg.user && !msg.assistant;
-                        const timestamp = new Date(msg.timestamp).toLocaleTimeString();
+                        const messageText = isUser ? msg.user : msg.assistant;
+                        const timestamp = new Date(msg.timestamp).toLocaleTimeString('es-CO', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        });
+                        const senderName = isUser ? customerName : `${branchName} (Bot)`;
                         
                         html += `
-                            <div class="message ${isUser ? 'user-message' : 'bot-message'} mb-2 p-2 rounded">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div class="message-content">
-                                        <div class="message-text">${isUser ? msg.user : msg.assistant}</div>
-                                        ${msg.intent ? `<small class="text-muted">Intención: ${msg.intent}</small>` : ''}
-                                    </div>
-                                    <small class="text-muted ms-2">${timestamp}</small>
+                            <div class="whatsapp-message ${isUser ? 'user' : 'bot'}">
+                                <div class="message-bubble ${isUser ? 'user' : 'bot'}">
+                                    <div class="message-sender">${senderName}</div>
+                                    <div class="message-text">${messageText}</div>
+                                    <div class="message-time ${isUser ? 'user' : 'bot'}">${timestamp}</div>
                                 </div>
                             </div>
                         `;
                     });
 
                     html += `
-                            </div>
                         </div>
                     `;
                 } else {
                     html += `
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle me-2"></i>
-                            No se encontraron mensajes de conversación para este pedido.
+                        <div class="whatsapp-chat">
+                            <div class="alert alert-info m-3">
+                                <i class="fas fa-info-circle me-2"></i>
+                                No se encontraron mensajes de conversación para este pedido.
+                            </div>
                         </div>
                     `;
                 }
 
+                html += `</div>`;
                 return html;
             }
 
