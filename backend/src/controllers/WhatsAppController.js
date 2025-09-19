@@ -11,6 +11,7 @@ const WhatsAppQRManager = require('../services/WhatsAppQRManager');
 const RecommendationService = require('../services/RecommendationService');
 const ConversationalMemoryService = require('../services/ConversationalMemoryService');
 const QRCode = require('qrcode');
+const mongoose = require('mongoose');
 
 class WhatsAppController {
     constructor() {
@@ -304,13 +305,47 @@ class WhatsAppController {
                     this._sessionTimerService = new SessionTimerService();
                     this._sessionTimerService.start();
                 }
-                await this._sessionTimerService.upsertActivity({
-                    phoneNumber,
-                    branchId: connection.branchId,
-                    connectionId: connectionIdStr,
-                    branchName,
-                    hasActiveOrder: true
-                });
+
+                // Analizar el tipo de mensaje para determinar la acción del timer
+                const lowerMessage = message.toLowerCase();
+                const isGreeting = ['hola', 'hello', 'buenos días', 'buenas tardes', 'buenas noches', 'hey', 'hi'].some(greeting => 
+                    lowerMessage.includes(greeting.toLowerCase())
+                );
+                const isMenuRequest = ['menú', 'menu', 'envíame el menú', 'envíame el menu'].some(keyword => 
+                    lowerMessage.includes(keyword.toLowerCase())
+                );
+                const isOrderAcceptance = ['sí', 'si', 'yes', 'acepto', 'confirmo', 'pedir', 'ordenar', 'comprar'].some(keyword => 
+                    lowerMessage.includes(keyword.toLowerCase())
+                );
+
+                if (isGreeting) {
+                    // Iniciar sesión de saludo con timer de 3 minutos
+                    await this._sessionTimerService.startGreetingSession({
+                        phoneNumber,
+                        branchId: connection.branchId,
+                        connectionId: connectionIdStr,
+                        branchName
+                    });
+                } else if (isMenuRequest) {
+                    // Reiniciar timer por solicitud de menú
+                    await this._sessionTimerService.onMenuRequest({
+                        phoneNumber,
+                        branchId: connection.branchId
+                    });
+                } else if (isOrderAcceptance) {
+                    // Completar sesión si acepta el pedido
+                    await this._sessionTimerService.completeSession({
+                        phoneNumber,
+                        branchId: connection.branchId
+                    });
+                } else {
+                    // Cualquier otro mensaje reinicia el timer
+                    await this._sessionTimerService.onMessageReceived({
+                        phoneNumber,
+                        branchId: connection.branchId,
+                        message
+                    });
+                }
             } catch (e) {
                 console.warn('⚠️ No se pudo actualizar la sesión persistente:', e.message);
             }
@@ -346,11 +381,11 @@ class WhatsAppController {
 
                 // Get business and branch info for context
                 const business = await Business.findById(connection.businessId);
-                let branch = await Branch.findById(connection.branchId);
+                let branchInfo = await Branch.findById(connection.branchId);
                 
                 // If branch not found by ObjectId, try by string
-                if (!branch) {
-                    branch = await Branch.findOne({ branchId: String(connection.branchId) });
+                if (!branchInfo) {
+                    branchInfo = await Branch.findOne({ branchId: String(connection.branchId) });
                 }
                 
                 // Get AI configuration for this branch
@@ -365,7 +400,7 @@ class WhatsAppController {
                 const businessType = business?.businessType || 'restaurant';
                 
                 console.log('🔍 ===== CONFIGURACIÓN DE IA ENCONTRADA =====');
-                console.log('🏪 Branch:', branch?.name || 'No encontrada');
+                console.log('🏪 Branch:', branchInfo?.name || 'No encontrada');
                 console.log('🏢 Business:', business?.name || 'No encontrada');
                 console.log('🤖 AI Config:', branchAIConfig ? 'Disponible' : 'No disponible');
                 console.log('📋 Menu Content:', branchAIConfig?.menuContent ? 'Disponible' : 'No disponible');
@@ -567,13 +602,13 @@ class WhatsAppController {
                 offHoursMessage
             } = req.body;
 
-            // Validate required fields
-            if (!businessId || !branchId || !phoneNumber || !connectionName || !customerServiceNumber) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'Todos los campos son requeridos'
-                });
-            }
+            console.log('📱 ===== CREANDO CONEXIÓN WHATSAPP =====');
+            console.log('📊 Datos recibidos:');
+            console.log(`   🏢 Business ID: ${businessId} (${typeof businessId})`);
+            console.log(`   🏪 Branch ID: ${branchId} (${typeof branchId})`);
+            console.log(`   📞 Phone: ${phoneNumber}`);
+            console.log(`   📝 Connection Name: ${connectionName}`);
+            console.log('==========================================');
 
             // Check if there are any branches available for WhatsApp connection
             const availableBranches = await Branch.find({ 
@@ -640,62 +675,91 @@ class WhatsAppController {
                 businessObjectId = businessId;
             }
 
-            if (branchId === 'branch1' || typeof branchId === 'string') {
-                // Create or find default branch
-                let branch = await Branch.findOne({ name: 'Sucursal Centro' });
-                if (!branch) {
-                    branch = new Branch({
-                        branchId: `BR${Date.now()}`,
-                        businessId: businessObjectId,
-                        name: 'Sucursal Centro',
-                        razonSocial: 'Sucursal Centro',
-                        nit: '900123456-1',
-                        phone: '+573001234567',
-                        address: 'Calle 123 #45-67',
-                        city: 'Bogotá',
-                        department: 'Cundinamarca',
-                        country: 'Colombia',
-                        description: 'Sucursal principal en el centro de la ciudad',
-                        manager: 'Gerente Centro',
-                        email: 'centro@elsabor.com',
-                        contact: {
-                            phone: '+573001234567',
-                            email: 'centro@elsabor.com'
-                        },
-                        whatsapp: {
-                            provider: 'whatsapp-web.js',
-                            phoneNumber: phoneNumber,
-                            connectionStatus: 'disconnected',
-                            qrCode: null,
-                            sessionData: null
-                        },
-                        settings: {
-                            autoReply: true,
-                            delivery: {
-                                enabled: true,
-                                radius: 5,
-                                fee: 0
-                            },
-                            businessHours: {
-                                monday: { open: '08:00', close: '22:00' },
-                                tuesday: { open: '08:00', close: '22:00' },
-                                wednesday: { open: '08:00', close: '22:00' },
-                                thursday: { open: '08:00', close: '22:00' },
-                                friday: { open: '08:00', close: '23:00' },
-                                saturday: { open: '09:00', close: '23:00' },
-                                sunday: { open: '10:00', close: '21:00' }
-                            }
-                        },
-                        status: 'active',
-                        isActive: true,
-                        createdAt: new Date(),
-                        updatedAt: new Date()
-                    });
-                    await branch.save();
-                }
-                branchObjectId = branch._id;
+            // Buscar la sucursal específica por ID
+            let targetBranch = null;
+            
+            // Primero intentar buscar por ObjectId
+            if (mongoose.Types.ObjectId.isValid(branchId)) {
+                targetBranch = await Branch.findById(branchId);
+            }
+            
+            // Si no se encuentra por ObjectId, buscar por branchId string
+            if (!targetBranch) {
+                targetBranch = await Branch.findOne({ branchId: branchId });
+            }
+            
+            // Si aún no se encuentra, buscar por nombre (para casos legacy)
+            if (!targetBranch) {
+                targetBranch = await Branch.findOne({ name: branchId });
+            }
+            
+            if (targetBranch) {
+                branchObjectId = targetBranch._id;
+                console.log(`✅ Sucursal encontrada: ${targetBranch.name} (${targetBranch._id})`);
+                console.log(`🏢 Business ID de la sucursal: ${targetBranch.businessId}`);
             } else {
-                branchObjectId = branchId;
+                // Solo crear sucursal por defecto si realmente es 'branch1' o un ID específico de fallback
+                if (branchId === 'branch1') {
+                    console.log('⚠️ Creando sucursal por defecto para branch1');
+                    targetBranch = await Branch.findOne({ name: 'Sucursal Centro' });
+                    if (!targetBranch) {
+                        targetBranch = new Branch({
+                            branchId: `BR${Date.now()}`,
+                            businessId: businessObjectId,
+                            name: 'Sucursal Centro',
+                            razonSocial: 'Sucursal Centro',
+                            nit: '900123456-1',
+                            phone: '+573001234567',
+                            address: 'Calle 123 #45-67',
+                            city: 'Bogotá',
+                            department: 'Cundinamarca',
+                            country: 'Colombia',
+                            description: 'Sucursal principal en el centro de la ciudad',
+                            manager: 'Gerente Centro',
+                            email: 'centro@elsabor.com',
+                            contact: {
+                                phone: '+573001234567',
+                                email: 'centro@elsabor.com'
+                            },
+                            whatsapp: {
+                                provider: 'whatsapp-web.js',
+                                phoneNumber: phoneNumber,
+                                connectionStatus: 'disconnected',
+                                qrCode: null,
+                                sessionData: null
+                            },
+                            settings: {
+                                autoReply: true,
+                                delivery: {
+                                    enabled: true,
+                                    radius: 5,
+                                    fee: 0
+                                },
+                                businessHours: {
+                                    monday: { open: '08:00', close: '22:00' },
+                                    tuesday: { open: '08:00', close: '22:00' },
+                                    wednesday: { open: '08:00', close: '22:00' },
+                                    thursday: { open: '08:00', close: '22:00' },
+                                    friday: { open: '08:00', close: '23:00' },
+                                    saturday: { open: '09:00', close: '23:00' },
+                                    sunday: { open: '10:00', close: '21:00' }
+                                }
+                            },
+                            status: 'active',
+                            isActive: true,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        });
+                        await targetBranch.save();
+                    }
+                    branchObjectId = targetBranch._id;
+                } else {
+                    // Si no se encuentra la sucursal específica, devolver error
+                    return res.status(400).json({
+                        success: false,
+                        error: `Sucursal con ID '${branchId}' no encontrada. Por favor, selecciona una sucursal válida.`
+                    });
+                }
             }
 
             // Check if phone number already exists
@@ -750,10 +814,19 @@ class WhatsAppController {
             });
 
             await connection.save();
+            
+            console.log('✅ ===== CONEXIÓN WHATSAPP CREADA =====');
+            console.log(`🆔 Connection ID: ${connection._id}`);
+            console.log(`🏢 Business ID: ${connection.businessId}`);
+            console.log(`🏪 Branch ID: ${connection.branchId}`);
+            console.log(`📞 Phone: ${connection.phoneNumber}`);
+            console.log(`📝 Name: ${connection.connectionName}`);
+            console.log(`🤖 AI Integration: ${connection.aiIntegration}`);
+            console.log('=====================================');
 
             // Get business and branch info for QR code
             const business = await Business.findById(businessObjectId);
-            const branch = await Branch.findById(branchObjectId);
+            const branchInfo = await Branch.findById(branchObjectId);
 
             // Generate real WhatsApp QR code
             let qrCodeDataURL = null;
@@ -763,7 +836,7 @@ class WhatsAppController {
                 console.log('📱 ===== GENERANDO QR CODE REAL DE WHATSAPP =====');
                 console.log('🔗 Connection ID:', connection._id);
                 console.log('📞 Phone:', phoneNumber);
-                console.log('🏪 Branch:', branch?.name);
+                console.log('🏪 Branch:', branchInfo?.name);
                 console.log('===============================================');
 
                 // Usar el servicio de WhatsApp para generar QR real
@@ -802,7 +875,7 @@ class WhatsAppController {
                 const qrData = {
                     connectionId: connection._id,
                     businessName: business?.name || 'Business',
-                    branchName: branch?.name || 'Branch',
+                    branchName: branchInfo?.name || 'Branch',
                     phoneNumber,
                     timestamp: Date.now(),
                     message: 'Escanea este código para vincular WhatsApp'

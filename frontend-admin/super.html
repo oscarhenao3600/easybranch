@@ -6499,8 +6499,16 @@
             // Actualizar estadísticas de pedidos
             updateOrdersStats(stats) {
                 const totalOrdersElement = document.getElementById('totalOrdersCount');
+                const totalRevenueElement = document.getElementById('totalRevenue');
+                
                 if (totalOrdersElement) {
                     totalOrdersElement.textContent = `${stats.totalOrders} pedidos`;
+                }
+                
+                if (totalRevenueElement) {
+                    // Mostrar el valor total de los pedidos realizados por los clientes
+                    const totalRevenue = stats.totalRevenue || 0;
+                    totalRevenueElement.textContent = `$${totalRevenue.toLocaleString()}`;
                 }
             }
 
@@ -6602,16 +6610,35 @@
 
                     // Obtener el token de autenticación
                     const token = localStorage.getItem('token');
+                    console.log('🔑 Token obtenido:', token ? `${token.substring(0, 20)}...` : 'null');
                     if (!token) {
                         throw new Error('No hay token de autenticación');
+                    }
+                    
+                    // Verificar si el token es válido
+                    try {
+                        const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+                        console.log('🔑 Token payload:', tokenPayload);
+                        console.log('🔑 Token expira en:', new Date(tokenPayload.exp * 1000));
+                        console.log('🔑 Token válido:', new Date() < new Date(tokenPayload.exp * 1000));
+                    } catch (tokenError) {
+                        console.log('⚠️ Error verificando token:', tokenError.message);
                     }
 
                     // Obtener el branchId del pedido
                     const branchId = order.branchId;
                     const orderIdStr = order.orderId;
 
+                    console.log('🔍 ===== INICIANDO CARGA DE CONVERSACIÓN =====');
+                    console.log('📦 Order ID:', orderIdStr);
+                    console.log('🏪 Branch ID:', branchId);
+                    console.log('🔑 Token:', token ? 'Presente' : 'Ausente');
+
                     // Llamar al endpoint real para obtener la conversación
-                    const response = await fetch(`/api/ai/${branchId}/order/${orderIdStr}/conversation`, {
+                    const url = `http://localhost:3000/api/ai/${branchId}/order/${orderIdStr}/conversation`;
+                    console.log('🌐 URL completa:', url);
+                    
+                    const response = await fetch(url, {
                         method: 'GET',
                         headers: {
                             'Authorization': `Bearer ${token}`,
@@ -6619,12 +6646,59 @@
                         }
                     });
 
+                    console.log('🔍 Response status:', response.status);
+                    console.log('🔍 Response headers:', response.headers);
+                    
                     if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(errorData.message || 'Error al obtener la conversación');
+                        // Intentar obtener el error como texto primero
+                        let errorMessage = 'Error al obtener la conversación';
+                        try {
+                            const errorText = await response.text();
+                            console.log('❌ Error response text:', errorText);
+                            
+                            // Intentar parsear como JSON
+                            try {
+                                const errorData = JSON.parse(errorText);
+                                errorMessage = errorData.message || errorMessage;
+                            } catch (parseError) {
+                                console.log('⚠️ Error response is not JSON:', errorText);
+                                errorMessage = `Error ${response.status}: ${errorText}`;
+                            }
+                        } catch (textError) {
+                            console.log('❌ Error reading response text:', textError);
+                            errorMessage = `Error ${response.status}: ${response.statusText}`;
+                        }
+                        
+                        throw new Error(errorMessage);
                     }
 
-                    const data = await response.json();
+                    // Verificar el content-type antes de parsear JSON
+                    const contentType = response.headers.get('content-type');
+                    console.log('🔍 Content-Type:', contentType);
+                    
+                    if (!contentType || !contentType.includes('application/json')) {
+                        const responseText = await response.text();
+                        console.log('❌ Response is not JSON:', responseText);
+                        console.log('❌ Content-Type:', contentType);
+                        console.log('❌ Response status:', response.status);
+                        throw new Error(`Respuesta no es JSON válido. Content-Type: ${contentType}. Respuesta: ${responseText.substring(0, 200)}...`);
+                    }
+
+                    // Intentar parsear JSON con manejo de errores específico
+                    let data;
+                    try {
+                        const responseText = await response.text();
+                        console.log('📄 Response text length:', responseText.length);
+                        console.log('📄 Response text preview:', responseText.substring(0, 200));
+                        
+                        data = JSON.parse(responseText);
+                        console.log('✅ JSON parsed successfully:', data);
+                    } catch (parseError) {
+                        console.log('❌ JSON Parse Error:', parseError);
+                        console.log('❌ Error message:', parseError.message);
+                        console.log('❌ Error stack:', parseError.stack);
+                        throw new Error(`Error parseando JSON: ${parseError.message}`);
+                    }
                     
                     if (!data.success) {
                         throw new Error(data.message || 'Error en la respuesta del servidor');

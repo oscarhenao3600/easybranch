@@ -536,7 +536,10 @@ Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "env
     // Agradecimientos (tolerante a errores: gracia, grasias, grx, thanx, thanks, ty)
     const gratitudePatterns = [
       'gracias', 'gracia', 'grasias', 'grcs', 'grx', 'mil gracias', 'muchas gracias', 'se agradece',
-      'thanks', 'thank you', 'thanx', 'thx', 'ty'
+      'thanks', 'thank you', 'thanx', 'thx', 'ty', 'muchas gracia', 'muchas grasias',
+      'te agradezco', 'le agradezco', 'agradecido', 'agradecida', 'agradecimiento',
+      'muy amable', 'muy gentil', 'muy buena', 'excelente servicio', 'perfecto servicio',
+      'ok gracias', 'ok gracia', 'vale gracias', 'vale gracia', 'bueno gracias', 'bueno gracia'
     ];
     const isGratitude = gratitudePatterns.some(k => lowerMessage.includes(k));
     if (isGratitude) {
@@ -722,6 +725,29 @@ Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "env
           "Por supuesto, te ayudo con tu pedido:"
         ]
       },
+      agradecimiento: {
+        positivo: [
+          "¡De nada! 😊",
+          "¡Con mucho gusto! 😊",
+          "¡Para eso estamos! 😊",
+          "¡Fue un placer ayudarte! 😊",
+          "¡De nada, que tengas un excelente día! 😊"
+        ],
+        neutral: [
+          "Con gusto 😊",
+          "De nada 😊",
+          "Para eso estamos 😊",
+          "Fue un placer 😊",
+          "Con gusto, que tengas buen día 😊"
+        ],
+        negativo: [
+          "Con gusto 😊",
+          "De nada 😊",
+          "Para eso estamos 😊",
+          "Fue un placer 😊",
+          "Con gusto, que tengas buen día 😊"
+        ]
+      },
       consulta_horario: {
         positivo: [
           "¡Perfecto! 😊 Te ayudo con la información de horarios:",
@@ -831,8 +857,8 @@ Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "env
     } else if (intent === 'recomendacion') {
       specificContent = this.getRecommendationQuestion(clientId, branchId);
     } else if (intent === 'agradecimiento') {
-      // Responder cortésmente a agradecimientos sin reabrir flujo
-      specificContent = 'Con gusto 😊 ¡Que tengas un excelente día!';
+      // Para agradecimientos, solo usar la respuesta base sin contenido adicional
+      specificContent = null;
     }
 
     // Construir respuesta final
@@ -2499,7 +2525,7 @@ Escribe "recomendación" para hacer el test otra vez.`;
       await db.collection('conversations').updateOne(
         { 
           clientId: clientId,
-          branchId: branchId 
+          branchId: branchId
         },
         { 
           $push: { 
@@ -2534,7 +2560,7 @@ Escribe "recomendación" para hacer el test otra vez.`;
       await db.collection('conversations').updateOne(
         { 
           clientId: clientId,
-          branchId: branchId 
+          branchId: branchId
         },
         { 
           $push: { 
