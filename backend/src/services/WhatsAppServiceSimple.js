@@ -30,7 +30,8 @@ class WhatsAppServiceSimple extends EventEmitter {
 
     // Normalize map key usage
     normalizeId(id) {
-        return String(id);
+        // Handle both ObjectId and string IDs
+        return id ? String(id) : id;
     }
 
     async ensureClient(connectionId, phoneNumber) {
@@ -116,7 +117,8 @@ class WhatsAppServiceSimple extends EventEmitter {
             });
 
             // Store client reference
-            this.clients.set(key, client);
+            const normalizedId = this.normalizeId(connectionId);
+            this.clients.set(normalizedId, client);
 
             // Set up event handlers
             client.on('qr', async (qr) => {
@@ -217,7 +219,8 @@ class WhatsAppServiceSimple extends EventEmitter {
             });
 
             // Store client reference
-            this.clients.set(key, client);
+            const normalizedId = this.normalizeId(connectionId);
+            this.clients.set(normalizedId, client);
 
             // Set up event handlers
             client.on('qr', async (qr) => {
@@ -503,7 +506,14 @@ class WhatsAppServiceSimple extends EventEmitter {
 
     // Get client status
     getClientStatus(connectionId) {
-        return this.clients.has(connectionId) ? 'connected' : 'disconnected';
+        const normalizedId = this.normalizeId(connectionId);
+        return this.clients.has(normalizedId) ? 'connected' : 'disconnected';
+    }
+
+    // Get client instance
+    getClient(connectionId) {
+        const normalizedId = this.normalizeId(connectionId);
+        return this.clients.get(normalizedId);
     }
 
     // Event emitter functionality

@@ -153,9 +153,18 @@ class AIService {
           const Branch = require('../models/Branch');
           let branchName = 'nuestra sucursal';
           try {
-            const branchDoc = await Branch.findById(branchId) || await Branch.findOne({ branchId });
+            // Try both ObjectId and string searches
+            let branchDoc = await Branch.findById(branchId);
+            if (!branchDoc) {
+              branchDoc = await Branch.findOne({ branchId: String(branchId) });
+            }
+            if (!branchDoc) {
+              branchDoc = await Branch.findOne({ branchId: branchId });
+            }
             if (branchDoc && branchDoc.name) branchName = branchDoc.name;
-          } catch (_) {}
+          } catch (error) {
+            console.log('⚠️ Error buscando nombre de sucursal:', error.message);
+          }
           return `¡Hola! 😊 Somos ${branchName}. ¿Cómo andas? ¿En qué te puedo ayudar?
 
 Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "envíame el menú".`;
@@ -3082,6 +3091,24 @@ Por favor envía todos los datos en un solo mensaje, por ejemplo:
     // Guardar pedido en BD
     const saved = await this.saveOrderToDatabase(clientId, branchId, updated);
 
+    // Desactivar temporizadores al confirmar el pedido de domicilio
+    try {
+      const SessionTimerService = require('./SessionTimerService');
+      const InMemorySessionTimer = require('./InMemorySessionTimer');
+      
+      // Desactivar temporizador persistente
+      const sessionTimer = new SessionTimerService();
+      await sessionTimer.complete({ phoneNumber: clientId, branchId });
+      
+      // Desactivar temporizador en memoria
+      const memoryTimer = InMemorySessionTimer.getInstance();
+      memoryTimer.clearSession(clientId);
+      
+      console.log('✅ Temporizadores desactivados para domicilio:', clientId);
+    } catch (timerError) {
+      console.warn('⚠️ Error desactivando temporizadores de domicilio:', timerError.message);
+    }
+
     const etaMin = 25 + Math.floor(Math.random() * 11); // 25-35
     return `✅ *PEDIDO CONFIRMADO*
 
@@ -3102,6 +3129,24 @@ Por favor envía todos los datos en un solo mensaje, por ejemplo:
       // Crear el pedido en la base de datos
       const savedOrder = await this.saveOrderToDatabase(clientId, branchId, order);
       
+      // Desactivar temporizadores al confirmar el pedido
+      try {
+        const SessionTimerService = require('./SessionTimerService');
+        const InMemorySessionTimer = require('./InMemorySessionTimer');
+        
+        // Desactivar temporizador persistente
+        const sessionTimer = new SessionTimerService();
+        await sessionTimer.complete({ phoneNumber: clientId, branchId });
+        
+        // Desactivar temporizador en memoria
+        const memoryTimer = InMemorySessionTimer.getInstance();
+        memoryTimer.clearSession(clientId);
+        
+        console.log('✅ Temporizadores desactivados para:', clientId);
+      } catch (timerError) {
+        console.warn('⚠️ Error desactivando temporizadores:', timerError.message);
+      }
+      
       return `✅ *PEDIDO CONFIRMADO*
 
 🆔 *Número de pedido:* ${savedOrder.orderId}
@@ -3112,7 +3157,9 @@ Por favor envía todos los datos en un solo mensaje, por ejemplo:
 📞 *Teléfono:* ${clientId}
 🏪 *Sucursal:* Centro
 
-¡Gracias por tu pedido! Te notificaremos cuando esté listo para recoger.`;
+¡Gracias por tu pedido! Te notificaremos cuando esté listo para recoger.
+
+Gracias por tu compra, que las disfrutes 😊`;
       
     } catch (error) {
       console.error('Error confirmando pedido:', error);

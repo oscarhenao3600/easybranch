@@ -552,6 +552,69 @@ router.get('/:branchId/conversation-history', authMiddleware.requireRole(['super
     }
 });
 
+// GET /api/ai/:branchId/order/:orderId/conversation - Get conversation for specific order
+router.get('/:branchId/order/:orderId/conversation', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
+    try {
+        const { branchId, orderId } = req.params;
+        
+        const branch = await Branch.findById(branchId)
+            .select('branchId name businessId')
+            .populate('businessId', 'name');
+
+        if (!branch) {
+            return res.status(404).json({ success: false, message: 'Sucursal no encontrada' });
+        }
+
+        // Buscar el pedido
+        const Order = require('../models/Order');
+        const order = await Order.findOne({ 
+            orderId: orderId,
+            branchId: branchId 
+        });
+
+        if (!order) {
+            return res.status(404).json({ success: false, message: 'Pedido no encontrado' });
+        }
+
+        // Obtener conversación del cliente
+        const clientId = order.customer.phone;
+        const conversationHistory = await aiService.getConversationHistory(clientId, branchId, 100);
+
+        // Filtrar mensajes relacionados con este pedido (aproximadamente en la fecha del pedido)
+        const orderDate = new Date(order.createdAt);
+        const startTime = new Date(orderDate.getTime() - 2 * 60 * 60 * 1000); // 2 horas antes
+        const endTime = new Date(orderDate.getTime() + 1 * 60 * 60 * 1000); // 1 hora después
+
+        const relevantMessages = conversationHistory.filter(msg => {
+            const msgDate = new Date(msg.timestamp);
+            return msgDate >= startTime && msgDate <= endTime;
+        });
+
+        res.json({
+            success: true,
+            data: {
+                orderId: order.orderId,
+                orderDate: order.createdAt,
+                customerPhone: clientId,
+                customerName: order.customer.name,
+                branchId,
+                branchName: branch.name,
+                conversation: relevantMessages,
+                totalMessages: relevantMessages.length,
+                orderDetails: {
+                    items: order.items,
+                    total: order.total,
+                    delivery: order.delivery,
+                    status: order.status
+                }
+            }
+        });
+    } catch (error) {
+        logger.error('Error getting order conversation:', error);
+        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+});
+
 // DELETE /api/ai/:branchId/conversation-history - Clear conversation history
 router.delete('/:branchId/conversation-history', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
     try {

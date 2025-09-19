@@ -278,11 +278,14 @@ class WhatsAppController {
                 return;
             }
 
+            // Convert ObjectId to string for consistent handling
+            const connectionIdStr = String(connectionId);
+
             console.log('✅ Conexión encontrada:', connection.phoneNumber);
 
             // Check if AI integration is enabled
             if (!connection.aiIntegration) {
-                console.log('⚠️ IA deshabilitada para esta conexión:', connectionId);
+                console.log('⚠️ IA deshabilitada para esta conexión:', connectionIdStr);
                 return;
             }
 
@@ -304,7 +307,7 @@ class WhatsAppController {
                 await this._sessionTimerService.upsertActivity({
                     phoneNumber,
                     branchId: connection.branchId,
-                    connectionId: connection._id,
+                    connectionId: connectionIdStr,
                     branchName,
                     hasActiveOrder: true
                 });
@@ -313,7 +316,7 @@ class WhatsAppController {
             }
             
             console.log('🤖 ===== PROCESANDO MENSAJE CON IA =====');
-            console.log('📱 Connection ID:', connectionId);
+            console.log('📱 Connection ID:', connectionIdStr);
             console.log('📞 From:', phoneNumber);
             console.log('💬 Message:', message);
             console.log('🏢 Business ID:', connection.businessId);
@@ -329,7 +332,7 @@ class WhatsAppController {
 
                 if (isRecommendationRequest) {
                     console.log('🎯 ===== SOLICITUD DE RECOMENDACIÓN DETECTADA =====');
-                    await this.handleRecommendationRequest(connectionId, phoneNumber, message, connection);
+                    await this.handleRecommendationRequest(connectionIdStr, phoneNumber, message, connection);
                     return;
                 }
 
@@ -337,16 +340,26 @@ class WhatsAppController {
                 const activeSession = await this.recommendationService.getActiveSession(phoneNumber, connection.branchId);
                 if (activeSession) {
                     console.log('🔄 ===== SESIÓN DE RECOMENDACIÓN ACTIVA =====');
-                    await this.handleRecommendationResponse(connectionId, phoneNumber, message, activeSession);
+                    await this.handleRecommendationResponse(connectionIdStr, phoneNumber, message, activeSession);
                     return;
                 }
 
                 // Get business and branch info for context
                 const business = await Business.findById(connection.businessId);
-                const branch = await Branch.findById(connection.branchId);
+                let branch = await Branch.findById(connection.branchId);
+                
+                // If branch not found by ObjectId, try by string
+                if (!branch) {
+                    branch = await Branch.findOne({ branchId: String(connection.branchId) });
+                }
                 
                 // Get AI configuration for this branch
-                const branchAIConfig = await BranchAIConfig.findOne({ branchId: connection.branchId });
+                let branchAIConfig = await BranchAIConfig.findOne({ branchId: connection.branchId });
+                
+                // If not found by ObjectId, try by string
+                if (!branchAIConfig) {
+                    branchAIConfig = await BranchAIConfig.findOne({ branchId: String(connection.branchId) });
+                }
                 
                 // Determine business type
                 const businessType = business?.businessType || 'restaurant';
@@ -373,15 +386,15 @@ class WhatsAppController {
                 );
                 console.log('✅ Respuesta IA generada:', aiResponse);
 
-                console.log('🤖 ===== RESPUESTA IA GENERADA =====');
-                console.log('📱 Connection ID:', connectionId);
-                console.log('📞 To:', phoneNumber);
-                console.log('🤖 AI Response:', aiResponse);
-                console.log('====================================');
+            console.log('🤖 ===== RESPUESTA IA GENERADA =====');
+            console.log('📱 Connection ID:', connectionIdStr);
+            console.log('📞 To:', phoneNumber);
+            console.log('🤖 AI Response:', aiResponse);
+            console.log('====================================');
 
                 // Send AI response
                 const messageText = typeof aiResponse === 'string' ? aiResponse : aiResponse.text;
-                await this.whatsappService.sendMessage(connectionId, phoneNumber, messageText);
+                await this.whatsappService.sendMessage(connectionIdStr, phoneNumber, messageText);
 
                 // Update connection stats
                 connection.messagesToday = (connection.messagesToday || 0) + 1;
@@ -389,7 +402,7 @@ class WhatsAppController {
                 await connection.save();
 
                 this.logger.info('AI response sent', { 
-                    connectionId, 
+                    connectionId: connectionIdStr, 
                     to: phoneNumber, 
                     message: aiResponse.substring(0, 100) + '...' 
                 });
@@ -399,10 +412,10 @@ class WhatsAppController {
                 
                 // Fallback to basic response
                 const fallbackMessage = '¡Hola! 👋 Gracias por contactarnos. ¿En qué puedo ayudarte hoy?';
-                await this.whatsappService.sendMessage(connectionId, phoneNumber, fallbackMessage);
+                await this.whatsappService.sendMessage(connectionIdStr, phoneNumber, fallbackMessage);
                 
                 this.logger.error('AI processing failed, sent fallback', { 
-                    connectionId, 
+                    connectionId: connectionIdStr, 
                     error: aiError.message 
                 });
             }

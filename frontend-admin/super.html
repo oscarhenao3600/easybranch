@@ -550,6 +550,64 @@
             width: 2rem;
             height: 2rem;
         }
+
+        /* Estilos para conversaciones */
+        .conversation-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .conversation-header h6 {
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .order-summary {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+        }
+
+        .messages-container {
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            background: #ffffff;
+        }
+
+        .user-message {
+            background: #007bff;
+            color: white;
+            margin-left: 20%;
+            border-radius: 18px 18px 5px 18px;
+        }
+
+        .bot-message {
+            background: #e9ecef;
+            color: #333;
+            margin-right: 20%;
+            border-radius: 18px 18px 18px 5px;
+        }
+
+        .message-text {
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .message-content small {
+            font-size: 11px;
+            opacity: 0.8;
+        }
+
+        .conversation-messages h6 {
+            color: #495057;
+            font-weight: 600;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e9ecef;
+        }
     </style>
 </head>
 <body>
@@ -6542,8 +6600,38 @@
                         throw new Error('Pedido no encontrado');
                     }
 
-                    // Simular la conversación basada en los datos del pedido
-                    const conversation = this.generateOrderConversation(order);
+                    // Obtener el token de autenticación
+                    const token = localStorage.getItem('token');
+                    if (!token) {
+                        throw new Error('No hay token de autenticación');
+                    }
+
+                    // Obtener el branchId del pedido
+                    const branchId = order.branchId;
+                    const orderIdStr = order.orderId;
+
+                    // Llamar al endpoint real para obtener la conversación
+                    const response = await fetch(`/api/ai/${branchId}/order/${orderIdStr}/conversation`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Error al obtener la conversación');
+                    }
+
+                    const data = await response.json();
+                    
+                    if (!data.success) {
+                        throw new Error(data.message || 'Error en la respuesta del servidor');
+                    }
+
+                    // Generar la conversación real
+                    const conversation = this.generateRealOrderConversation(data.data);
                     
                     // Mostrar la conversación
                     document.getElementById('conversationContent').innerHTML = conversation;
@@ -6559,7 +6647,83 @@
                 }
             }
 
-            // Generar conversación del pedido
+            // Generar conversación real del pedido usando datos del endpoint
+            generateRealOrderConversation(data) {
+                const { orderId, orderDate, customerPhone, customerName, branchName, conversation, orderDetails } = data;
+                
+                let html = `
+                    <div class="conversation-header mb-3">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="mb-1"><i class="fas fa-shopping-cart me-2"></i>Pedido: ${orderId}</h6>
+                                <small class="text-muted">Cliente: ${customerName} (${customerPhone})</small>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="mb-1"><i class="fas fa-store me-2"></i>Sucursal: ${branchName}</h6>
+                                <small class="text-muted">Fecha: ${new Date(orderDate).toLocaleString()}</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="order-summary mb-3 p-3 bg-light rounded">
+                        <h6><i class="fas fa-list me-2"></i>Resumen del Pedido:</h6>
+                        <div class="row">
+                            <div class="col-md-8">
+                                <ul class="list-unstyled mb-0">
+                                    ${orderDetails.items.map(item => `
+                                        <li><strong>${item.name}</strong> x${item.quantity} - $${item.totalPrice.toLocaleString()}</li>
+                                    `).join('')}
+                                </ul>
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <div class="fw-bold">Total: $${orderDetails.total.toLocaleString()}</div>
+                                <small class="text-muted">${orderDetails.delivery.type === 'delivery' ? 'Domicilio' : 'Recoger'}</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                if (conversation && conversation.length > 0) {
+                    html += `
+                        <div class="conversation-messages">
+                            <h6><i class="fas fa-comments me-2"></i>Conversación (${conversation.length} mensajes):</h6>
+                            <div class="messages-container" style="max-height: 400px; overflow-y: auto;">
+                    `;
+
+                    conversation.forEach((msg, index) => {
+                        const isUser = msg.user && !msg.assistant;
+                        const timestamp = new Date(msg.timestamp).toLocaleTimeString();
+                        
+                        html += `
+                            <div class="message ${isUser ? 'user-message' : 'bot-message'} mb-2 p-2 rounded">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div class="message-content">
+                                        <div class="message-text">${isUser ? msg.user : msg.assistant}</div>
+                                        ${msg.intent ? `<small class="text-muted">Intención: ${msg.intent}</small>` : ''}
+                                    </div>
+                                    <small class="text-muted ms-2">${timestamp}</small>
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    html += `
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            No se encontraron mensajes de conversación para este pedido.
+                        </div>
+                    `;
+                }
+
+                return html;
+            }
+
+            // Generar conversación del pedido (método anterior para compatibilidad)
             generateOrderConversation(order) {
                 const messages = [];
                 
