@@ -2,6 +2,7 @@ const Order = require('../models/Order');
 const Business = require('../models/Business');
 const Branch = require('../models/Branch');
 const LoggerService = require('../services/LoggerService');
+const mongoose = require('mongoose');
 
 class OrderController {
   constructor() {
@@ -59,7 +60,6 @@ class OrderController {
       const branchIds = [...new Set(orders.map(order => order.branchId).filter(Boolean))];
       
       // Separar ObjectIds válidos de strings
-      const mongoose = require('mongoose');
       const validObjectIds = branchIds.filter(id => mongoose.Types.ObjectId.isValid(id));
       const stringIds = branchIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
       
@@ -77,21 +77,47 @@ class OrderController {
       }
       
       const branches = await Branch.find(query);
+      
       const branchMap = {};
       branches.forEach(branch => {
         // Mapear tanto por branchId como por _id
-        branchMap[branch.branchId] = branch;
-        branchMap[branch._id.toString()] = branch;
+        if (branch.branchId) {
+          branchMap[branch.branchId] = branch;
+        }
+        if (branch._id) {
+          branchMap[branch._id.toString()] = branch;
+        }
       });
 
-      // Agregar información de sucursal a cada pedido
-      orders.forEach(order => {
-        if (order.branchId && branchMap[order.branchId]) {
-          order.branchInfo = {
-            name: branchMap[order.branchId].name,
-            address: branchMap[order.branchId].address
+      // Convertir orders a objetos planos y agregar información de sucursal
+      const ordersWithBranchInfo = orders.map(order => {
+        // Convertir el documento de Mongoose a objeto plano
+        const orderObj = order.toObject ? order.toObject() : order;
+        
+        if (orderObj.branchId) {
+          const branch = branchMap[orderObj.branchId] || branchMap[orderObj.branchId.toString()];
+          if (branch) {
+            // Agregar branchInfo al objeto plano
+            orderObj.branchInfo = {
+              name: branch.name || 'Sucursal',
+              address: branch.address || 'Dirección no disponible'
+            };
+          } else {
+            // Fallback si no se encuentra la sucursal
+            orderObj.branchInfo = {
+              name: 'Sucursal no encontrada',
+              address: 'Dirección no disponible'
+            };
+          }
+        } else {
+          // Si no hay branchId
+          orderObj.branchInfo = {
+            name: 'Sin sucursal',
+            address: 'Dirección no disponible'
           };
         }
+        
+        return orderObj;
       });
 
       // Contar total de pedidos
@@ -100,20 +126,22 @@ class OrderController {
       // Calcular estadísticas
       const stats = await this.calculateOrderStats(filters);
 
-      res.json({
+      const responseData = {
         success: true,
         data: {
-          orders,
+          orders: ordersWithBranchInfo,
           pagination: {
             currentPage: parseInt(page),
             totalPages: Math.ceil(totalOrders / parseInt(limit)),
             totalOrders,
-            hasNext: skip + orders.length < totalOrders,
+            hasNext: skip + ordersWithBranchInfo.length < totalOrders,
             hasPrev: parseInt(page) > 1
           },
           stats
         }
-      });
+      };
+
+      res.json(responseData);
 
     } catch (error) {
       this.logger.error('Error obteniendo pedidos:', error);
@@ -349,6 +377,7 @@ class OrderController {
       };
     }
   }
+
 
   // Obtener pedidos por sucursal
   async getOrdersByBranch(req, res) {

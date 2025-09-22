@@ -8,6 +8,7 @@ router.use(auth.verifyToken);
 
 // Rutas de pedidos
 router.get('/', orderController.getOrders.bind(orderController));
+ // Endpoint de prueba
 router.get('/stats', orderController.getOrderStats.bind(orderController));
 router.get('/branch/:branchId', orderController.getOrdersByBranch.bind(orderController));
 router.get('/:id', orderController.getOrderById.bind(orderController));
