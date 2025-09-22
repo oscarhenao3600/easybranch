@@ -293,11 +293,47 @@
         .alert {
             border: none;
             border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
         }
         
         .alert-danger {
             background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+        }
+        
+        .alert-info {
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+        }
+        
+        .alert-warning {
+            background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%);
+        }
+        
+        .alert-sm {
+            padding: 0.75rem;
+            font-size: 0.875rem;
+        }
+        
+        .cursor-pointer {
+            cursor: pointer;
+        }
+        
+        details summary {
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        details summary:hover {
+            color: var(--bs-primary);
+        }
+        
+        .border-start {
+            border-left: 1px solid var(--bs-border-color) !important;
+        }
+        
+        .border-3 {
+            border-width: 3px !important;
+        }
             color: #c62828;
         }
         
@@ -999,9 +1035,15 @@
                             <div class="col-md-4">
                                 <div class="card">
                                     <div class="card-header">
-                                        <h5 class="mb-0">
-                                            <i class="fas fa-exclamation-triangle me-2"></i>Alertas
-                                        </h5>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <h5 class="mb-0">
+                                                <i class="fas fa-exclamation-triangle me-2"></i>Alertas
+                                            </h5>
+                                            <div id="alertsStatus" class="small text-muted">
+                                                <i class="fas fa-sync-alt fa-spin" style="display: none;"></i>
+                                                <span class="status-text">Actualizando...</span>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="card-body">
                                         <div id="alertsList">
@@ -1330,6 +1372,7 @@
                 this.setupUserInfo();
                 this.bindEvents();
                 this.loadDashboard();
+                this.startAlertsRefresh();
             }
 
             setupUserInfo() {
@@ -1438,31 +1481,186 @@
             async loadAlerts() {
                 try {
                     const alertsContainer = document.getElementById('alertsList');
+                    const alertsStatus = document.getElementById('alertsStatus');
                     
-                    // Simulate alerts
-                    const alerts = [
-                        { type: 'warning', message: '3 sucursales sin conexión WhatsApp', time: '1 hora' },
-                        { type: 'info', message: 'Actualización de IA disponible', time: '2 horas' }
-                    ];
+                    // Mostrar indicador de carga
+                    if (alertsStatus) {
+                        alertsStatus.querySelector('.fa-sync-alt').style.display = 'inline';
+                        alertsStatus.querySelector('.status-text').textContent = 'Actualizando...';
+                    }
+                    
+                    // Obtener alertas reales del backend
+                    const response = await fetch(`${this.baseURL}/dashboard/alerts`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al cargar alertas');
+                    }
+
+                    const result = await response.json();
+                    const alerts = result.data || [];
+
+                    // Ocultar indicador de carga y mostrar estado
+                    if (alertsStatus) {
+                        alertsStatus.querySelector('.fa-sync-alt').style.display = 'none';
+                        alertsStatus.querySelector('.status-text').textContent = `Actualizado hace ${new Date().toLocaleTimeString()}`;
+                    }
 
                     if (alerts.length === 0) {
                         alertsContainer.innerHTML = `
                             <div class="text-center text-muted">
                                 <i class="fas fa-check-circle fa-2x mb-3 text-success"></i>
                                 <p>No hay alertas</p>
+                                <small>Todos los sistemas funcionando correctamente</small>
                             </div>
                         `;
                     } else {
                         alertsContainer.innerHTML = alerts.map(alert => `
-                            <div class="alert alert-${alert.type} alert-sm mb-2">
-                                <small>${alert.message}</small>
-                                <br><small class="text-muted">${alert.time}</small>
+                            <div class="alert alert-${alert.type} alert-sm mb-3 border-start border-${alert.type === 'info' ? 'primary' : alert.type === 'warning' ? 'warning' : 'danger'} border-3">
+                                <div class="d-flex align-items-start">
+                                    <div class="flex-shrink-0 me-2">
+                                        <i class="fas fa-${this.getAlertIcon(alert.icon)} text-${alert.type === 'info' ? 'primary' : alert.type === 'warning' ? 'warning' : 'danger'}"></i>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="fw-bold mb-1">${alert.title}</div>
+                                        <div class="small mb-2">${alert.message}</div>
+                                        ${alert.details && alert.details.length > 0 ? `
+                                            <div class="small text-muted">
+                                                <details>
+                                                    <summary class="cursor-pointer">Ver detalles (${alert.details.length})</summary>
+                                                    <div class="mt-2">
+                                                        ${alert.details.slice(0, 3).map(detail => `
+                                                            <div class="border-start border-2 border-${alert.type === 'info' ? 'primary' : alert.type === 'warning' ? 'warning' : 'danger'} ps-2 mb-1">
+                                                                ${this.formatAlertDetail(detail, alert.type)}
+                                                            </div>
+                                                        `).join('')}
+                                                        ${alert.details.length > 3 ? `<div class="small text-muted">... y ${alert.details.length - 3} más</div>` : ''}
+                                                    </div>
+                                                </details>
+                                            </div>
+                                        ` : ''}
+                                        <div class="small text-muted mt-1">
+                                            <i class="fas fa-clock me-1"></i>${alert.time}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         `).join('');
                     }
 
                 } catch (error) {
                     console.error('Error loading alerts:', error);
+                    const alertsContainer = document.getElementById('alertsList');
+                    const alertsStatus = document.getElementById('alertsStatus');
+                    
+                    // Ocultar indicador de carga y mostrar error
+                    if (alertsStatus) {
+                        alertsStatus.querySelector('.fa-sync-alt').style.display = 'none';
+                        alertsStatus.querySelector('.status-text').textContent = 'Error al cargar';
+                    }
+                    
+                    alertsContainer.innerHTML = `
+                        <div class="alert alert-warning alert-sm">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <small>Error cargando alertas: ${error.message}</small>
+                        </div>
+                    `;
+                }
+            }
+
+            getAlertIcon(iconType) {
+                const iconMap = {
+                    'users': 'users',
+                    'clock': 'clock',
+                    'times-circle': 'times-circle',
+                    'user-times': 'user-times',
+                    'whatsapp': 'whatsapp',
+                    'warning': 'exclamation-triangle',
+                    'info': 'info-circle'
+                };
+                return iconMap[iconType] || 'info-circle';
+            }
+
+            formatAlertDetail(detail, alertType) {
+                if (alertType === 'info' && detail.phoneNumber) {
+                    // Detalle de cliente activo
+                    return `
+                        <div class="small">
+                            <strong>${detail.phoneNumber}</strong> - ${detail.branchName}<br>
+                            <span class="text-muted">${detail.status} • ${detail.lastActivity}</span>
+                            ${detail.timeSinceActivity > 5 ? `<br><span class="text-warning">⚠️ Inactivo ${detail.timeSinceActivity} min</span>` : ''}
+                        </div>
+                    `;
+                } else if (alertType === 'warning' && detail.orderId) {
+                    // Detalle de pedido pendiente
+                    return `
+                        <div class="small">
+                            <strong>Pedido #${detail.orderId}</strong> - ${detail.branchName}<br>
+                            <span class="text-muted">${detail.customerName} • $${detail.total}</span><br>
+                            <span class="text-warning">⏰ ${detail.minutesStale} min sin actualizar</span>
+                        </div>
+                    `;
+                } else if (alertType === 'danger' && detail.orderId) {
+                    // Detalle de pedido cancelado
+                    return `
+                        <div class="small">
+                            <strong>Pedido #${detail.orderId}</strong> - ${detail.branchName}<br>
+                            <span class="text-muted">${detail.customerName} • $${detail.total}</span><br>
+                            <span class="text-danger">❌ ${detail.reason}</span>
+                        </div>
+                    `;
+                } else if (alertType === 'warning' && detail.phoneNumber && detail.connectionName) {
+                    // Detalle de WhatsApp desconectado
+                    return `
+                        <div class="small">
+                            <strong>${detail.connectionName}</strong><br>
+                            <span class="text-muted">${detail.branchName} • ${detail.phoneNumber}</span><br>
+                            <span class="text-warning">🔌 ${detail.status}</span>
+                        </div>
+                    `;
+                } else if (alertType === 'info' && detail.orderId && detail.customerMessage) {
+                    // Detalle de pedido cancelado por cliente
+                    return `
+                        <div class="small">
+                            <strong>Pedido #${detail.orderId}</strong> - ${detail.branchName}<br>
+                            <span class="text-muted">${detail.customerName} • $${detail.total}</span><br>
+                            <span class="text-info">👤 Cliente: "${detail.customerMessage}"</span><br>
+                            <span class="text-muted">${detail.cancelledAt}</span>
+                        </div>
+                    `;
+                }
+                return JSON.stringify(detail);
+            }
+
+            // Iniciar actualizaciones automáticas de alertas
+            startAlertsRefresh() {
+                // Actualizar alertas cada 30 segundos
+                this.alertsInterval = setInterval(() => {
+                    if (this.currentSection === 'dashboard') {
+                        this.loadAlerts();
+                    }
+                }, 30000); // 30 segundos
+
+                // Actualizar alertas cuando se cambie a la sección dashboard
+                this.originalShowSection = this.showSection;
+                this.showSection = (sectionName) => {
+                    this.originalShowSection(sectionName);
+                    if (sectionName === 'dashboard') {
+                        // Cargar alertas inmediatamente al mostrar dashboard
+                        this.loadAlerts();
+                    }
+                };
+            }
+
+            // Detener actualizaciones automáticas
+            stopAlertsRefresh() {
+                if (this.alertsInterval) {
+                    clearInterval(this.alertsInterval);
+                    this.alertsInterval = null;
                 }
             }
 

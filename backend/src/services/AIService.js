@@ -127,6 +127,107 @@ class AIService {
     return defaultPrompts[businessType] || defaultPrompts.restaurant;
   }
 
+  // Generar respuesta fluida usando IA contextual
+  async generateFluidResponse(userMessage, branchId = null, clientId = null, context = {}) {
+    try {
+      // Obtener el prompt del negocio
+      const customPrompt = this.aiPrompts.get(branchId) || null;
+      
+      // Construir prompt para respuesta fluida
+      let fluidPrompt = `
+Eres un asistente virtual especializado en atención al cliente para restaurantes de comida rápida.
+
+CONTEXTO DEL NEGOCIO:
+${customPrompt || 'Restaurante de comida rápida'}
+
+CONTEXTO DE LA CONVERSACIÓN:
+- Cliente: ${clientId || 'Usuario'}
+- Sucursal: ${branchId || 'No especificada'}
+- Historial reciente: ${context.lastMessages ? context.lastMessages.slice(-3).join(' | ') : 'Nueva conversación'}
+- Estado actual: ${context.currentState || 'Conversación normal'}
+
+MENSAJE DEL CLIENTE: "${userMessage}"
+
+INSTRUCCIONES:
+1. Responde de manera natural, amigable y empática
+2. Si es un pedido, procesa automáticamente y muestra los detalles
+3. Si es una consulta, responde de forma útil y específica
+4. Si hay errores de escritura, corrígelos automáticamente
+5. Mantén un tono profesional pero cercano
+6. Usa emojis apropiados para hacer la conversación más amigable
+7. Si no estás seguro, pide aclaración de forma amigable
+
+RESPUESTA (máximo 200 palabras):`;
+
+      console.log('🤖 Generando respuesta fluida con IA...');
+      
+      // Generar respuesta con IA
+      const aiResponse = await this.generateAIResponse(fluidPrompt, userMessage);
+      
+      // Post-procesar la respuesta para asegurar formato correcto
+      const processedResponse = this.postProcessAIResponse(aiResponse, userMessage, branchId);
+      
+      console.log(`✅ Respuesta fluida generada: ${processedResponse.substring(0, 100)}...`);
+      
+      return processedResponse;
+      
+    } catch (error) {
+      console.error('❌ Error en generación de respuesta fluida:', error);
+      // Fallback al sistema original
+      return await this.generateResponse(branchId, userMessage, clientId, 'restaurant', null);
+    }
+  }
+
+  // Post-procesar respuesta de IA para asegurar formato y funcionalidad
+  postProcessAIResponse(aiResponse, userMessage, branchId) {
+    let processedResponse = aiResponse.trim();
+    
+    // Si la respuesta parece ser un pedido, agregar formato de pedido
+    if (this.isOrderResponse(processedResponse, userMessage)) {
+      processedResponse = this.formatOrderResponse(processedResponse, userMessage, branchId);
+    }
+    
+    // Asegurar que tenga emojis apropiados
+    if (!processedResponse.includes('😊') && !processedResponse.includes('🍗') && !processedResponse.includes('✅')) {
+      processedResponse = `😊 ${processedResponse}`;
+    }
+    
+    // Limitar longitud si es muy larga
+    if (processedResponse.length > 500) {
+      processedResponse = processedResponse.substring(0, 497) + '...';
+    }
+    
+    return processedResponse;
+  }
+
+  // Verificar si la respuesta parece ser un pedido
+  isOrderResponse(response, userMessage) {
+    const orderKeywords = ['combo', 'familiar', 'emparejado', 'alitas', 'pedido', 'orden'];
+    const hasOrderKeyword = orderKeywords.some(keyword => 
+      response.toLowerCase().includes(keyword) || userMessage.toLowerCase().includes(keyword)
+    );
+    
+    return hasOrderKeyword && (response.includes('$') || response.includes('total'));
+  }
+
+  // Formatear respuesta de pedido
+  formatOrderResponse(response, userMessage, branchId) {
+    // Si ya está bien formateada, devolverla tal como está
+    if (response.includes('🍗') && response.includes('TOTAL')) {
+      return response;
+    }
+    
+    // Si no, intentar extraer información del pedido y formatearla
+    const customPrompt = this.aiPrompts.get(branchId) || null;
+    const orderAnalysis = this.processOrder(userMessage, branchId, customPrompt);
+    
+    if (orderAnalysis.hasProducts) {
+      return this.generateOrderResponse(orderAnalysis);
+    }
+    
+    return response;
+  }
+
   // Generar respuesta usando IA con configuración específica de sucursal
   async generateResponse(branchId, userMessage, clientId = null, businessType = 'restaurant', branchConfig = null) {
     try {
@@ -138,9 +239,22 @@ class AIService {
 
       // Generando respuesta IA contextualizada
 
-      // Analizar intención del usuario
-      const intent = this.analyzeUserIntent(userMessage);
-      console.log('🎯 Intención detectada:', intent);
+      // Analizar intención del usuario usando IA contextual
+      let intent;
+      try {
+        // Intentar usar análisis de IA contextual primero
+        const context = {
+          lastMessages: await this.getRecentMessages(clientId, branchId),
+          currentState: 'conversation_active'
+        };
+        intent = await this.analyzeUserIntentWithAI(userMessage, branchId, clientId, context);
+        console.log('🎯 Intención detectada con IA contextual:', intent);
+      } catch (error) {
+        console.log('⚠️ Fallback a análisis de patrones:', error.message);
+        // Fallback al sistema de patrones
+        intent = this.analyzeUserIntent(userMessage);
+        console.log('🎯 Intención detectada con patrones:', intent);
+      }
 
       // Guardar mensaje en historial de conversación
       if (clientId) {
@@ -173,6 +287,21 @@ Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "env
 
 Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "envíame el menú".`;
         }
+      }
+
+      // PRIORIDAD MÁXIMA: Si es una cancelación, procesar automáticamente ANTES que cualquier otra lógica
+      if (intent === 'cancelar_pedido') {
+        console.log('🚫 ===== CANCELACIÓN DETECTADA =====');
+        console.log(`📞 Cliente: ${clientId}`);
+        console.log(`💬 Mensaje: ${userMessage}`);
+        console.log('=====================================');
+        
+        if (clientId) {
+          const cancellationResult = await this.handleOrderCancellation(clientId, branchId, userMessage);
+          return cancellationResult;
+        }
+        
+        return "Entiendo que quieres cancelar. Si tienes algún pedido pendiente, lo cancelaré inmediatamente.\n\n😔 Es un infortunio no poder continuar contigo en esta ocasión.\n\n💙 Pero no te preocupes, estaremos aquí listos para atenderte próximamente cuando lo desees.\n\n¡Gracias por contactarnos y esperamos verte pronto! 😊";
       }
 
       // Si estamos esperando que el cliente elija domicilio o recoger
@@ -219,10 +348,25 @@ Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "env
         
         // Obtener el customPrompt de la configuración cargada
         const customPrompt = this.aiPrompts.get(branchId) || null;
-        const orderAnalysis = this.processOrder(userMessage, branchId, customPrompt);
+        
+        // Usar mensaje corregido si está disponible
+        const correctionResult = this.detectAndCorrectOrderPattern(userMessage);
+        const messageToProcess = correctionResult.corrected ? correctionResult.correctedMessage : userMessage;
+        
+        console.log('🔧 Procesando pedido con mensaje:', messageToProcess);
+        if (correctionResult.corrected) {
+          console.log('✅ Corrección aplicada:', userMessage, '→', messageToProcess);
+        }
+        
+        const orderAnalysis = this.processOrder(messageToProcess, branchId, customPrompt);
         if (orderAnalysis.hasProducts) {
           console.log('🛒 Procesando pedido automáticamente');
-          const orderResponse = this.generateOrderResponse(orderAnalysis);
+          
+          // Agregar nota de corrección si se aplicó
+          let orderResponse = this.generateOrderResponse(orderAnalysis);
+          if (correctionResult.corrected) {
+            orderResponse = `🔧 *Entendí tu pedido:* "${correctionResult.correctedMessage}"\n\n` + orderResponse;
+          }
           
           // Guardar pedido pendiente para confirmación
           if (clientId) {
@@ -462,9 +606,294 @@ Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "env
     return await this.buildIntelligentResponse(intent, sentiment, urgency, businessType, userMessage, context, branchId, clientId);
   }
 
-  // Analizar intención del usuario con tolerancia a errores de escritura
+  // Función para corregir errores de escritura específicos del menú
+  correctMenuErrors(text) {
+    const corrections = {
+      // Errores comunes de dislexia y escritura - FAMILIAR
+      'fanili': 'familiar',
+      'faniliar': 'familiar',
+      'famili': 'familiar',
+      'familia': 'familiar',
+      'familiar': 'familiar',
+      'fam': 'familiar',
+      'familar': 'familiar',
+      'familliar': 'familiar',
+      'fammiliar': 'familiar',
+      'fammilliar': 'familiar',
+      'familiiar': 'familiar',
+      
+      // Errores comunes de dislexia y escritura - COMBO
+      'combo': 'combo',
+      'combos': 'combo',
+      'comboo': 'combo',
+      'comboos': 'combo',
+      'combooo': 'combo',
+      'comboss': 'combo',
+      'combooss': 'combo',
+      'combooos': 'combo',
+      'cambo': 'combo',
+      'camboo': 'combo',
+      'cambos': 'combo',
+      'camboss': 'combo',
+      
+      // Errores comunes de dislexia y escritura - EMPAREJADO
+      'emparejado': 'emparejado',
+      'emparejados': 'emparejado',
+      'emparejao': 'emparejado',
+      'emparejaos': 'emparejado',
+      'emparejadoo': 'emparejado',
+      'emparejadoos': 'emparejado',
+      'emparejadooo': 'emparejado',
+      'emparejadoss': 'emparejado',
+      'emparejadooss': 'emparejado',
+      'emparejadooos': 'emparejado',
+      'emparajado': 'emparejado',
+      'emparajados': 'emparejado',
+      'emparajao': 'emparejado',
+      'emparajaos': 'emparejado',
+      
+      // Números escritos (dislexia numérica)
+      'uno': '1',
+      'dos': '2',
+      'tres': '3',
+      'cuatro': '4',
+      'cinco': '5',
+      'seis': '6',
+      'siete': '7',
+      'ocho': '8',
+      'nueve': '9',
+      'diez': '10',
+      
+      // Errores de escritura comunes - ALITAS
+      'alitas': 'alitas',
+      'alita': 'alitas',
+      'alitass': 'alitas',
+      'alitasss': 'alitas',
+      'alitassss': 'alitas',
+      'alitas': 'alitas',
+      'alitass': 'alitas',
+      'alittas': 'alitas',
+      'alittass': 'alitas',
+      
+      // Acompañantes
+      'papas': 'papas',
+      'papa': 'papas',
+      'papass': 'papas',
+      'papasss': 'papas',
+      'papassss': 'papas',
+      'papass': 'papas',
+      'papas': 'papas',
+      
+      'cascos': 'cascos',
+      'casco': 'cascos',
+      'cascoss': 'cascos',
+      'cascoss': 'cascos',
+      'cascoss': 'cascos',
+      
+      'yucas': 'yucas',
+      'yuca': 'yucas',
+      'yucass': 'yucas',
+      'yucass': 'yucas',
+      'yucass': 'yucas',
+      
+      'arepitas': 'arepitas',
+      'arepita': 'arepitas',
+      'arepitass': 'arepitas',
+      'arepitass': 'arepitas',
+      'arepitass': 'arepitas',
+      
+      // Bebidas
+      'gaseosa': 'gaseosa',
+      'gaseosas': 'gaseosa',
+      'gaseoza': 'gaseosa',
+      'gaseozaa': 'gaseosa',
+      'gaseozass': 'gaseosa',
+      'gaseozass': 'gaseosa',
+      
+      'limonada': 'limonada',
+      'limonadas': 'limonada',
+      'limonadaa': 'limonada',
+      'limonadaaa': 'limonada',
+      'limonadass': 'limonada',
+      'limonadass': 'limonada',
+      
+      // Errores comunes de dislexia general
+      'quiero': 'quiero',
+      'quieroo': 'quiero',
+      'quieros': 'quiero',
+      'quieroos': 'quiero',
+      
+      'pedir': 'pedir',
+      'pedirr': 'pedir',
+      'pedirs': 'pedir',
+      'pedirrs': 'pedir',
+      
+      'deseo': 'deseo',
+      'deseoo': 'deseo',
+      'deseos': 'deseo',
+      'deseoos': 'deseo',
+      
+      'gustaria': 'gustaría',
+      'gustaría': 'gustaría',
+      'gustariaa': 'gustaría',
+      'gustaríaa': 'gustaría',
+      'gustariass': 'gustaría',
+      'gustaríass': 'gustaría'
+    };
+    
+    let correctedText = text.toLowerCase();
+    
+    // Aplicar correcciones
+    Object.keys(corrections).forEach(error => {
+      const regex = new RegExp(`\\b${error}\\b`, 'gi');
+      correctedText = correctedText.replace(regex, corrections[error]);
+    });
+    
+    return correctedText;
+  }
+
+  // Función para detectar y corregir patrones de pedido con errores
+  detectAndCorrectOrderPattern(message) {
+    const correctedMessage = this.correctMenuErrors(message);
+    
+    // Patrones de pedido con tolerancia a errores
+    const orderPatterns = [
+      // Combo + número
+      /(combo|famili?ar|fam)\s*(\d+)/i,
+      // Emparejado (sin número, es único)
+      /(emparejad[oa]s?|emparajad[oa]s?)/i,
+      // Solo número (si el contexto sugiere combo)
+      /^\s*(\d+)\s*$/,
+      // Producto + número
+      /(alitas?|papas?|cascos?|yucas?|arepitas?)\s*(\d+)/i
+    ];
+    
+    for (const pattern of orderPatterns) {
+      const match = correctedMessage.match(pattern);
+      if (match) {
+        console.log('🔧 Corrección aplicada:', message, '→', correctedMessage);
+        return {
+          corrected: true,
+          originalMessage: message,
+          correctedMessage: correctedMessage,
+          pattern: pattern.source,
+          match: match
+        };
+      }
+    }
+    
+    return {
+      corrected: false,
+      originalMessage: message,
+      correctedMessage: correctedMessage
+    };
+  }
+
+  // Análisis de IA contextual para entender la intención real del usuario
+  async analyzeUserIntentWithAI(message, branchId = null, clientId = null, context = {}) {
+    try {
+      // Obtener el prompt del negocio
+      const customPrompt = this.aiPrompts.get(branchId) || null;
+      
+      // Construir prompt contextual
+      let contextualPrompt = `
+Eres un asistente virtual especializado en atención al cliente para restaurantes de comida rápida.
+
+CONTEXTO DEL NEGOCIO:
+${customPrompt || 'Restaurante de comida rápida'}
+
+CONTEXTO DE LA CONVERSACIÓN:
+- Cliente: ${clientId || 'Usuario'}
+- Sucursal: ${branchId || 'No especificada'}
+- Historial reciente: ${context.lastMessages ? context.lastMessages.slice(-3).join(' | ') : 'Nueva conversación'}
+
+MENSAJE DEL CLIENTE: "${message}"
+
+ANALIZA LA INTENCIÓN DEL CLIENTE y responde ÚNICAMENTE con una de estas opciones:
+
+INTENCIONES VÁLIDAS:
+- hacer_pedido: Quiere ordenar comida/bebida
+- consulta_menu: Pide ver el menú
+- cancelar_pedido: Quiere cancelar su pedido
+- saludo: Saluda o inicia conversación
+- agradecimiento: Agradece algo
+- consulta_horario: Pregunta horarios
+- consulta_ubicacion: Pregunta ubicación/dirección
+- recomendacion: Pide recomendaciones
+- no_entendido: Expresa confusión o queja
+- consulta_general: Otras consultas
+
+IMPORTANTE:
+- Si menciona productos del menú (combo, familiar, emparejado, alitas, etc.) = hacer_pedido
+- Si dice "cancelar", "no quiero", "ya no" = cancelar_pedido
+- Si dice "menú", "qué tienen", "bebidas" = consulta_menu
+- Si expresa confusión o queja = no_entendido
+- Sé tolerante con errores de escritura y dislexia
+
+RESPUESTA (solo la intención):`;
+
+      console.log('🤖 Analizando intención con IA contextual...');
+      
+      // Usar IA para análisis contextual
+      const aiResponse = await this.generateAIResponse(contextualPrompt, message);
+      
+      // Extraer la intención de la respuesta de la IA
+      const detectedIntent = this.extractIntentFromAIResponse(aiResponse);
+      
+      console.log(`🎯 IA detectó intención: ${detectedIntent} para mensaje: "${message}"`);
+      
+      return detectedIntent;
+      
+    } catch (error) {
+      console.error('❌ Error en análisis de IA contextual:', error);
+      // Fallback al sistema de patrones
+      return this.analyzeUserIntent(message);
+    }
+  }
+
+  // Extraer intención de la respuesta de la IA
+  extractIntentFromAIResponse(aiResponse) {
+    const validIntents = [
+      'hacer_pedido', 'consulta_menu', 'cancelar_pedido', 'saludo',
+      'agradecimiento', 'consulta_horario', 'consulta_ubicacion',
+      'recomendacion', 'no_entendido', 'consulta_general'
+    ];
+    
+    const response = aiResponse.toLowerCase().trim();
+    
+    // Buscar la intención en la respuesta
+    for (const intent of validIntents) {
+      if (response.includes(intent)) {
+        return intent;
+      }
+    }
+    
+    // Si no encuentra una intención válida, usar fallback
+    console.log('⚠️ IA no detectó intención válida, usando fallback');
+    return 'consulta_general';
+  }
+
+  // Obtener mensajes recientes para contexto
+  async getRecentMessages(clientId, branchId, limit = 5) {
+    try {
+      if (!clientId) return [];
+      
+      // Aquí podrías implementar la lógica para obtener mensajes recientes de la base de datos
+      // Por ahora, retornamos un array vacío como placeholder
+      return [];
+      
+    } catch (error) {
+      console.error('❌ Error obteniendo mensajes recientes:', error);
+      return [];
+    }
+  }
+
+  // Analizar intención del usuario con tolerancia a errores de escritura (MÉTODO ORIGINAL)
   analyzeUserIntent(message) {
     const lowerMessage = message.toLowerCase();
+    
+    // Primero intentar detectar y corregir patrones de pedido
+    const correctionResult = this.detectAndCorrectOrderPattern(message);
     
     // Función para normalizar texto (corregir errores comunes)
     const normalizeText = (text) => {
@@ -484,9 +913,71 @@ Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "env
         .trim();
     };
     
-    const normalizedMessage = normalizeText(lowerMessage);
+    // Usar el mensaje corregido si se encontró un patrón
+    const messageToAnalyze = correctionResult.corrected ? correctionResult.correctedMessage : lowerMessage;
+    const normalizedMessage = normalizeText(messageToAnalyze);
     
-    // PRIORIDAD 1: Pedidos (más tolerante y con sinónimos comunes)
+    // PRIORIDAD 0: Cancelaciones (máxima prioridad)
+    const cancellationKeywords = [
+      // Palabras directas de cancelación
+      'cancelar', 'cancelar pedido', 'cancelar orden', 'cancelar mi pedido',
+      'cancelar el pedido', 'cancelar la orden', 'cancelar mi orden',
+      'cancelado', 'cancelo', 'cancela', 'cancelar todo',
+      
+      // Expresiones de desistimiento (más específicas)
+      'ya no quiero pedir', 'ya no quiero ordenar', 'ya no quiero el pedido',
+      'no quiero pedir', 'no quiero ordenar', 'no quiero el pedido',
+      'ya no deseo pedir', 'ya no deseo ordenar', 'ya no deseo el pedido',
+      'no deseo pedir', 'no deseo ordenar', 'no deseo el pedido',
+      'mejor no pedir', 'mejor no ordenar', 'mejor no hacer pedido',
+      'olvídalo', 'olvidalo', 'olvídame', 'olvidame',
+      'déjalo', 'dejalo', 'déjame', 'dejame',
+      'no gracias', 'no, gracias',
+      
+      // Expresiones de cambio de opinión
+      'cambié de opinión', 'cambie de opinion', 'cambié de parecer',
+      'cambie de parecer', 'ya no más', 'ya no mas',
+      'mejor después', 'mejor despues', 'después', 'despues',
+      'más tarde', 'mas tarde', 'más adelante', 'mas adelante',
+      
+      // Expresiones de desistimiento formal
+      'desisto', 'desistir', 'desistir del pedido', 'desistir de la orden',
+      'renunciar', 'renunciar al pedido', 'renunciar a la orden',
+      'retirar', 'retirar pedido', 'retirar orden', 'retirar mi pedido',
+      
+      // Expresiones informales (más específicas)
+      'nada más', 'nada mas', 'nada de nada',
+      'no es nada', 'no es na', 'no es na mas',
+      'no pasa nada', 'no pasa na', 'tranquilo',
+      'está bien así', 'esta bien asi',
+      
+      // Expresiones de urgencia cancelada (más específicas)
+      'ya no es urgente', 'ya no es urgencia', 'no es urgente',
+      'ya no necesito el pedido', 'no necesito el pedido', 'no lo necesito',
+      'ya no me sirve', 'no me sirve', 'no me sirve ya',
+      
+      // Expresiones de tiempo (más específicas)
+      'ya no tengo tiempo', 'no tengo tiempo para pedir', 'se me pasó el tiempo',
+      'se me paso el tiempo', 'ya es tarde para pedir', 'ya es muy tarde'
+    ];
+    
+    const hasCancellationKeyword = cancellationKeywords.some(keyword => 
+      normalizedMessage.includes(normalizeText(keyword))
+    );
+    
+    if (hasCancellationKeyword) {
+      return 'cancelar_pedido';
+    }
+
+    // PRIORIDAD 1.5: Preguntas sobre porciones (antes de pedidos para evitar conflictos)
+    if (lowerMessage.includes('cuantas alitas') || lowerMessage.includes('cuántas alitas') ||
+        lowerMessage.includes('cuanta porcion') || lowerMessage.includes('cuánta porción') ||
+        lowerMessage.includes('tamaño porcion') || lowerMessage.includes('tamaño porción') ||
+        lowerMessage.includes('porcion') || lowerMessage.includes('porción')) {
+      return 'consulta_porciones';
+    }
+
+    // PRIORIDAD 2: Pedidos (más tolerante y con sinónimos comunes)
     const orderKeywords = [
       // verbos y expresiones generales
       'pedido', 'pedir', 'pido', 'orden', 'ordenar',
@@ -514,13 +1005,39 @@ Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "env
       return 'hacer_pedido';
     }
 
-    // Detección extra: mensajes cortos tipo "combo 2", "familiar 3", "combo4"
-    const comboLike = /(combo\s*\d+|familiar\s*\d+|combo\d+|fam\s*\d+)/i;
-    if (comboLike.test(lowerMessage)) {
+    // Detección extra: mensajes cortos tipo "combo 2", "familiar 3", "emparejado"
+    const comboLike = /(combo\s*\d+|familiar\s*\d+|emparejad[oa]s?|emparajad[oa]s?|combo\d+|fam\s*\d+)/i;
+    if (comboLike.test(messageToAnalyze)) {
+      console.log('🎯 Patrón de combo detectado:', messageToAnalyze);
       return 'hacer_pedido';
     }
     
-    // PRIORIDAD 2: Saludos (variantes comunes: hola/ola/holi/oli/hi/hello/hey)
+    // Detección mejorada: si se corrigió un patrón de pedido, es un pedido
+    if (correctionResult.corrected && correctionResult.match) {
+      console.log('🎯 Patrón corregido detectado como pedido:', correctionResult.correctedMessage);
+      return 'hacer_pedido';
+    }
+    
+    // PRIORIDAD 2: No entendido / Quejas (antes de saludos)
+    const noEntendidoKeywords = [
+      'no entiendo', 'no comprendo', 'no entiendo nada', 'no comprendo nada',
+      'no me estas dando', 'no me estás dando', 'no me das', 'no me da',
+      'no funciona', 'no está funcionando', 'no esta funcionando',
+      'no es lo que quiero', 'no es lo que busco', 'no es lo que necesito',
+      'no me gusta', 'no me sirve', 'no es correcto',
+      'estás mal', 'estas mal', 'está mal', 'esta mal',
+      'te equivocaste', 'te equivocas', 'te estás equivocando', 'te estas equivocando'
+    ];
+    
+    const hasNoEntendidoKeyword = noEntendidoKeywords.some(keyword => 
+      normalizedMessage.includes(normalizeText(keyword))
+    );
+    
+    if (hasNoEntendidoKeyword) {
+      return 'no_entendido';
+    }
+
+    // PRIORIDAD 3: Saludos (variantes comunes: hola/ola/holi/oli/hi/hello/hey)
     const isGreetingMsg = (
       lowerMessage.includes('hola') ||
       lowerMessage === 'ola' || lowerMessage.startsWith('ola ') || lowerMessage.endsWith(' ola') || lowerMessage.includes(' ola ')
@@ -568,9 +1085,16 @@ Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "env
         lowerMessage.includes('qué me recomiendas') || lowerMessage.includes('que me recomiendas') ||
         lowerMessage.includes('qué me sugieres') || lowerMessage.includes('que me sugieres') ||
         lowerMessage.includes('no sé qué pedir') || lowerMessage.includes('no se que pedir') ||
-        lowerMessage.includes('ayúdame a elegir') || lowerMessage.includes('ayudame a elegir')) {
+        lowerMessage.includes('ayúdame a elegir') || lowerMessage.includes('ayudame a elegir') ||
+        lowerMessage.includes('me puedes ayudar') || lowerMessage.includes('me puedes ayudar') ||
+        lowerMessage.includes('cual combo me puede funcionar') || lowerMessage.includes('cual combo me puede funcionar') ||
+        lowerMessage.includes('que combo me recomiendas') || lowerMessage.includes('qué combo me recomiendas') ||
+        lowerMessage.includes('que me sugieres para') || lowerMessage.includes('qué me sugieres para') ||
+        lowerMessage.includes('no se cual elegir') || lowerMessage.includes('no sé cual elegir') ||
+        lowerMessage.includes('ayudame a decidir') || lowerMessage.includes('ayúdame a decidir')) {
       return 'recomendacion';
     }
+
     
     // PRIORIDAD 5: Otras consultas
     if (lowerMessage.includes('precio') || lowerMessage.includes('cuesta') || lowerMessage.includes('vale')) {
@@ -855,10 +1379,22 @@ Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "env
     } else if (intent === 'consulta_ubicacion') {
       specificContent = this.getLocationInfo(businessType);
     } else if (intent === 'recomendacion') {
-      specificContent = this.getRecommendationQuestion(clientId, branchId);
+      specificContent = this.getRecommendationQuestion(clientId, branchId, userMessage);
     } else if (intent === 'agradecimiento') {
       // Para agradecimientos, solo usar la respuesta base sin contenido adicional
       specificContent = null;
+    } else if (intent === 'no_entendido') {
+      specificContent = (
+        `Entiendo tu preocupación. Permíteme ayudarte mejor. 😊\n\n` +
+        `¿Podrías decirme específicamente qué necesitas? Por ejemplo:\n\n` +
+        `• "quiero ver el menú"\n` +
+        `• "quiero hacer un pedido"\n` +
+        `• "combo emparejado"\n` +
+        `• "familiar 3"\n\n` +
+        `Estoy aquí para ayudarte de la mejor manera posible. 💙`
+      );
+    } else if (intent === 'consulta_porciones') {
+      specificContent = this.getPortionInformation(userMessage);
     }
 
     // Construir respuesta final
@@ -1208,9 +1744,9 @@ Bogotá, Colombia
   }
 
   // Sistema de recomendaciones estilo Akinator
-  getRecommendationQuestion(clientId, branchId) {
+  getRecommendationQuestion(clientId, branchId, originalMessage = null) {
     // Obtener o crear perfil de recomendaciones del cliente
-    const recommendationProfile = this.getRecommendationProfile(clientId, branchId);
+    const recommendationProfile = this.getRecommendationProfile(clientId, branchId, originalMessage);
     
     // Determinar qué pregunta hacer basada en el progreso
     const questionNumber = recommendationProfile.questionsAnswered;
@@ -1236,7 +1772,7 @@ Responde con el número de tu opción preferida (1, 2, 3 o 4)`;
   }
 
   // Obtener perfil de recomendaciones del cliente
-  getRecommendationProfile(clientId, branchId) {
+  getRecommendationProfile(clientId, branchId, originalMessage = null) {
     const profileKey = `recommendation_${clientId}_${branchId}`;
     
     if (!this.recommendationProfiles) {
@@ -1248,11 +1784,116 @@ Responde con el número de tu opción preferida (1, 2, 3 o 4)`;
         questionsAnswered: 0,
         answers: [],
         preferences: {},
-        lastActivity: new Date()
+        lastActivity: new Date(),
+        originalMessage: null
       });
     }
     
-    return this.recommendationProfiles.get(profileKey);
+    const profile = this.recommendationProfiles.get(profileKey);
+    
+    // Guardar el mensaje original si se proporciona
+    if (originalMessage && !profile.originalMessage) {
+      profile.originalMessage = originalMessage;
+    }
+    
+    return profile;
+  }
+
+  // Extraer número de personas del mensaje inicial
+  extractPeopleCountFromMessage(message) {
+    const lowerMessage = message.toLowerCase();
+    
+    // Patrones para detectar número de personas
+    const patterns = [
+      /somos (\d+)/i,
+      /somos (\d+) en total/i,
+      /(\d+) personas/i,
+      /(\d+) gente/i,
+      /(\d+) amigos/i,
+      /para (\d+)/i,
+      /(\d+) comensales/i,
+      /grupo de (\d+)/i,
+      /en total (\d+)/i,
+      /somos (\d+) en/i,
+      /(\d+) en total/i,
+      /(\d+) de nosotros/i,
+      /(\d+) vamos/i,
+      /(\d+) estamos/i,
+      /reunion de (\d+)/i,
+      /reunión de (\d+)/i,
+      /meeting de (\d+)/i,
+      /encuentro de (\d+)/i,
+      /junta de (\d+)/i,
+      /evento de (\d+)/i,
+      /celebracion de (\d+)/i,
+      /celebración de (\d+)/i,
+      /fiesta de (\d+)/i,
+      /(\d+) para comer/i,
+      /(\d+) para cenar/i,
+      /(\d+) para almorzar/i,
+      /(\d+) para desayunar/i
+    ];
+    
+    for (const pattern of patterns) {
+      const match = lowerMessage.match(pattern);
+      if (match) {
+        const count = parseInt(match[1]);
+        if (count > 0 && count <= 20) { // Límite razonable
+          return count;
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  // Calcular alitas necesarias basado en número de personas
+  calculateAlitasNeeded(peopleCount) {
+    const alitasPerPerson = 5; // 5 alitas por persona
+    return peopleCount * alitasPerPerson;
+  }
+
+  // Encontrar combos óptimos basado en número de personas
+  findOptimalCombos(peopleCount, menuProducts) {
+    const totalAlitasNeeded = this.calculateAlitasNeeded(peopleCount);
+    const recommendations = [];
+    
+    // Estrategia: encontrar combinaciones que se acerquen al número de alitas necesarias
+    const comboOptions = [
+      // Combinaciones de combos familiares
+      { name: "Familiar 3 + Familiar 2", alitas: 40 + 30, price: 87900 + 62900, description: "70 alitas para todos" },
+      { name: "Familiar 3 + Familiar 1", alitas: 40 + 20, price: 87900 + 65900, description: "60 alitas para todos" },
+      { name: "2x Familiar 2", alitas: 30 + 30, price: 62900 + 62900, description: "60 alitas para todos" },
+      { name: "Familiar 4", alitas: 50, price: 107900, description: "50 alitas + 2 acompañantes" },
+      { name: "Familiar 3", alitas: 40, price: 87900, description: "40 alitas + acompañante + gaseosa" },
+      { name: "Familiar 2", alitas: 30, price: 62900, description: "30 alitas + acompañante + gaseosa" },
+      { name: "Familiar 1", alitas: 20, price: 65900, description: "20 alitas + acompañante + gaseosa" }
+    ];
+    
+    // Encontrar la mejor opción
+    let bestOption = comboOptions[0];
+    let smallestDifference = Math.abs(comboOptions[0].alitas - totalAlitasNeeded);
+    
+    for (const option of comboOptions) {
+      const difference = Math.abs(option.alitas - totalAlitasNeeded);
+      if (difference < smallestDifference) {
+        smallestDifference = difference;
+        bestOption = option;
+      }
+    }
+    
+    return {
+      peopleCount,
+      alitasNeeded: totalAlitasNeeded,
+      recommendedCombo: bestOption,
+      efficiency: Math.round((totalAlitasNeeded / bestOption.alitas) * 100)
+    };
+  }
+
+  // Verificar si es un negocio de alitas
+  isAlitasBusiness(branchId) {
+    const menuContent = this.menuContent.get(branchId) || '';
+    return menuContent.toLowerCase().includes('alitas') || menuContent.toLowerCase().includes('wings');
   }
 
   // Generar recomendación final basada en las respuestas
@@ -1263,7 +1904,7 @@ Responde con el número de tu opción preferida (1, 2, 3 o 4)`;
     const menuProducts = this.getMenuProductsFromBranch(branchId);
     
     // Si es un menú de alitas mix, usar lógica específica
-    if (menuProducts.length > 0 && menuProducts[0].category === 'alitas') {
+    if (menuProducts.length > 0 && (menuProducts[0].category === 'alitas' || this.isAlitasBusiness(branchId))) {
       return this.generateAlitasRecommendation(profile, menuProducts);
     }
     
@@ -1383,42 +2024,36 @@ Escribe "recomendación" para hacer el test otra vez.`;
 
   // Generar recomendación específica para alitas mix
   generateAlitasRecommendation(profile, menuProducts) {
-    const recommendations = [];
-    
-    // Filtrar por número de personas (respuesta 0 - people_count)
-    const peopleAnswer = profile.answers[0];
-    let numPeople = 1;
-    
-    if (peopleAnswer === "Solo para mí") {
-      numPeople = 1;
-    } else if (peopleAnswer === "Para 2-3 personas") {
-      numPeople = 3;
-    } else if (peopleAnswer === "Para 4-5 personas") {
-      numPeople = 5;
-    } else if (peopleAnswer === "Para 6+ personas") {
-      numPeople = 6;
+    // Intentar extraer número de personas del mensaje inicial si está disponible
+    let peopleCount = null;
+    if (profile.originalMessage) {
+      peopleCount = this.extractPeopleCountFromMessage(profile.originalMessage);
     }
     
-    if (numPeople === 1) {
-      // Para 1 persona, recomendar combos personales
-      recommendations.push(...menuProducts.filter(p => p.type === 'personal'));
-    } else if (numPeople >= 2 && numPeople <= 3) {
-      // Para 2-3 personas, recomendar combos familiares pequeños (20-30 alitas)
-      recommendations.push(...menuProducts.filter(p => p.type === 'familiar' && p.alitasCount <= 30));
-    } else if (numPeople >= 4 && numPeople <= 5) {
-      // Para 4-5 personas, recomendar combos familiares medianos (30-40 alitas)
-      recommendations.push(...menuProducts.filter(p => p.type === 'familiar' && p.alitasCount >= 30 && p.alitasCount <= 40));
-    } else if (numPeople >= 6) {
-      // Para 6+ personas, recomendar combos familiares grandes (40+ alitas)
-      recommendations.push(...menuProducts.filter(p => p.type === 'familiar' && p.alitasCount >= 40));
+    // Si no se detectó en el mensaje inicial, usar la respuesta de la primera pregunta
+    if (!peopleCount && profile.answers[0]) {
+      const peopleAnswer = profile.answers[0];
+      if (peopleAnswer === "Solo para mí") {
+        peopleCount = 1;
+      } else if (peopleAnswer === "Para 2-3 personas") {
+        peopleCount = 3;
+      } else if (peopleAnswer === "Para 4-5 personas") {
+        peopleCount = 5;
+      } else if (peopleAnswer === "Para 6+ personas") {
+        peopleCount = 6;
+      }
     }
     
-    // Si no hay recomendaciones específicas, usar todas las alitas
-    if (recommendations.length === 0) {
-      recommendations.push(...menuProducts);
+    // Si aún no tenemos número de personas, usar default
+    if (!peopleCount) {
+      peopleCount = 1;
     }
+    
+    // Usar el nuevo sistema inteligente para encontrar combos óptimos
+    const optimalCombos = this.findOptimalCombos(peopleCount, menuProducts);
     
     // Aplicar filtro de presupuesto si está disponible (respuesta 4 - budget)
+    let filteredCombo = optimalCombos.recommendedCombo;
     if (profile.answers[4]) {
       const budgetAnswer = profile.answers[4];
       let maxBudget = 0;
@@ -1431,20 +2066,25 @@ Escribe "recomendación" para hacer el test otra vez.`;
         maxBudget = 80000;
       }
       
-      if (maxBudget > 0) {
-        recommendations.splice(0, recommendations.length, 
-          ...recommendations.filter(p => p.price <= maxBudget)
-        );
+      // Si el combo recomendado excede el presupuesto, buscar alternativas
+      if (maxBudget > 0 && filteredCombo.price > maxBudget) {
+        // Buscar combos más económicos que se ajusten al presupuesto
+        const budgetOptions = [
+          { name: "Familiar 1", alitas: 20, price: 65900, description: "20 alitas + acompañante + gaseosa" },
+          { name: "Familiar 2", alitas: 30, price: 62900, description: "30 alitas + acompañante + gaseosa" },
+          { name: "Combo 4", alitas: 14, price: 42900, description: "14 alitas + acompañante + salsas" },
+          { name: "Combo 3", alitas: 9, price: 30900, description: "9 alitas + acompañante + salsas" }
+        ];
+        
+        const affordableOptions = budgetOptions.filter(option => option.price <= maxBudget);
+        if (affordableOptions.length > 0) {
+          filteredCombo = affordableOptions[0];
+        }
       }
     }
     
-    // Seleccionar la mejor recomendación
-    if (recommendations.length > 0) {
-      const bestRecommendation = recommendations[0];
-      return this.formatAlitasRecommendation(bestRecommendation);
-    }
-    
-    return null;
+    // Formatear la recomendación con el nuevo formato claro
+    return this.formatSmartAlitasRecommendation(optimalCombos, filteredCombo, profile.answers[4]);
   }
 
   // Formatear recomendación de alitas
@@ -1470,6 +2110,109 @@ Puedes:
 * Escribir "menu" para ver todo el menú
 * Escribir "otra sugerencia" para buscar algo diferente
 * O preguntarme cualquier cosa que necesites 😊`;
+  }
+
+  // Formatear recomendación inteligente de alitas con cálculo de porciones
+  formatSmartAlitasRecommendation(optimalCombos, recommendedCombo, budgetAnswer) {
+    const { peopleCount, alitasNeeded, recommendedCombo: originalCombo, efficiency } = optimalCombos;
+    
+    return `🎯 *RECOMENDACIÓN INTELIGENTE PARA ${peopleCount} PERSONAS*
+
+📊 *ANÁLISIS DE PORCIONES:*
+• 👥 Personas: ${peopleCount}
+• 🍗 Alitas necesarias: ${alitasNeeded} (5 por persona)
+• 🎯 Combo recomendado: ${recommendedCombo.name}
+• 📦 Alitas incluidas: ${recommendedCombo.alitas}
+• ✅ Eficiencia: ${efficiency}% de las alitas necesarias
+
+🍽️ *DETALLE DEL COMBO:*
+${recommendedCombo.description}
+💰 *Precio:* $${recommendedCombo.price.toLocaleString()}
+
+💡 *¿Por qué esta opción?*
+${this.getRecommendationReason(optimalCombos, recommendedCombo, budgetAnswer)}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+¿Te gusta esta recomendación? 😊
+
+Puedes:
+• Escribir "pedir" para hacer tu pedido
+• Escribir "menu" para ver todo el menú  
+• Escribir "otra sugerencia" para buscar algo diferente
+• O preguntarme cualquier cosa que necesites 😊`;
+  }
+
+  // Obtener razón de la recomendación
+  getRecommendationReason(optimalCombos, recommendedCombo, budgetAnswer) {
+    const { peopleCount, alitasNeeded, efficiency } = optimalCombos;
+    
+    let reasons = [];
+    
+    // Razón de porciones
+    if (efficiency >= 90) {
+      reasons.push("Se ajusta perfectamente a la cantidad de personas");
+    } else if (efficiency >= 80) {
+      reasons.push("Cubre muy bien las necesidades del grupo");
+    } else if (efficiency >= 70) {
+      reasons.push("Adecuado para el tamaño del grupo");
+    } else {
+      reasons.push("Buena opción para el grupo, aunque puede quedar algo");
+    }
+    
+    // Razón de presupuesto
+    if (budgetAnswer) {
+      reasons.push("Se ajusta a tu presupuesto");
+    }
+    
+    // Razón de valor
+    if (recommendedCombo.price <= 70000) {
+      reasons.push("Excelente relación calidad-precio");
+    }
+    
+    return reasons.join(", ") + ".";
+  }
+
+  // Responder preguntas sobre porciones
+  getPortionInformation(message) {
+    const lowerMessage = message.toLowerCase();
+    
+    // Detectar preguntas sobre porciones
+    const portionKeywords = [
+      'cuantas alitas', 'cuántas alitas', 'cuanta alita', 'cuánta alita',
+      'cuantas son', 'cuántas son', 'cuanta porcion', 'cuánta porción',
+      'porcion', 'porción', 'cuanto es', 'cuánto es',
+      'tamaño porcion', 'tamaño porción', 'tamaño de porcion', 'tamaño de porción'
+    ];
+    
+    const hasPortionQuestion = portionKeywords.some(keyword => 
+      lowerMessage.includes(keyword)
+    );
+    
+    if (hasPortionQuestion) {
+      return `🍗 *INFORMACIÓN SOBRE PORCIONES DE ALITAS*
+
+📏 *TAMAÑO ESTÁNDAR:*
+• 1 porción = 5 alitas por persona
+• Este es el tamaño estándar recomendado
+
+👥 *PARA DIFERENTES GRUPOS:*
+• 1 persona → 5 alitas
+• 2 personas → 10 alitas  
+• 4 personas → 20 alitas
+• 6 personas → 30 alitas
+• 8 personas → 40 alitas
+• 10 personas → 50 alitas
+
+💡 *CONSEJOS:*
+• Si tienes hambre, considera 6-7 alitas por persona
+• Si es para compartir como snack, 3-4 alitas por persona
+• Los acompañantes (papas, yucas, etc.) complementan la porción
+
+¿Te gustaría que te ayude a calcular cuántas alitas necesitas para tu grupo? 😊`;
+    }
+    
+    return null;
   }
 
   // Categorizar producto basado en su nombre
@@ -3485,6 +4228,121 @@ Gracias por tu compra, que las disfrutes 😊`;
     }
     
     return response;
+  }
+
+  // Manejar cancelación de pedidos
+  async handleOrderCancellation(clientId, branchId, userMessage) {
+    try {
+      console.log('🚫 ===== MANEJANDO CANCELACIÓN DE PEDIDO =====');
+      console.log(`📞 Cliente: ${clientId}`);
+      console.log(`🏪 Sucursal: ${branchId}`);
+      console.log(`💬 Mensaje: ${userMessage}`);
+      
+      // Buscar pedidos activos del cliente
+      const Order = require('../models/Order');
+      const UserSession = require('../models/UserSession');
+      const SessionTimerService = require('./SessionTimerService');
+      
+      // Convertir branchId a ObjectId si es necesario
+      const mongoose = require('mongoose');
+      let branchIdObjectId;
+      
+      if (typeof branchId === 'string' && mongoose.Types.ObjectId.isValid(branchId)) {
+        branchIdObjectId = new mongoose.Types.ObjectId(branchId);
+      } else if (typeof branchId === 'object') {
+        branchIdObjectId = branchId;
+      } else {
+        branchIdObjectId = branchId;
+      }
+      
+      // Buscar pedidos pendientes del cliente
+      const pendingOrders = await Order.find({
+        'customer.phone': clientId,
+        branchId: branchIdObjectId,
+        status: { $in: ['pending', 'confirmed', 'preparing'] },
+        isActive: true
+      }).sort({ createdAt: -1 });
+      
+      console.log(`📋 Pedidos pendientes encontrados: ${pendingOrders.length}`);
+      
+      if (pendingOrders.length === 0) {
+        console.log('✅ No hay pedidos pendientes para cancelar');
+        return `¡Perfecto! 😊 No tienes pedidos pendientes que cancelar.\n\n😔 Es un infortunio no poder continuar contigo en esta ocasión.\n\n💙 Pero no te preocupes, estaremos aquí listos para atenderte próximamente cuando lo desees.\n\n¡Gracias por contactarnos y esperamos verte pronto! 😊`;
+      }
+      
+      // Cancelar todos los pedidos pendientes
+      let cancelledCount = 0;
+      const cancelledOrders = [];
+      
+      for (const order of pendingOrders) {
+        try {
+          // Actualizar estado del pedido
+          await order.updateStatus('cancelled', `Cancelado por el cliente: ${userMessage}`, 'system');
+          
+          cancelledOrders.push({
+            orderId: order.orderId,
+            total: order.total,
+            status: order.status
+          });
+          
+          cancelledCount++;
+          
+          console.log(`✅ Pedido ${order.orderId} cancelado exitosamente`);
+          
+        } catch (error) {
+          console.error(`❌ Error cancelando pedido ${order.orderId}:`, error.message);
+        }
+      }
+      
+      // Completar sesión del cliente (detener timers)
+      try {
+        const sessionTimerService = new SessionTimerService();
+        await sessionTimerService.completeSession({
+          phoneNumber: clientId,
+          branchId: branchId
+        });
+        
+        console.log('✅ Sesión completada, timers detenidos');
+      } catch (error) {
+        console.error('⚠️ Error completando sesión:', error.message);
+      }
+      
+      // Generar respuesta personalizada
+      let response = '';
+      
+      if (cancelledCount === 1) {
+        const order = cancelledOrders[0];
+        response = `✅ *PEDIDO CANCELADO*\n\n`;
+        response += `📋 Pedido #${order.orderId}\n`;
+        response += `💰 Valor: $${order.total.toLocaleString()}\n\n`;
+        response += `Tu pedido ha sido cancelado exitosamente. No se realizará ningún cobro.\n\n`;
+        response += `😔 Es un infortunio no poder continuar con tu pedido en esta ocasión.\n\n`;
+        response += `💙 Pero no te preocupes, estaremos aquí listos para atenderte próximamente cuando lo desees.\n\n`;
+        response += `¡Gracias por contactarnos y esperamos verte pronto! 😊`;
+      } else {
+        response = `✅ *${cancelledCount} PEDIDOS CANCELADOS*\n\n`;
+        response += `Se han cancelado todos tus pedidos pendientes:\n\n`;
+        
+        cancelledOrders.forEach((order, index) => {
+          response += `${index + 1}. Pedido #${order.orderId} - $${order.total.toLocaleString()}\n`;
+        });
+        
+        response += `\n💰 *Total cancelado: $${cancelledOrders.reduce((sum, order) => sum + order.total, 0).toLocaleString()}*\n\n`;
+        response += `No se realizará ningún cobro por estos pedidos.\n\n`;
+        response += `😔 Es un infortunio no poder continuar con tus pedidos en esta ocasión.\n\n`;
+        response += `💙 Pero no te preocupes, estaremos aquí listos para atenderte próximamente cuando lo desees.\n\n`;
+        response += `¡Gracias por contactarnos y esperamos verte pronto! 😊`;
+      }
+      
+      console.log('✅ Cancelación procesada exitosamente');
+      console.log('=====================================');
+      
+      return response;
+      
+    } catch (error) {
+      console.error('❌ Error manejando cancelación:', error);
+      return `Lo siento, hubo un problema al cancelar tu pedido. Por favor, contacta directamente con la sucursal para confirmar la cancelación. 😔`;
+    }
   }
 }
 

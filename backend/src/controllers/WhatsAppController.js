@@ -314,9 +314,12 @@ class WhatsAppController {
                 const isMenuRequest = ['menú', 'menu', 'envíame el menú', 'envíame el menu'].some(keyword => 
                     lowerMessage.includes(keyword.toLowerCase())
                 );
-                const isOrderAcceptance = ['sí', 'si', 'yes', 'acepto', 'confirmo', 'pedir', 'ordenar', 'comprar'].some(keyword => 
+                // Separar intención de confirmar vs iniciar pedido
+                const isOrderRequest = ['pedir', 'ordenar', 'comprar'].some(keyword => 
                     lowerMessage.includes(keyword.toLowerCase())
                 );
+                // Usar IA para confirmar detección robusta
+                const isOrderConfirmation = this.aiService.isOrderConfirmation ? this.aiService.isOrderConfirmation(message) : ['sí','si','acepto','confirmo','ok','listo','vale','yes'].some(k=>lowerMessage.includes(k));
 
                 if (isGreeting) {
                     // Iniciar sesión de saludo con timer de 3 minutos
@@ -332,15 +335,34 @@ class WhatsAppController {
                         phoneNumber,
                         branchId: connection.branchId
                     });
-                } else if (isOrderAcceptance) {
-                    // Completar sesión si acepta el pedido
-                    await this._sessionTimerService.completeSession({
+                } else if (isOrderConfirmation) {
+                    // Confirmación del cliente: finalizar pedido con IA, guardar y enviar a cocina
+                    try {
+                        const confirmText = await this.aiService.handleOrderConfirmation(phoneNumber, connection.branchId, message);
+                        if (confirmText && confirmText.length > 0) {
+                            await this.whatsappService.sendMessage(connectionIdStr, phoneNumber, confirmText);
+                        }
+                        // Completar sesión de timers
+                        await this._sessionTimerService.completeSession({
+                            phoneNumber,
+                            branchId: connection.branchId
+                        });
+                        // Enviar resumen a sucursal SOLO si el texto confirma pedido
+                        const looksConfirmed = /PEDIDO\s+CONFIRMADO/i.test(confirmText || '');
+                        if (looksConfirmed) {
+                            await this.sendOrderSummaryToBranch(connection, phoneNumber, message);
+                        }
+                        return; // Ya se respondió y despachó
+                    } catch (e) {
+                        console.warn('⚠️ Error en confirmación de pedido:', e.message);
+                    }
+                } else if (isOrderRequest) {
+                    // Solicitud de iniciar pedido: dejar que el flujo de IA construya/resuma y guarde pending order
+                    await this._sessionTimerService.onMessageReceived({
                         phoneNumber,
-                        branchId: connection.branchId
+                        branchId: connection.branchId,
+                        message
                     });
-                    
-                    // Enviar resumen del pedido a la sucursal
-                    await this.sendOrderSummaryToBranch(connection, phoneNumber, message);
                 } else {
                     // Cualquier otro mensaje reinicia el timer
                     await this._sessionTimerService.onMessageReceived({
@@ -413,16 +435,20 @@ class WhatsAppController {
                 // Generate AI response with branch-specific configuration
                 let aiResponse;
                 
-                // Use traditional AI for other messages
-                console.log('🤖 ===== USANDO SISTEMA IA TRADICIONAL =====');
-                aiResponse = await this.aiService.generateResponse(
-                    connection.branchId,
+                // Use new hybrid AI system for better contextual understanding
+                console.log('🤖 ===== USANDO SISTEMA IA HÍBRIDO MEJORADO =====');
+                aiResponse = await this.aiService.generateFluidResponse(
                     message,
+                    connection.branchId,
                     phoneNumber,
-                    businessType,
-                    branchAIConfig
+                    {
+                        businessType,
+                        branchAIConfig,
+                        lastMessages: [], // TODO: Implement conversation history
+                        currentState: 'active_conversation'
+                    }
                 );
-                console.log('✅ Respuesta IA generada:', aiResponse);
+                console.log('✅ Respuesta IA híbrida generada:', aiResponse);
 
             console.log('🤖 ===== RESPUESTA IA GENERADA =====');
             console.log('📱 Connection ID:', connectionIdStr);
@@ -431,7 +457,23 @@ class WhatsAppController {
             console.log('====================================');
 
                 // Send AI response
-                const messageText = typeof aiResponse === 'string' ? aiResponse : aiResponse.text;
+                const messageTextRaw = typeof aiResponse === 'string' ? aiResponse : aiResponse.text;
+                let messageText = messageTextRaw;
+                // If the AI returned a menu (combos) without a concise recommendation, prepend a simple guide
+                const looksLikeAlitasMenu = /COMBOS\s+PERSONALES|COMBOS\s+FAMILIARES|COMBO\s+EMPAREJADO/i.test(messageTextRaw || '');
+                const hasRecommendationHeader = /MI\s+RECOMENDACI[ÓO]N/i.test(messageTextRaw || '');
+                if (looksLikeAlitasMenu && !hasRecommendationHeader) {
+                    const quickGuide = `Hagámoslo simple: dime cuántas personas son y te doy la opción más básica adecuada.\n\n` +
+`- 1 persona: Combo 1 (5 alitas + acompañante)\n` +
+`- 2 personas: Combo Emparejado (16 alitas + 2 acompañantes)\n` +
+`- 3 personas: Combo 2 (7 alitas + acompañante)\n` +
+`- 4 personas: Combo 3 (9 alitas + acompañante)\n` +
+`- 5–6 personas: Familiar 2 (30 alitas + acompañante + gaseosa 1.5 L)\n` +
+`- 7–8 personas: Familiar 3 (40 alitas + acompañante + gaseosa 1.5 L)\n` +
+`- 9–10 personas: Familiar 4 (50 alitas + 2 acompañantes + gaseosa 1.5 L)\n\n` +
+`Escribe "pedir" para ordenar, "menu" para ver todo o "otra sugerencia" para ajustar.\n\n`;
+                    messageText = quickGuide + messageTextRaw;
+                }
                 await this.whatsappService.sendMessage(connectionIdStr, phoneNumber, messageText);
 
                 // Update connection stats

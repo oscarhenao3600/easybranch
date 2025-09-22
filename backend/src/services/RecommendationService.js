@@ -78,12 +78,20 @@ class RecommendationService {
     // Crear nueva sesión de recomendación
     async createSession(phoneNumber, branchId, businessId, peopleCount = 1) {
         const sessionId = `rec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
+
+        // Normalizar identificadores y teléfono
+        const branchIdStr = branchId ? String(branchId) : '';
+        const businessIdStr = businessId ? String(businessId) : '';
+        const phoneNormalized = (phoneNumber || '')
+            .replace('@c.us', '')
+            .replace(/^\+/, '')
+            .replace(/\s+/g, '');
+
         const session = new RecommendationSession({
             sessionId,
-            phoneNumber,
-            branchId,
-            businessId,
+            phoneNumber: phoneNormalized,
+            branchId: branchIdStr,
+            businessId: businessIdStr,
             status: 'active',
             currentStep: 0,
             maxSteps: 5,
@@ -599,9 +607,15 @@ class RecommendationService {
 
     // Obtener sesión activa
     async getActiveSession(phoneNumber, branchId) {
+        const branchIdStr = branchId ? String(branchId) : '';
+        const phoneNormalized = (phoneNumber || '')
+            .replace('@c.us', '')
+            .replace(/^\+/, '')
+            .replace(/\s+/g, '');
+
         return await RecommendationSession.findOne({
-            phoneNumber,
-            branchId,
+            phoneNumber: phoneNormalized,
+            branchId: branchIdStr,
             status: 'active'
         });
     }

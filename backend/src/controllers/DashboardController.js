@@ -525,6 +525,460 @@ class DashboardController {
     };
   }
 
+  // Obtener alertas del sistema
+  async getDashboardAlerts(req, res) {
+    try {
+      const userId = req.user.userId;
+      const userRole = req.user.role;
+
+      let alerts = [];
+
+      // Alertas según el rol del usuario
+      if (userRole === 'super_admin') {
+        alerts = await this.getSuperAdminAlerts();
+      } else if (userRole === 'business_admin') {
+        alerts = await this.getBusinessAdminAlerts(req.user.businessId);
+      } else if (userRole === 'branch_admin' || userRole === 'staff') {
+        alerts = await this.getBranchAlerts(req.user.branchId);
+      }
+
+      res.json({
+        success: true,
+        data: alerts
+      });
+
+    } catch (error) {
+      this.logger.error('Error obteniendo alertas del dashboard:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+
+  // Alertas para Super Admin (globales)
+  async getSuperAdminAlerts() {
+    try {
+      const alerts = [];
+
+      // 1. Clientes activos en sesión
+      const activeSessions = await this.getActiveSessions();
+      if (activeSessions.count > 0) {
+        alerts.push({
+          type: 'info',
+          icon: 'users',
+          title: `${activeSessions.count} cliente${activeSessions.count > 1 ? 's' : ''} activo${activeSessions.count > 1 ? 's' : ''}`,
+          message: `Clientes en proceso de pedido`,
+          details: activeSessions.details,
+          time: 'En tiempo real'
+        });
+      }
+
+      // 2. Pedidos pendientes por mucho tiempo
+      const staleOrders = await this.getStaleOrders();
+      if (staleOrders.count > 0) {
+        alerts.push({
+          type: 'warning',
+          icon: 'clock',
+          title: `${staleOrders.count} pedido${staleOrders.count > 1 ? 's' : ''} pendiente${staleOrders.count > 1 ? 's' : ''}`,
+          message: `Pedidos sin actualización por más de 30 minutos`,
+          details: staleOrders.details,
+          time: 'Última actualización'
+        });
+      }
+
+      // 3. Pedidos cancelados por inactividad
+      const cancelledOrders = await this.getCancelledOrders();
+      if (cancelledOrders.count > 0) {
+        alerts.push({
+          type: 'danger',
+          icon: 'times-circle',
+          title: `${cancelledOrders.count} pedido${cancelledOrders.count > 1 ? 's' : ''} cancelado${cancelledOrders.count > 1 ? 's' : ''}`,
+          message: `Cancelados por inactividad del cliente`,
+          details: cancelledOrders.details,
+          time: 'Últimas 24 horas'
+        });
+      }
+
+      // 4. Pedidos cancelados por el cliente
+      const clientCancelledOrders = await this.getClientCancelledOrders();
+      if (clientCancelledOrders.count > 0) {
+        alerts.push({
+          type: 'info',
+          icon: 'user-times',
+          title: `${clientCancelledOrders.count} pedido${clientCancelledOrders.count > 1 ? 's' : ''} cancelado${clientCancelledOrders.count > 1 ? 's' : ''}`,
+          message: `Cancelados por decisión del cliente`,
+          details: clientCancelledOrders.details,
+          time: 'Últimas 24 horas'
+        });
+      }
+
+      // 5. Conexiones WhatsApp desconectadas
+      const disconnectedWhatsApp = await this.getDisconnectedWhatsApp();
+      if (disconnectedWhatsApp.count > 0) {
+        alerts.push({
+          type: 'warning',
+          icon: 'whatsapp',
+          title: `${disconnectedWhatsApp.count} WhatsApp desconectado${disconnectedWhatsApp.count > 1 ? 's' : ''}`,
+          message: `Conexiones que requieren reconexión`,
+          details: disconnectedWhatsApp.details,
+          time: 'Estado actual'
+        });
+      }
+
+      return alerts;
+
+    } catch (error) {
+      this.logger.error('Error obteniendo alertas de super admin:', error);
+      return [];
+    }
+  }
+
+  // Alertas para Business Admin
+  async getBusinessAdminAlerts(businessId) {
+    try {
+      const alerts = [];
+
+      // Clientes activos en su negocio
+      const activeSessions = await this.getActiveSessions(businessId);
+      if (activeSessions.count > 0) {
+        alerts.push({
+          type: 'info',
+          icon: 'users',
+          title: `${activeSessions.count} cliente${activeSessions.count > 1 ? 's' : ''} activo${activeSessions.count > 1 ? 's' : ''}`,
+          message: `En proceso de pedido en tu negocio`,
+          details: activeSessions.details,
+          time: 'En tiempo real'
+        });
+      }
+
+      // Pedidos pendientes
+      const staleOrders = await this.getStaleOrders(businessId);
+      if (staleOrders.count > 0) {
+        alerts.push({
+          type: 'warning',
+          icon: 'clock',
+          title: `${staleOrders.count} pedido${staleOrders.count > 1 ? 's' : ''} pendiente${staleOrders.count > 1 ? 's' : ''}`,
+          message: `Requieren atención`,
+          details: staleOrders.details,
+          time: 'Última actualización'
+        });
+      }
+
+      // Pedidos cancelados por el cliente
+      const clientCancelledOrders = await this.getClientCancelledOrders(businessId);
+      if (clientCancelledOrders.count > 0) {
+        alerts.push({
+          type: 'info',
+          icon: 'user-times',
+          title: `${clientCancelledOrders.count} pedido${clientCancelledOrders.count > 1 ? 's' : ''} cancelado${clientCancelledOrders.count > 1 ? 's' : ''}`,
+          message: `Cancelados por decisión del cliente`,
+          details: clientCancelledOrders.details,
+          time: 'Últimas 24 horas'
+        });
+      }
+
+      return alerts;
+
+    } catch (error) {
+      this.logger.error('Error obteniendo alertas de business admin:', error);
+      return [];
+    }
+  }
+
+  // Alertas para Branch Admin/Staff
+  async getBranchAlerts(branchId) {
+    try {
+      const alerts = [];
+
+      // Clientes activos en su sucursal
+      const activeSessions = await this.getActiveSessions(null, branchId);
+      if (activeSessions.count > 0) {
+        alerts.push({
+          type: 'info',
+          icon: 'users',
+          title: `${activeSessions.count} cliente${activeSessions.count > 1 ? 's' : ''} activo${activeSessions.count > 1 ? 's' : ''}`,
+          message: `En proceso de pedido`,
+          details: activeSessions.details,
+          time: 'En tiempo real'
+        });
+      }
+
+      // Pedidos pendientes en su sucursal
+      const staleOrders = await this.getStaleOrders(null, branchId);
+      if (staleOrders.count > 0) {
+        alerts.push({
+          type: 'warning',
+          icon: 'clock',
+          title: `${staleOrders.count} pedido${staleOrders.count > 1 ? 's' : ''} pendiente${staleOrders.count > 1 ? 's' : ''}`,
+          message: `Requieren tu atención`,
+          details: staleOrders.details,
+          time: 'Última actualización'
+        });
+      }
+
+      // Pedidos cancelados por el cliente en su sucursal
+      const clientCancelledOrders = await this.getClientCancelledOrders(null, branchId);
+      if (clientCancelledOrders.count > 0) {
+        alerts.push({
+          type: 'info',
+          icon: 'user-times',
+          title: `${clientCancelledOrders.count} pedido${clientCancelledOrders.count > 1 ? 's' : ''} cancelado${clientCancelledOrders.count > 1 ? 's' : ''}`,
+          message: `Cancelados por decisión del cliente`,
+          details: clientCancelledOrders.details,
+          time: 'Últimas 24 horas'
+        });
+      }
+
+      return alerts;
+
+    } catch (error) {
+      this.logger.error('Error obteniendo alertas de branch:', error);
+      return [];
+    }
+  }
+
+  // Obtener sesiones activas de clientes
+  async getActiveSessions(businessId = null, branchId = null) {
+    try {
+      const UserSession = require('../models/UserSession');
+      const Branch = require('../models/Branch');
+
+      const filter = {
+        hasActiveOrder: true,
+        status: { $in: ['greeting', 'menu_requested', 'waiting_reminder'] }
+      };
+
+      // Aplicar filtros según parámetros
+      if (businessId || branchId) {
+        const branches = await Branch.find({
+          ...(businessId && { businessId }),
+          ...(branchId && { _id: branchId })
+        }).select('_id name');
+        
+        const branchIds = branches.map(b => b._id);
+        filter.branchId = { $in: branchIds };
+      }
+
+      const sessions = await UserSession.find(filter)
+        .populate('branchId', 'name')
+        .sort({ lastActivity: -1 })
+        .limit(10);
+
+      const details = sessions.map(session => ({
+        phoneNumber: session.phoneNumber,
+        branchName: session.branchName || session.branchId?.name || 'Sucursal desconocida',
+        status: this.getSessionStatusText(session.status),
+        lastActivity: this.getTimeAgo(session.lastActivity),
+        timeSinceActivity: Math.floor((Date.now() - session.lastActivity.getTime()) / (1000 * 60))
+      }));
+
+      return {
+        count: sessions.length,
+        details
+      };
+
+    } catch (error) {
+      this.logger.error('Error obteniendo sesiones activas:', error);
+      return { count: 0, details: [] };
+    }
+  }
+
+  // Obtener pedidos pendientes por mucho tiempo
+  async getStaleOrders(businessId = null, branchId = null) {
+    try {
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+      
+      const filter = {
+        isActive: true,
+        status: { $in: ['pending', 'confirmed', 'preparing'] },
+        updatedAt: { $lt: thirtyMinutesAgo }
+      };
+
+      if (businessId) filter.businessId = businessId;
+      if (branchId) filter.branchId = branchId;
+
+      const orders = await Order.find(filter)
+        .populate('businessId', 'name')
+        .populate('branchId', 'name')
+        .sort({ updatedAt: 1 })
+        .limit(10);
+
+      const details = orders.map(order => ({
+        orderId: order.orderId,
+        customerName: order.customer?.name || 'Cliente',
+        branchName: order.branchId?.name || 'Sucursal desconocida',
+        status: order.status,
+        total: order.total,
+        lastUpdate: this.getTimeAgo(order.updatedAt),
+        minutesStale: Math.floor((Date.now() - order.updatedAt.getTime()) / (1000 * 60))
+      }));
+
+      return {
+        count: orders.length,
+        details
+      };
+
+    } catch (error) {
+      this.logger.error('Error obteniendo pedidos pendientes:', error);
+      return { count: 0, details: [] };
+    }
+  }
+
+  // Obtener pedidos cancelados recientemente
+  async getCancelledOrders(businessId = null, branchId = null) {
+    try {
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      
+      const filter = {
+        isActive: true,
+        status: 'cancelled',
+        updatedAt: { $gte: twentyFourHoursAgo }
+      };
+
+      if (businessId) filter.businessId = businessId;
+      if (branchId) filter.branchId = branchId;
+
+      const orders = await Order.find(filter)
+        .populate('businessId', 'name')
+        .populate('branchId', 'name')
+        .sort({ updatedAt: -1 })
+        .limit(10);
+
+      const details = orders.map(order => ({
+        orderId: order.orderId,
+        customerName: order.customer?.name || 'Cliente',
+        branchName: order.branchId?.name || 'Sucursal desconocida',
+        total: order.total,
+        cancelledAt: this.getTimeAgo(order.updatedAt),
+        reason: this.getCancellationReason(order)
+      }));
+
+      return {
+        count: orders.length,
+        details
+      };
+
+    } catch (error) {
+      this.logger.error('Error obteniendo pedidos cancelados:', error);
+      return { count: 0, details: [] };
+    }
+  }
+
+  // Obtener conexiones WhatsApp desconectadas
+  async getDisconnectedWhatsApp(businessId = null, branchId = null) {
+    try {
+      const filter = {
+        status: { $in: ['disconnected', 'error'] }
+      };
+
+      if (businessId) filter.businessId = businessId;
+      if (branchId) filter.branchId = branchId;
+
+      const connections = await WhatsAppConnection.find(filter)
+        .populate('businessId', 'name')
+        .populate('branchId', 'name')
+        .sort({ updatedAt: -1 })
+        .limit(10);
+
+      const details = connections.map(connection => ({
+        phoneNumber: connection.phoneNumber,
+        connectionName: connection.connectionName,
+        businessName: connection.businessId?.name || 'Negocio desconocido',
+        branchName: connection.branchId?.name || 'Sucursal desconocida',
+        status: connection.status,
+        lastActivity: this.getTimeAgo(connection.lastActivity)
+      }));
+
+      return {
+        count: connections.length,
+        details
+      };
+
+    } catch (error) {
+      this.logger.error('Error obteniendo WhatsApp desconectados:', error);
+      return { count: 0, details: [] };
+    }
+  }
+
+  // Función auxiliar para obtener texto del estado de sesión
+  getSessionStatusText(status) {
+    const statusMap = {
+      'greeting': 'Esperando respuesta al saludo',
+      'menu_requested': 'Revisando menú',
+      'waiting_reminder': 'Enviado recordatorio'
+    };
+    return statusMap[status] || 'Estado desconocido';
+  }
+
+  // Obtener pedidos cancelados por el cliente (no por inactividad)
+  async getClientCancelledOrders(businessId = null, branchId = null) {
+    try {
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      
+      const filter = {
+        isActive: true,
+        status: 'cancelled',
+        updatedAt: { $gte: twentyFourHoursAgo }
+      };
+
+      if (businessId) filter.businessId = businessId;
+      if (branchId) filter.branchId = branchId;
+
+      const orders = await Order.find(filter)
+        .populate('businessId', 'name')
+        .populate('branchId', 'name')
+        .sort({ updatedAt: -1 })
+        .limit(10);
+
+      // Filtrar solo los cancelados por el cliente (no por inactividad)
+      const clientCancelledOrders = orders.filter(order => {
+        const reason = this.getCancellationReason(order);
+        return reason.includes('Cancelado por el cliente') && !reason.includes('inactividad');
+      });
+
+      const details = clientCancelledOrders.map(order => ({
+        orderId: order.orderId,
+        customerName: order.customer?.name || 'Cliente',
+        branchName: order.branchId?.name || 'Sucursal desconocida',
+        total: order.total,
+        cancelledAt: this.getTimeAgo(order.updatedAt),
+        reason: this.getCancellationReason(order),
+        customerMessage: this.extractCustomerMessage(order)
+      }));
+
+      return {
+        count: clientCancelledOrders.length,
+        details
+      };
+
+    } catch (error) {
+      this.logger.error('Error obteniendo pedidos cancelados por cliente:', error);
+      return { count: 0, details: [] };
+    }
+  }
+
+  // Función auxiliar para extraer el mensaje del cliente de la razón de cancelación
+  extractCustomerMessage(order) {
+    if (order.statusHistory && order.statusHistory.length > 0) {
+      const lastStatus = order.statusHistory[order.statusHistory.length - 1];
+      if (lastStatus.note && lastStatus.note.includes('Cancelado por el cliente:')) {
+        return lastStatus.note.replace('Cancelado por el cliente:', '').trim();
+      }
+    }
+    return 'Mensaje no disponible';
+  }
+
+  // Función auxiliar para obtener razón de cancelación
+  getCancellationReason(order) {
+    if (order.statusHistory && order.statusHistory.length > 0) {
+      const lastStatus = order.statusHistory[order.statusHistory.length - 1];
+      return lastStatus.note || 'Cancelado por el cliente';
+    }
+    return 'Cancelado por el cliente';
+  }
+
   // Función auxiliar para calcular tiempo transcurrido
   getTimeAgo(date) {
     const now = new Date();
