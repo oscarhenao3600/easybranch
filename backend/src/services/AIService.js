@@ -133,7 +133,54 @@ class AIService {
       // Obtener el prompt del negocio
       const customPrompt = this.aiPrompts.get(branchId) || null;
       
-      // Construir prompt para respuesta fluida
+      // Detectar si el mensaje del usuario necesita guía hacia opciones válidas
+      const needsGuidance = this.detectIfNeedsGuidance(userMessage, context);
+      
+      // Obtener historial de conversación para mejor contexto
+      const conversationHistory = await this.getConversationHistory(clientId, branchId);
+      
+      // Si necesita guía específica, usar respuesta guiada predefinida
+      if (needsGuidance) {
+        console.log('🎯 Usuario necesita guía específica, usando respuesta guiada...');
+        
+        // Primero verificar si es validación de datos de envío
+        const deliveryValidation = this.validateDeliveryData(userMessage, context);
+        if (deliveryValidation) {
+          console.log('🎯 Validación de datos de envío detectada');
+          
+          // Guardar en historial de conversación
+          if (clientId && branchId) {
+            await this.saveConversationTurn(clientId, branchId, userMessage, deliveryValidation);
+          }
+          
+          return deliveryValidation;
+        }
+        
+        // Luego verificar si es una respuesta contextual especial
+        const contextualResponses = this.detectContextualResponses(userMessage, context);
+        if (contextualResponses.needsSpecialHandling && contextualResponses.response) {
+          console.log(`🎯 Manejo contextual: ${contextualResponses.type}`);
+          
+          // Guardar en historial de conversación
+          if (clientId && branchId) {
+            await this.saveConversationTurn(clientId, branchId, userMessage, contextualResponses.response);
+          }
+          
+          return contextualResponses.response;
+        }
+        
+        // Si no es contextual, usar respuesta guiada normal
+        const guidedResponse = this.generateGuidedResponse(userMessage, context);
+        
+        // Guardar en historial de conversación
+        if (clientId && branchId) {
+          await this.saveConversationTurn(clientId, branchId, userMessage, guidedResponse);
+        }
+        
+        return guidedResponse;
+      }
+      
+      // Construir prompt para respuesta fluida con mejor manejo de contexto
       let fluidPrompt = `
 Eres un asistente virtual especializado en atención al cliente para restaurantes de comida rápida.
 
@@ -143,19 +190,20 @@ ${customPrompt || 'Restaurante de comida rápida'}
 CONTEXTO DE LA CONVERSACIÓN:
 - Cliente: ${clientId || 'Usuario'}
 - Sucursal: ${branchId || 'No especificada'}
-- Historial reciente: ${context.lastMessages ? context.lastMessages.slice(-3).join(' | ') : 'Nueva conversación'}
+- Historial reciente: ${conversationHistory.length > 0 ? conversationHistory.slice(-3).map(h => `${h.user}: ${h.bot}`).join(' | ') : 'Nueva conversación'}
 - Estado actual: ${context.currentState || 'Conversación normal'}
+- Último mensaje del bot: ${context.lastBotMessage || 'No disponible'}
 
 MENSAJE DEL CLIENTE: "${userMessage}"
 
-INSTRUCCIONES:
-1. Responde de manera natural, amigable y empática
-2. Si es un pedido, procesa automáticamente y muestra los detalles
-3. Si es una consulta, responde de forma útil y específica
-4. Si hay errores de escritura, corrígelos automáticamente
-5. Mantén un tono profesional pero cercano
-6. Usa emojis apropiados para hacer la conversación más amigable
-7. Si no estás seguro, pide aclaración de forma amigable
+INSTRUCCIONES ESPECÍFICAS:
+1. Si es un pedido, procesa automáticamente y muestra los detalles
+2. Si es una consulta, responde de forma útil y específica
+3. Si hay errores de escritura, corrígelos automáticamente de forma natural
+4. Mantén un tono profesional pero cercano
+5. Usa emojis apropiados para hacer la conversación más amigable
+6. SIEMPRE ofrece opciones claras y específicas para guiar al usuario
+7. Si detectas que el usuario quiere hacer un pedido pero no especifica bien, ofrece las opciones más comunes
 
 RESPUESTA (máximo 200 palabras):`;
 
@@ -166,6 +214,11 @@ RESPUESTA (máximo 200 palabras):`;
       
       // Post-procesar la respuesta para asegurar formato correcto
       const processedResponse = this.postProcessAIResponse(aiResponse, userMessage, branchId);
+      
+      // Guardar en historial de conversación
+      if (clientId && branchId) {
+        await this.saveConversationTurn(clientId, branchId, userMessage, processedResponse);
+      }
       
       console.log(`✅ Respuesta fluida generada: ${processedResponse.substring(0, 100)}...`);
       
@@ -181,6 +234,9 @@ RESPUESTA (máximo 200 palabras):`;
   // Post-procesar respuesta de IA para asegurar formato y funcionalidad
   postProcessAIResponse(aiResponse, userMessage, branchId) {
     let processedResponse = aiResponse.trim();
+    
+    // Corregir errores de escritura comunes en la respuesta si es necesario
+    processedResponse = this.correctCommonTypos(processedResponse, userMessage);
     
     // Si la respuesta parece ser un pedido, agregar formato de pedido
     if (this.isOrderResponse(processedResponse, userMessage)) {
@@ -200,6 +256,29 @@ RESPUESTA (máximo 200 palabras):`;
     return processedResponse;
   }
 
+  // Corregir errores de escritura comunes
+  correctCommonTypos(response, userMessage) {
+    let correctedResponse = response;
+    const lowerMessage = userMessage.toLowerCase();
+    
+    // Correcciones automáticas de errores comunes
+    const autoCorrections = {
+      'mpersona': 'persona',
+      'somo': 'somos',
+      'som': 'somos',
+      'somoss': 'somos',
+      'menu': 'menú'
+    };
+    
+    Object.entries(autoCorrections).forEach(([wrong, right]) => {
+      if (lowerMessage.includes(wrong) && !correctedResponse.includes(right)) {
+        correctedResponse = correctedResponse.replace(new RegExp(wrong, 'gi'), right);
+      }
+    });
+    
+    return correctedResponse;
+  }
+
   // Verificar si la respuesta parece ser un pedido
   isOrderResponse(response, userMessage) {
     const orderKeywords = ['combo', 'familiar', 'emparejado', 'alitas', 'pedido', 'orden'];
@@ -208,6 +287,700 @@ RESPUESTA (máximo 200 palabras):`;
     );
     
     return hasOrderKeyword && (response.includes('$') || response.includes('total'));
+  }
+
+  // Detectar si el usuario necesita guía hacia opciones válidas
+  detectIfNeedsGuidance(userMessage, context = {}) {
+    const lowerMessage = userMessage.toLowerCase().trim();
+    
+    // PRIMERO: Verificar si es validación de datos de envío
+    const deliveryValidation = this.validateDeliveryData(userMessage, context);
+    if (deliveryValidation) {
+      return true; // Necesita manejo especial para datos de envío
+    }
+    
+    // Detectar errores de escritura comunes
+    const commonTypos = {
+      'mpersona': 'persona',
+      'personas': 'personas',
+      'pedir': 'pedir',
+      'menu': 'menú',
+      'combo': 'combo',
+      'familiar': 'familiar',
+      'somo': 'somos',
+      'som': 'somos',
+      'son': 'somos',
+      'somoss': 'somos'
+    };
+    
+    // Detectar si hay errores de escritura
+    const hasTypo = Object.keys(commonTypos).some(typo => lowerMessage.includes(typo));
+    
+    // Detectar respuestas contextuales que necesitan manejo específico
+    const contextualResponses = this.detectContextualResponses(userMessage, context);
+    
+    // Detectar respuestas vagas o confusas (solo si no son contextuales)
+    const vagueResponses = ['si', 'sí', 'ok', 'bueno', 'está bien', 'dale'];
+    const isVague = !contextualResponses.needsSpecialHandling && vagueResponses.some(vague => lowerMessage === vague);
+    
+    // Detectar si está respondiendo algo que no tiene sentido en el contexto
+    const contextMismatch = this.detectContextMismatch(userMessage, context);
+    
+    return hasTypo || isVague || contextMismatch || contextualResponses.needsSpecialHandling;
+  }
+
+  // Detectar respuestas contextuales que necesitan manejo especial
+  detectContextualResponses(userMessage, context = {}) {
+    const lowerMessage = userMessage.toLowerCase().trim();
+    
+    // Detectar saludos
+    const greetings = ['hola', 'hello', 'buenas tardes', 'buenas noches', 'buenos días', 'hey', 'hi'];
+    const isGreeting = greetings.some(greeting => lowerMessage.includes(greeting));
+    
+    // Detectar respuestas afirmativas/negativas
+    const positiveResponses = ['si', 'sí', 'yes', 'ok', 'bueno', 'está bien', 'dale', 'perfecto'];
+    const negativeResponses = ['no', 'nop', 'nope', 'no gracias', 'no quiero', 'cancelar'];
+    
+    const isPositive = positiveResponses.some(pos => lowerMessage === pos);
+    const isNegative = negativeResponses.some(neg => lowerMessage === neg);
+    
+    // Determinar el contexto de la conversación
+    const conversationState = this.determineConversationState(context);
+    
+    // Si es saludo, manejar especialmente
+    if (isGreeting) {
+      return { needsSpecialHandling: true, type: 'greeting', response: this.handleGreeting(userMessage) };
+    }
+    
+    // Si es respuesta afirmativa/negativa en contexto específico
+    if ((isPositive || isNegative) && conversationState !== 'unknown') {
+      return { 
+        needsSpecialHandling: true, 
+        type: 'contextual_response', 
+        response: this.handleContextualResponse(isPositive, isNegative, conversationState, context)
+      };
+    }
+    
+    return { needsSpecialHandling: false };
+  }
+
+  // Determinar el estado actual de la conversación
+  determineConversationState(context = {}) {
+    const lastBotMessage = context.lastBotMessage || '';
+    const currentState = context.currentState || '';
+    
+    // Si el bot preguntó sobre hacer un pedido
+    if (lastBotMessage.includes('pedido pendiente') || lastBotMessage.includes('hacer un nuevo pedido')) {
+      return 'asking_about_order';
+    }
+    
+    // Si el bot preguntó sobre enviar menú
+    if (lastBotMessage.includes('enviarte el menú') || lastBotMessage.includes('envíame el menú')) {
+      return 'asking_about_menu';
+    }
+    
+    // Si es saludo inicial
+    if (currentState === 'greeting' || lastBotMessage.includes('¿En qué te puedo ayudar?')) {
+      return 'greeting';
+    }
+    
+    // Si está en proceso de pedido
+    if (currentState === 'ordering' || lastBotMessage.includes('combo') || lastBotMessage.includes('alitas')) {
+      return 'ordering';
+    }
+    
+    return 'unknown';
+  }
+
+  // Manejar saludos
+  handleGreeting(userMessage) {
+    const lowerMessage = userMessage.toLowerCase();
+    
+    if (lowerMessage.includes('buenas noches')) {
+      return `¡Buenas noches! 😊 Somos Alitas Mix americas. ¿Cómo andas? ¿En qué te puedo ayudar?
+
+Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "envíame el menú".`;
+    } else if (lowerMessage.includes('buenas tardes')) {
+      return `¡Buenas tardes! 😊 Somos Alitas Mix americas. ¿Cómo andas? ¿En qué te puedo ayudar?
+
+Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "envíame el menú".`;
+    } else if (lowerMessage.includes('buenos días')) {
+      return `¡Buenos días! 😊 Somos Alitas Mix americas. ¿Cómo andas? ¿En qué te puedo ayudar?
+
+Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "envíame el menú".`;
+    } else {
+      return `¡Hola! 😊 Somos Alitas Mix americas. ¿Cómo andas? ¿En qué te puedo ayudar?
+
+Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "envíame el menú".`;
+    }
+  }
+
+  // Manejar respuestas contextuales
+  handleContextualResponse(isPositive, isNegative, conversationState, context) {
+    switch (conversationState) {
+      case 'asking_about_order':
+        if (isPositive) {
+          return `😊 ¡Perfecto! Te ayudo con un nuevo pedido. 
+
+Para recomendarte lo mejor, dime cuántas personas son y te doy la opción más adecuada:
+
+- 1 persona: Combo 1 (5 alitas + acompañante)
+- 2 personas: Combo Emparejado (16 alitas + 2 acompañantes)
+- 3-4 personas: Combo 2/3 (7-9 alitas + acompañante)
+- 5+ personas: Combos Familiares (30+ alitas + gaseosa)
+
+¿Para cuántas personas es el pedido?`;
+        } else if (isNegative) {
+          return `😊 No hay problema. Estaremos aquí para atenderte cuando lo necesites. 
+
+Si en el futuro quieres hacer un pedido, solo dime "menú" o "pedir" y te ayudo.
+
+¡Que tengas un excelente día! 👋`;
+        }
+        break;
+        
+      case 'asking_about_menu':
+        if (isPositive) {
+          return `😊 ¡Perfecto! Te envío el menú completo:
+
+🍗 **COMBOS PERSONALES**
+• Combo 1: 5 alitas + acompañante + salsas - $21.900
+• Combo 2: 7 alitas + acompañante + salsas - $26.900
+• Combo 3: 9 alitas + acompañante + salsas - $31.900
+
+🍗 **COMBOS FAMILIARES**
+• Combo Emparejado: 16 alitas + 2 acompañantes - $45.900
+• Familiar 2: 30 alitas + acompañante + gaseosa 1.5L - $89.900
+• Familiar 3: 40 alitas + acompañante + gaseosa 1.5L - $119.900
+• Familiar 4: 50 alitas + 2 acompañantes + gaseosa 1.5L - $149.900
+
+¿Qué combo te gusta más? Solo dime el nombre del combo para ordenar.`;
+        } else if (isNegative) {
+          return `😊 No hay problema. Estaremos aquí para atenderte cuando lo necesites. 
+
+Si en el futuro quieres ver el menú, solo dime "menú" y te lo envío.
+
+¡Que tengas un excelente día! 👋`;
+        }
+        break;
+        
+      case 'greeting':
+        if (isPositive) {
+          return `😊 ¡Genial! Te ayudo con lo que necesites. 
+
+Puedo ayudarte con:
+• Ver el menú completo
+• Hacer un pedido
+• Información sobre precios
+• Recomendaciones
+
+¿Qué te gustaría hacer? Solo dime "menú", "pedir" o "precios".`;
+        } else if (isNegative) {
+          return `😊 No hay problema. Estaremos aquí para atenderte cuando lo necesites. 
+
+Si en el futuro necesitas algo, solo escribe y te ayudo.
+
+¡Que tengas un excelente día! 👋`;
+        }
+        break;
+        
+      default:
+        return null;
+    }
+    
+    return null;
+  }
+
+  // Validar y procesar datos de envío
+  validateDeliveryData(userMessage, context = {}) {
+    const lowerMessage = userMessage.toLowerCase();
+    
+    // Detectar si el bot está pidiendo datos de envío
+    const isAskingForDeliveryData = context.lastBotMessage && (
+      context.lastBotMessage.includes('DATOS DE ENVÍO') ||
+      context.lastBotMessage.includes('datos de envío') ||
+      context.lastBotMessage.includes('dirección completa') ||
+      context.lastBotMessage.includes('barrio/zona') ||
+      context.lastBotMessage.includes('teléfono de contacto') ||
+      context.lastBotMessage.includes('nombre de quien recibe')
+    );
+    
+    if (!isAskingForDeliveryData) {
+      return null;
+    }
+    
+    // Extraer datos del mensaje del usuario
+    const extractedData = this.extractDeliveryInfo(userMessage);
+    
+    // Validar si todos los campos están presentes
+    const validation = this.validateDeliveryFields(extractedData);
+    
+    if (validation.isComplete) {
+      return this.generateDeliveryConfirmation(extractedData);
+    } else {
+      return this.generateMissingFieldsMessage(validation.missingFields, extractedData);
+    }
+  }
+
+  // Extraer información de envío del mensaje
+  extractDeliveryInfo(message) {
+    const data = {
+      address: null,
+      neighborhood: null,
+      phone: null,
+      name: null
+    };
+    
+    // Limpiar el mensaje
+    const cleanMessage = message.replace(/[,\-]/g, ' ').trim();
+    const words = cleanMessage.split(/\s+/);
+    
+    // Detectar teléfono (secuencia de números de 7-15 dígitos)
+    const phonePattern = /\b(\d{7,15})\b/g;
+    const phoneMatches = [...cleanMessage.matchAll(phonePattern)];
+    if (phoneMatches.length > 0) {
+      // Tomar el teléfono más largo (más probable)
+      data.phone = phoneMatches.reduce((longest, match) => 
+        match[1].length > longest.length ? match[1] : longest, phoneMatches[0][1]);
+    }
+    
+    // Detectar dirección (números, calles, carreras, casas)
+    const addressWords = [];
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      if (
+        /^\d/.test(word) || 
+        word.toLowerCase().includes('calle') ||
+        word.toLowerCase().includes('carrera') ||
+        word.toLowerCase().includes('casa') ||
+        word.includes('#') ||
+        word.includes('nº') ||
+        word.includes('no')
+      ) {
+        addressWords.push(word);
+      }
+    }
+    
+    if (addressWords.length > 0) {
+      data.address = addressWords.join(' ');
+    }
+    
+    // Detectar barrio/neighborhood
+    const neighborhoodKeywords = ['barrio', 'zona', 'sector', 'urbanización', 'conjunto'];
+    const neighborhoodWords = [];
+    
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i].toLowerCase();
+      if (neighborhoodKeywords.includes(word)) {
+        // Buscar la siguiente palabra que no sea número ni palabra clave
+        for (let j = i + 1; j < words.length; j++) {
+          const nextWord = words[j];
+          if (!/^\d/.test(nextWord) && 
+              !phonePattern.test(nextWord) &&
+              !neighborhoodKeywords.includes(nextWord.toLowerCase()) &&
+              nextWord.length > 2) {
+            neighborhoodWords.push(nextWord);
+          } else if (neighborhoodWords.length > 0) {
+            break;
+          }
+        }
+        break;
+      }
+    }
+    
+    if (neighborhoodWords.length > 0) {
+      data.neighborhood = neighborhoodWords.join(' ');
+    }
+    
+    // Detectar nombre (palabras que empiezan con mayúscula, no números, no direcciones)
+    const nameWords = [];
+    const usedWords = new Set([...addressWords.map(w => w.toLowerCase()), ...neighborhoodWords.map(w => w.toLowerCase())]);
+    
+    for (const word of words) {
+      if (
+        word.length > 2 && 
+        /^[A-ZÁÉÍÓÚÑ]/.test(word) && 
+        !/^\d/.test(word) &&
+        !usedWords.has(word.toLowerCase()) &&
+        !neighborhoodKeywords.includes(word.toLowerCase()) &&
+        !phonePattern.test(word)
+      ) {
+        nameWords.push(word);
+      }
+    }
+    
+    if (nameWords.length > 0) {
+      data.name = nameWords.join(' ');
+    }
+    
+    // Si no se detectó barrio pero hay palabras que podrían serlo
+    if (!data.neighborhood && nameWords.length > 1) {
+      // Asumir que la última palabra del nombre podría ser el barrio
+      const possibleNeighborhood = nameWords[nameWords.length - 1];
+      if (possibleNeighborhood.length > 3 && !possibleNeighborhood.toLowerCase().includes('garcía') && 
+          !possibleNeighborhood.toLowerCase().includes('gonzález') && !possibleNeighborhood.toLowerCase().includes('hernández')) {
+        data.neighborhood = possibleNeighborhood;
+        data.name = nameWords.slice(0, -1).join(' ');
+      }
+    }
+    
+    return data;
+  }
+
+  // Validar campos de envío
+  validateDeliveryFields(data) {
+    const missingFields = [];
+    
+    if (!data.address || data.address.length < 5) {
+      missingFields.push('dirección completa');
+    }
+    
+    if (!data.neighborhood || data.neighborhood.length < 3) {
+      missingFields.push('barrio/zona');
+    }
+    
+    if (!data.phone || data.phone.length < 7) {
+      missingFields.push('teléfono de contacto');
+    }
+    
+    if (!data.name || data.name.length < 3) {
+      missingFields.push('nombre de quien recibe');
+    }
+    
+    return {
+      isComplete: missingFields.length === 0,
+      missingFields: missingFields,
+      extractedData: data
+    };
+  }
+
+  // Generar confirmación de datos de envío
+  generateDeliveryConfirmation(data) {
+    return `✅ **DATOS DE ENVÍO CONFIRMADOS**
+
+📍 **Dirección:** ${data.address}
+🏠 **Barrio/Zona:** ${data.neighborhood}
+📞 **Teléfono:** ${data.phone}
+👤 **Nombre:** ${data.name}
+
+¿Confirmas estos datos? Escribe "confirmo" para proceder con tu pedido o "cambio" si necesitas modificar algo.`;
+  }
+
+  // Generar mensaje de campos faltantes
+  generateMissingFieldsMessage(missingFields, extractedData) {
+    let message = `⚠️ **FALTAN ALGUNOS DATOS**
+
+He detectado estos datos de tu mensaje:`;
+    
+    if (extractedData.address) {
+      message += `\n📍 Dirección: ${extractedData.address}`;
+    }
+    if (extractedData.neighborhood) {
+      message += `\n🏠 Barrio: ${extractedData.neighborhood}`;
+    }
+    if (extractedData.phone) {
+      message += `\n📞 Teléfono: ${extractedData.phone}`;
+    }
+    if (extractedData.name) {
+      message += `\n👤 Nombre: ${extractedData.name}`;
+    }
+    
+    message += `\n\n❌ **Faltan:** ${missingFields.join(', ')}`;
+    
+    message += `\n\nPor favor envía la información faltante. Puedes enviarla en cualquier orden, por ejemplo:
+"${missingFields.includes('teléfono de contacto') ? '3001234567' : ''} ${missingFields.includes('dirección completa') ? 'Calle 123 #45-67' : ''} ${missingFields.includes('barrio/zona') ? 'Barrio Centro' : ''} ${missingFields.includes('nombre de quien recibe') ? 'María González' : ''}".trim()}`;
+    
+    return message;
+  }
+
+  // Detectar si hay un desajuste con el contexto de la conversación
+  detectContextMismatch(userMessage, context = {}) {
+    const lowerMessage = userMessage.toLowerCase();
+    
+    // Si el bot acabó de mostrar el menú y el usuario responde algo que no es una opción válida
+    if (context.lastBotMessage && context.lastBotMessage.includes('MENÚ')) {
+      const validOptions = ['combo', 'familiar', 'pedir', 'menu', 'persona', 'personas'];
+      const hasValidOption = validOptions.some(option => lowerMessage.includes(option));
+      
+      // Si no tiene ninguna opción válida pero parece querer pedir algo
+      const wantsToOrder = ['quiero', 'dame', 'para', 'comprar', 'ordenar'].some(word => 
+        lowerMessage.includes(word)
+      );
+      
+      return wantsToOrder && !hasValidOption;
+    }
+    
+    return false;
+  }
+
+  // Detectar si el usuario ya proporcionó información sobre el número de personas
+  hasProvidedPersonCount(userMessage, context = {}) {
+    const lowerMessage = userMessage.toLowerCase();
+    
+    // Detectar números de personas (incluyendo errores de escritura comunes)
+    const personPatterns = [
+      /(\d+)\s*personas?/,
+      /somos\s*(\d+)/,
+      /familia\s*de\s*(\d+)/,
+      /para\s*(\d+)/,
+      /somo\s*(\d+)/, // Error común: "somo" en lugar de "somos"
+      /som\s*(\d+)/,  // Error común: "som" en lugar de "somos"
+      /son\s*(\d+)/,  // Error común: "son" en lugar de "somos"
+      /somoss?\s*(\d+)/ // Error común: "somos" con s extra
+    ];
+    
+    for (const pattern of personPatterns) {
+      const match = lowerMessage.match(pattern);
+      if (match && match[1]) {
+        const count = parseInt(match[1]);
+        if (count >= 1 && count <= 100) { // Permitir hasta 100 personas
+          return { hasCount: true, count: count, originalText: match[0] };
+        }
+      }
+    }
+    
+    // También revisar el contexto para ver si ya se mencionó antes
+    if (context.conversationHistory && context.conversationHistory.length > 0) {
+      for (const turn of context.conversationHistory) {
+        const contextLower = turn.user.toLowerCase();
+        for (const pattern of personPatterns) {
+          const match = contextLower.match(pattern);
+          if (match && match[1]) {
+            const count = parseInt(match[1]);
+            if (count >= 1 && count <= 100) { // Permitir hasta 100 personas
+              return { hasCount: true, count: count, originalText: match[0], fromContext: true };
+            }
+          }
+        }
+      }
+    }
+    
+    return { hasCount: false, count: 0 };
+  }
+
+  // Detectar si el usuario especificó un combo específico
+  hasSpecifiedCombo(userMessage) {
+    const lowerMessage = userMessage.toLowerCase();
+    
+    const comboPatterns = [
+      /combo\s*1/,
+      /combo\s*2/,
+      /combo\s*3/,
+      /familiar\s*2/,
+      /familiar\s*3/,
+      /familiar\s*4/,
+      /emparejado/
+    ];
+    
+    for (const pattern of comboPatterns) {
+      if (pattern.test(lowerMessage)) {
+        return { hasCombo: true, combo: lowerMessage.match(pattern)[0] };
+      }
+    }
+    
+    return { hasCombo: false, combo: null };
+  }
+
+  // Obtener historial de conversación
+  async getConversationHistory(clientId, branchId) {
+    try {
+      if (!clientId || !branchId) return [];
+      
+      // Buscar en el historial de conversación
+      const history = this.conversationHistory.get(`${clientId}_${branchId}`) || [];
+      return history.slice(-5); // Últimos 5 mensajes
+    } catch (error) {
+      console.error('❌ Error obteniendo historial:', error);
+      return [];
+    }
+  }
+
+  // Guardar turno de conversación
+  async saveConversationTurn(clientId, branchId, userMessage, botResponse) {
+    try {
+      if (!clientId || !branchId) return;
+      
+      const key = `${clientId}_${branchId}`;
+      let history = this.conversationHistory.get(key) || [];
+      
+      // Agregar el nuevo turno
+      history.push({
+        user: userMessage,
+        bot: botResponse,
+        timestamp: new Date()
+      });
+      
+      // Mantener solo los últimos 10 turnos
+      if (history.length > 10) {
+        history = history.slice(-10);
+      }
+      
+      this.conversationHistory.set(key, history);
+      
+      console.log(`💾 Turno guardado en historial: ${clientId}_${branchId}`);
+    } catch (error) {
+      console.error('❌ Error guardando turno:', error);
+    }
+  }
+
+  // Generar respuesta guiada cuando el usuario necesita ayuda
+  generateGuidedResponse(userMessage, context = {}) {
+    const lowerMessage = userMessage.toLowerCase().trim();
+    
+    // Detectar si ya proporcionó número de personas (incluyendo contexto)
+    const personInfo = this.hasProvidedPersonCount(userMessage, context);
+    const comboInfo = this.hasSpecifiedCombo(userMessage);
+    
+    // Si ya tiene número de personas Y combo específico, procesar el pedido
+    if (personInfo.hasCount && comboInfo.hasCombo) {
+      return this.generateOrderConfirmation(personInfo.count, comboInfo.combo);
+    }
+    
+    // Si ya tiene número de personas pero no combo específico
+    if (personInfo.hasCount && !comboInfo.hasCombo) {
+      return this.generateComboRecommendation(personInfo.count);
+    }
+    
+    // Si tiene combo específico pero no número de personas
+    if (!personInfo.hasCount && comboInfo.hasCombo) {
+      return `😊 Perfecto, quieres el ${comboInfo.combo}. ¿Para cuántas personas es?`;
+    }
+    
+    // Detectar errores de escritura específicos
+    if (lowerMessage.includes('mpersona')) {
+      return `😊 ¡Perfecto! Entiendo que quieres pedir para 1 persona. 
+
+Te recomiendo el **Combo 1**: 5 alitas + acompañante + salsas - $21.900
+
+¿Te gusta esta opción? Solo escribe "pedir combo 1" para ordenar.`;
+    }
+    
+    // Respuestas vagas
+    if (lowerMessage === 'si' || lowerMessage === 'sí' || lowerMessage === 'ok') {
+      return `😊 ¡Genial! Para ayudarte mejor, necesito que me digas:
+
+🔹 **Cuántas personas son** (ejemplo: "2 personas")
+🔹 **Qué quieres pedir** (ejemplo: "Combo 1" o "Familiar 2")
+
+O si prefieres, puedes escribir "menú" para ver todas las opciones disponibles.
+
+¿Qué te parece más fácil?`;
+    }
+    
+    // Respuesta genérica para casos no específicos
+    return `😊 Entiendo que quieres hacer un pedido. Para ayudarte mejor, por favor dime:
+
+🔹 **Cuántas personas son**
+🔹 **Qué tipo de combo prefieres**
+
+Por ejemplo:
+- "2 personas, combo emparejado"
+- "1 persona, combo 1"
+- "familia de 4, combo familiar"
+
+O escribe "menú" para ver todas las opciones. ¿Qué prefieres?`;
+  }
+
+  // Generar recomendación de combo basada en número de personas
+  generateComboRecommendation(personCount) {
+    let recommendation = '';
+    
+    if (personCount === 1) {
+      recommendation = `😊 ¡Perfecto! Para 1 persona te recomiendo:
+
+**Combo 1**: 5 alitas + acompañante + salsas - $21.900
+
+¿Te gusta esta opción? Solo escribe "pedir combo 1" para ordenar.`;
+    } else if (personCount === 2) {
+      recommendation = `😊 ¡Perfecto! Para 2 personas te recomiendo:
+
+**Combo Emparejado**: 16 alitas + 2 acompañantes - $45.900
+
+¿Te gusta esta opción? Solo escribe "pedir emparejado" para ordenar.`;
+    } else if (personCount >= 3 && personCount <= 4) {
+      recommendation = `😊 ¡Perfecto! Para ${personCount} personas te recomiendo:
+
+**Combo ${personCount === 3 ? '2' : '3'}**: ${personCount === 3 ? '7' : '9'} alitas + acompañante + salsas - $${personCount === 3 ? '26.900' : '31.900'}
+
+¿Te gusta esta opción? Solo escribe "pedir combo ${personCount === 3 ? '2' : '3'}" para ordenar.`;
+    } else if (personCount >= 5 && personCount <= 6) {
+      recommendation = `😊 ¡Perfecto! Para ${personCount} personas te recomiendo:
+
+**Familiar 2**: 30 alitas + acompañante + gaseosa 1.5L - $89.900
+
+¿Te gusta esta opción? Solo escribe "pedir familiar 2" para ordenar.`;
+    } else if (personCount >= 7 && personCount <= 8) {
+      recommendation = `😊 ¡Perfecto! Para ${personCount} personas te recomiendo:
+
+**Familiar 3**: 40 alitas + acompañante + gaseosa 1.5L - $119.900
+
+¿Te gusta esta opción? Solo escribe "pedir familiar 3" para ordenar.`;
+    } else if (personCount >= 9 && personCount <= 10) {
+      recommendation = `😊 ¡Perfecto! Para ${personCount} personas te recomiendo:
+
+**Familiar 4**: 50 alitas + 2 acompañantes + gaseosa 1.5L - $149.900
+
+¿Te gusta esta opción? Solo escribe "pedir familiar 4" para ordenar.`;
+    } else if (personCount >= 11 && personCount <= 20) {
+      recommendation = `😊 ¡Perfecto! Para ${personCount} personas te recomiendo:
+
+**2x Familiar 4**: 100 alitas + 4 acompañantes + 2 gaseosas 1.5L - $299.800
+
+¿Te gusta esta opción? Solo escribe "pedir 2 familiar 4" para ordenar.`;
+    } else if (personCount >= 21 && personCount <= 30) {
+      recommendation = `😊 ¡Perfecto! Para ${personCount} personas te recomiendo:
+
+**3x Familiar 4**: 150 alitas + 6 acompañantes + 3 gaseosas 1.5L - $449.700
+
+¿Te gusta esta opción? Solo escribe "pedir 3 familiar 4" para ordenar.`;
+    } else if (personCount >= 31 && personCount <= 40) {
+      recommendation = `😊 ¡Perfecto! Para ${personCount} personas te recomiendo:
+
+**4x Familiar 4**: 200 alitas + 8 acompañantes + 4 gaseosas 1.5L - $599.600
+
+¿Te gusta esta opción? Solo escribe "pedir 4 familiar 4" para ordenar.`;
+    } else if (personCount >= 41 && personCount <= 50) {
+      recommendation = `😊 ¡Perfecto! Para ${personCount} personas te recomiendo:
+
+**5x Familiar 4**: 250 alitas + 10 acompañantes + 5 gaseosas 1.5L - $749.500
+
+¿Te gusta esta opción? Solo escribe "pedir 5 familiar 4" para ordenar.`;
+    } else {
+      recommendation = `😊 Para ${personCount} personas, necesitarías varios combos familiares.
+
+**Opción recomendada**: ${Math.ceil(personCount / 10)}x Familiar 4 (${Math.ceil(personCount / 10) * 50} alitas total)
+
+¿Te parece bien esta opción? Solo escribe "pedir ${Math.ceil(personCount / 10)} familiar 4" para ordenar.`;
+    }
+    
+    return recommendation;
+  }
+
+  // Generar confirmación de pedido
+  generateOrderConfirmation(personCount, comboName) {
+    return `😊 ¡Excelente elección! 
+
+**Tu pedido:**
+- ${comboName} para ${personCount} personas
+- Total: $${this.getComboPrice(comboName)}
+
+¿Confirmas este pedido? Escribe "confirmo" para proceder.`;
+  }
+
+  // Obtener precio del combo
+  getComboPrice(comboName) {
+    const prices = {
+      'combo 1': '21.900',
+      'combo 2': '26.900',
+      'combo 3': '31.900',
+      'emparejado': '45.900',
+      'familiar 2': '89.900',
+      'familiar 3': '119.900',
+      'familiar 4': '149.900'
+    };
+    
+    const normalizedCombo = comboName.toLowerCase();
+    return prices[normalizedCombo] || 'consultar precio';
   }
 
   // Formatear respuesta de pedido
@@ -1838,7 +2611,7 @@ Responde con el número de tu opción preferida (1, 2, 3 o 4)`;
       const match = lowerMessage.match(pattern);
       if (match) {
         const count = parseInt(match[1]);
-        if (count > 0 && count <= 20) { // Límite razonable
+        if (count > 0 && count <= 100) { // Límite razonable hasta 100 personas
           return count;
         }
       }
@@ -3928,6 +4701,33 @@ Por favor envía todos los datos en un solo mensaje, por ejemplo:
     }
 
     const etaMin = 25 + Math.floor(Math.random() * 11); // 25-35
+    
+    // IMPORTANTE: Enviar comanda al restaurante cuando se confirma pedido de domicilio
+    console.log('🚀 ===== ENVIANDO COMANDA DE DOMICILIO AL RESTAURANTE =====');
+    console.log('📦 Order ID:', saved.orderId);
+    console.log('👤 Cliente:', clientId);
+    console.log('📍 Tipo: Domicilio');
+    console.log('=====================================================');
+    
+    try {
+      // Obtener la conexión WhatsApp para enviar comanda
+      const WhatsAppConnection = require('../models/WhatsAppConnection');
+      const connection = await WhatsAppConnection.findOne({ branchId });
+      
+      if (connection) {
+        console.log('✅ Conexión encontrada para envío de comanda');
+        // Importar el controlador para usar la función de envío
+        const WhatsAppController = require('../controllers/WhatsAppController');
+        const controller = new WhatsAppController();
+        await controller.sendOrderSummaryToBranch(connection, clientId, message);
+        console.log('✅ Comanda de domicilio enviada al restaurante');
+      } else {
+        console.log('❌ No se encontró conexión WhatsApp para enviar comanda');
+      }
+    } catch (comandaError) {
+      console.error('❌ Error enviando comanda de domicilio:', comandaError.message);
+    }
+    
     return `✅ *PEDIDO CONFIRMADO*
 
 🆔 *Número de pedido:* ${saved.orderId}
@@ -3960,12 +4760,38 @@ Por favor envía todos los datos en un solo mensaje, por ejemplo:
         const memoryTimer = InMemorySessionTimer.getInstance();
         memoryTimer.clearSession(clientId);
         
-        console.log('✅ Temporizadores desactivados para:', clientId);
-      } catch (timerError) {
-        console.warn('⚠️ Error desactivando temporizadores:', timerError.message);
-      }
+      console.log('✅ Temporizadores desactivados para:', clientId);
+    } catch (timerError) {
+      console.warn('⚠️ Error desactivando temporizadores:', timerError.message);
+    }
+    
+    // IMPORTANTE: Enviar comanda al restaurante cuando se confirma pedido para recoger
+    console.log('🚀 ===== ENVIANDO COMANDA DE RECOGER AL RESTAURANTE =====');
+    console.log('📦 Order ID:', savedOrder.orderId);
+    console.log('👤 Cliente:', clientId);
+    console.log('📍 Tipo: Recoger en tienda');
+    console.log('=====================================================');
+    
+    try {
+      // Obtener la conexión WhatsApp para enviar comanda
+      const WhatsAppConnection = require('../models/WhatsAppConnection');
+      const connection = await WhatsAppConnection.findOne({ branchId });
       
-      return `✅ *PEDIDO CONFIRMADO*
+      if (connection) {
+        console.log('✅ Conexión encontrada para envío de comanda');
+        // Importar el controlador para usar la función de envío
+        const WhatsAppController = require('../controllers/WhatsAppController');
+        const controller = new WhatsAppController();
+        await controller.sendOrderSummaryToBranch(connection, clientId, 'Pedido confirmado para recoger');
+        console.log('✅ Comanda de recoger enviada al restaurante');
+      } else {
+        console.log('❌ No se encontró conexión WhatsApp para enviar comanda');
+      }
+    } catch (comandaError) {
+      console.error('❌ Error enviando comanda de recoger:', comandaError.message);
+    }
+    
+    return `✅ *PEDIDO CONFIRMADO*
 
 🆔 *Número de pedido:* ${savedOrder.orderId}
 📋 *Resumen:* ${order.products.map(p => `${p.name} x${p.quantity}`).join(', ')}

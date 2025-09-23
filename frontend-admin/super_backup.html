@@ -3148,7 +3148,179 @@
                 await this.loadWhatsAppConnections();
             }
 
-            // Función loadConversations eliminada completamente
+            // Función loadConversations eliminada
+                section.innerHTML = `
+                    <div class="row">
+                        <!-- Estadísticas -->
+                        <div class="col-12 mb-4">
+                            <div class="row" id="conversationStats">
+                                <div class="col-md-3">
+                                    <div class="card bg-primary text-white">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between">
+                                                <div>
+                                                    <h4 class="mb-0" id="totalConversations">-</h4>
+                                                    <small>Conversaciones Activas</small>
+                                                </div>
+                                                <div class="align-self-center">
+                                                    <i class="fas fa-comments fa-2x"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card bg-success text-white">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between">
+                                                <div>
+                                                    <h4 class="mb-0" id="totalMessages">-</h4>
+                                                    <small>Mensajes Hoy</small>
+                                                </div>
+                                                <div class="align-self-center">
+                                                    <i class="fas fa-envelope fa-2x"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card bg-warning text-white">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between">
+                                                <div>
+                                                    <h4 class="mb-0" id="avgSatisfaction">-</h4>
+                                                    <small>Satisfacción Promedio</small>
+                                                </div>
+                                                <div class="align-self-center">
+                                                    <i class="fas fa-smile fa-2x"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card bg-info text-white">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between">
+                                                <div>
+                                                    <h4 class="mb-0" id="uniqueUsers">-</h4>
+                                                    <small>Usuarios Únicos</small>
+                                                </div>
+                                                <div class="align-self-center">
+                                                    <i class="fas fa-users fa-2x"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Filtros -->
+                        <div class="col-12 mb-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtros</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-3">
+                                            <label class="form-label">Sucursal</label>
+                                            <select class="form-select" id="conversationBranchFilter">
+                                                <option value="">Todas las sucursales</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Fecha Desde</label>
+                                            <input type="date" class="form-control" id="conversationStartDate">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Fecha Hasta</label>
+                                            <input type="date" class="form-control" id="conversationEndDate">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">&nbsp;</label>
+                                            <div class="d-grid">
+                                                <button class="btn btn-primary" onclick="loadConversationStats()">
+                                                    <i class="fas fa-search me-1"></i>Filtrar
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Conversaciones Activas -->
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-comment-dots me-2"></i>Conversaciones Activas
+                                    </h5>
+                                    <button class="btn btn-outline-primary btn-sm" onclick="refreshActiveConversations()">
+                                        <i class="fas fa-sync-alt me-1"></i>Actualizar
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>Cliente</th>
+                                                    <th>Sucursal</th>
+                                                    <th>Estado</th>
+                                                    <th>Etapa</th>
+                                                    <th>Mensajes</th>
+                                                    <th>Satisfacción</th>
+                                                    <th>Última Interacción</th>
+                                                    <th>Acciones</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="activeConversationsTable">
+                                                <tr>
+                                                    <td colspan="8" class="text-center text-muted">
+                                                        <i class="fas fa-spinner fa-spin me-2"></i>Cargando conversaciones...
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Modal para ver historial de conversación -->
+                    <div class="modal fade" id="conversationHistoryModal" tabindex="-1">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">
+                                        <i class="fas fa-history me-2"></i>Historial de Conversación
+                                    </h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div id="conversationHistoryContent">
+                                        <div class="text-center text-muted">
+                                            <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
+                                            <p>Cargando historial...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Load data after rendering
+                await this.loadConversationData();
+            }
 
             async loadAI() {
                 const section = document.getElementById('aiSection');
@@ -8250,19 +8422,310 @@
 
             // ===== MÉTODOS DE CONVERSACIONES =====
 
-            // Función loadConversationData eliminada
+            async loadConversationData() {
+                try {
+                    // Cargar sucursales para el filtro
+                    await this.loadBranchFilter();
+                    
+                    // Cargar estadísticas
+                    await this.loadConversationStats();
+                    
+                    // Cargar conversaciones activas
+                    await this.loadActiveConversations();
+                } catch (error) {
+                    console.error('Error loading conversation data:', error);
+                    this.showAlert('Error al cargar datos de conversaciones', 'error');
+                }
+            }
 
-            // Función loadBranchFilter eliminada
+            async loadBranchFilter() {
+                try {
+                    const response = await this.authService.makeRequest('/branch');
+                    const branches = response.data || response;
+                    
+                    const select = document.getElementById('conversationBranchFilter');
+                    select.innerHTML = '<option value="">Todas las sucursales</option>';
+                    
+                    branches.forEach(branch => {
+                        const option = document.createElement('option');
+                        option.value = branch.branchId;
+                        option.textContent = branch.name;
+                        select.appendChild(option);
+                    });
+                    
+                    // Agregar event listener para cargar conversaciones cuando cambie el filtro
+                    select.addEventListener('change', () => {
+                        this.loadActiveConversations();
+                        this.loadConversationStats();
+                    });
+                } catch (error) {
+                    console.error('Error loading branches for filter:', error);
+                }
+            }
 
-            // Función loadConversationStats eliminada
+            async loadConversationStats() {
+                try {
+                    const branchId = document.getElementById('conversationBranchFilter')?.value || '';
+                    const startDate = document.getElementById('conversationStartDate')?.value || '';
+                    const endDate = document.getElementById('conversationEndDate')?.value || '';
+                    
+                    // Si no hay branchId seleccionado, mostrar estadísticas vacías
+                    if (!branchId) {
+                        document.getElementById('totalConversations').textContent = '0';
+                        document.getElementById('totalMessages').textContent = '0';
+                        document.getElementById('avgSatisfaction').textContent = '0.0';
+                        document.getElementById('uniqueUsers').textContent = '0';
+                        return;
+                    }
+                    
+                    const params = new URLSearchParams();
+                    params.append('branchId', branchId);
+                    if (startDate) params.append('startDate', startDate);
+                    if (endDate) params.append('endDate', endDate);
+                    
+                    const response = await this.authService.makeRequest(`/conversations/stats?${params}`);
+                    const stats = response.data;
+                    
+                    // Actualizar estadísticas
+                    document.getElementById('totalConversations').textContent = stats.memory.totalConversations || 0;
+                    document.getElementById('totalMessages').textContent = stats.messages.totalMessages || 0;
+                    document.getElementById('avgSatisfaction').textContent = (stats.memory.avgSatisfaction || 0).toFixed(1);
+                    document.getElementById('uniqueUsers').textContent = stats.messages.uniqueUsersCount || 0;
+                } catch (error) {
+                    console.error('Error loading conversation stats:', error);
+                    this.showAlert('Error al cargar estadísticas de conversaciones', 'error');
+                }
+            }
 
-            // Función loadActiveConversations eliminada
+            async loadActiveConversations() {
+                try {
+                    const branchId = document.getElementById('conversationBranchFilter')?.value || '';
+                    
+                    // Si no hay branchId seleccionado, no hacer la petición
+                    if (!branchId) {
+                        const tbody = document.getElementById('activeConversationsTable');
+                        if (tbody) {
+                            tbody.innerHTML = `
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted">
+                                        <i class="fas fa-filter me-2"></i>
+                                        Selecciona una sucursal para ver las conversaciones activas
+                                    </td>
+                                </tr>
+                            `;
+                        }
+                        return;
+                    }
+                    
+                    const params = `?branchId=${branchId}&limit=50`;
+                    const response = await this.authService.makeRequest(`/conversations/active${params}`);
+                    const conversations = response.data || [];
+                    
+                    const tbody = document.getElementById('activeConversationsTable');
+                    
+                    if (conversations.length === 0) {
+                        tbody.innerHTML = `
+                            <tr>
+                                <td colspan="8" class="text-center text-muted">
+                                    <i class="fas fa-comment-slash fa-2x mb-3 d-block"></i>
+                                    No hay conversaciones activas
+                                </td>
+                            </tr>
+                        `;
+                        return;
+                    }
+                    
+                    tbody.innerHTML = conversations.map(conv => `
+                        <tr>
+                            <td>
+                                <strong>+${conv.phoneNumber}</strong>
+                                <br>
+                                <small class="text-muted">${conv.clientInfo.visitFrequency || 'first_time'}</small>
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary">${conv.branchId}</span>
+                            </td>
+                            <td>
+                                <span class="badge ${conv.isActive ? 'bg-success' : 'bg-secondary'}">
+                                    ${conv.isActive ? 'Activa' : 'Inactiva'}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge bg-info">${conv.currentContext.conversationStage || 'greeting'}</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-primary">${conv.currentContext.messageCount || 0}</span>
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <span class="me-2">${conv.emotionalState.satisfaction || 5}/10</span>
+                                    <div class="progress" style="width: 60px; height: 8px;">
+                                        <div class="progress-bar bg-warning" style="width: ${((conv.emotionalState.satisfaction || 5) / 10) * 100}%"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <small>${this.formatDate(conv.lastInteraction)}</small>
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary" onclick="viewConversationHistory('${conv.phoneNumber}', '${conv.branchId}')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="toggleConversationStatus('${conv.phoneNumber}', '${conv.branchId}', ${conv.isActive})">
+                                    <i class="fas fa-${conv.isActive ? 'pause' : 'play'}"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `).join('');
+                } catch (error) {
+                    console.error('Error loading active conversations:', error);
+                    this.showAlert('Error al cargar conversaciones activas', 'error');
+                }
+            }
 
-            // Funciones de conversaciones eliminadas completamente
+            async viewConversationHistory(phoneNumber, branchId) {
+                try {
+                    const response = await this.authService.makeRequest(`/conversations/history/${phoneNumber}?branchId=${branchId}`);
+                    const data = response.data;
+                    
+                    const modalContent = document.getElementById('conversationHistoryContent');
+                    modalContent.innerHTML = `
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-user me-2"></i>Información del Cliente</h6>
+                                <div class="card">
+                                    <div class="card-body">
+                                        <p><strong>Teléfono:</strong> +${data.phoneNumber}</p>
+                                        <p><strong>Frecuencia:</strong> ${data.memory?.clientInfo?.visitFrequency || 'first_time'}</p>
+                                        <p><strong>Total Pedidos:</strong> ${data.memory?.clientInfo?.totalOrders || 0}</p>
+                                        <p><strong>Total Gastado:</strong> $${(data.memory?.clientInfo?.totalSpent || 0).toLocaleString()}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-brain me-2"></i>Estado Emocional</h6>
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="mb-2">
+                                            <strong>Satisfacción:</strong> ${data.memory?.emotionalState?.satisfaction || 5}/10
+                                            <div class="progress" style="height: 8px;">
+                                                <div class="progress-bar bg-warning" style="width: ${((data.memory?.emotionalState?.satisfaction || 5) / 10) * 100}%"></div>
+                                            </div>
+                                        </div>
+                                        <div class="mb-2">
+                                            <strong>Confianza:</strong> ${data.memory?.emotionalState?.trust || 5}/10
+                                            <div class="progress" style="height: 8px;">
+                                                <div class="progress-bar bg-info" style="width: ${((data.memory?.emotionalState?.trust || 5) / 10) * 100}%"></div>
+                                            </div>
+                                        </div>
+                                        <div class="mb-2">
+                                            <strong>Engagement:</strong> ${data.memory?.emotionalState?.engagement || 5}/10
+                                            <div class="progress" style="height: 8px;">
+                                                <div class="progress-bar bg-success" style="width: ${((data.memory?.emotionalState?.engagement || 5) / 10) * 100}%"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <h6><i class="fas fa-comments me-2"></i>Historial de Mensajes</h6>
+                            <div class="conversation-history" style="max-height: 400px; overflow-y: auto;">
+                                ${data.messages.map(msg => `
+                                    <div class="message-item mb-3 p-3 border rounded ${msg.direction === 'incoming' ? 'bg-light' : 'bg-primary text-white'}">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <small class="text-muted">${this.formatDateTime(msg.createdAt)}</small>
+                                            <span class="badge ${msg.direction === 'incoming' ? 'bg-secondary' : 'bg-light text-dark'}">
+                                                ${msg.direction === 'incoming' ? 'Cliente' : 'Bot'}
+                                            </span>
+                                        </div>
+                                        <p class="mb-2">${msg.content.text}</p>
+                                        ${msg.processing.intent ? `
+                                            <div class="mt-2">
+                                                <small class="text-muted">
+                                                    <strong>Intención:</strong> ${msg.processing.intent} | 
+                                                    <strong>Sentimiento:</strong> ${msg.processing.sentiment || 'neutral'} |
+                                                    <strong>Confianza:</strong> ${(msg.processing.confidence * 100).toFixed(0)}%
+                                                </small>
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                    
+                    const modal = new bootstrap.Modal(document.getElementById('conversationHistoryModal'));
+                    modal.show();
+                } catch (error) {
+                    console.error('Error viewing conversation history:', error);
+                    this.showAlert('Error al cargar historial de conversación', 'error');
+                }
+            }
+
+            formatDateTime(dateString) {
+                const date = new Date(dateString);
+                return date.toLocaleString('es-CO', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            }
+
+            formatDate(dateString) {
+                const date = new Date(dateString);
+                return date.toLocaleDateString('es-CO', {
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            }
+
+            async toggleConversationStatus(phoneNumber, branchId, isActive) {
+                try {
+                    const action = isActive ? 'deactivate' : 'activate';
+                    const response = await this.authService.makeRequest(`/conversations/memory/${phoneNumber}/${action}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ branchId })
+                    });
+                    
+                    this.showAlert(`Conversación ${isActive ? 'desactivada' : 'activada'} exitosamente`, 'success');
+                    await this.loadActiveConversations();
+                } catch (error) {
+                    console.error('Error toggling conversation status:', error);
+                    this.showAlert('Error al cambiar estado de la conversación', 'error');
+                }
+            }
         }
 
         // Funciones globales para conversaciones
-        // Funciones globales de conversaciones eliminadas
+        window.loadConversationStats = function() {
+            if (window.dashboardApp) {
+                window.dashboardApp.loadConversationStats();
+            }
+        };
+
+        window.refreshActiveConversations = function() {
+            if (window.dashboardApp) {
+                window.dashboardApp.loadActiveConversations();
+            }
+        };
+
+        window.viewConversationHistory = function(phoneNumber, branchId) {
+            if (window.dashboardApp) {
+                window.dashboardApp.viewConversationHistory(phoneNumber, branchId);
+            }
+        };
+
+        window.toggleConversationStatus = function(phoneNumber, branchId, isActive) {
+            if (window.dashboardApp) {
+                window.dashboardApp.toggleConversationStatus(phoneNumber, branchId, isActive);
+            }
+        };
 
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', () => {

@@ -3,6 +3,8 @@ const Business = require('../models/Business');
 const Branch = require('../models/Branch');
 const User = require('../models/User');
 const BranchAIConfig = require('../models/BranchAIConfig');
+const ConversationMemory = require('../models/ConversationMemory');
+const WhatsAppMessage = require('../models/WhatsAppMessage');
 const LoggerService = require('../services/LoggerService');
 const WhatsAppServiceSimple = require('../services/WhatsAppServiceSimple');
 const AIService = require('../services/AIService');
@@ -27,6 +29,9 @@ class WhatsAppController {
         
         // Cargar configuraciones de IA después de que la base de datos esté lista
         this.loadAIConfigsAfterDBReady();
+        
+        // Sistema de cooldown para contactos que envían mensajes sin sentido
+        this.cooldownContacts = new Map(); // { phoneNumber: { startTime, endTime, reason } }
     }
 
     // Singleton para el servicio de IA
@@ -269,7 +274,29 @@ class WhatsAppController {
             console.log('🤖 ===== HANDLE MESSAGE RECEIVED INICIADO =====');
             console.log('📊 Data recibida:', JSON.stringify(data, null, 2));
             
-            const { connectionId, from, message, timestamp, messageId } = data;
+            const { connectionId, from, message, timestamp, messageId, messageType, mediaType } = data;
+
+            // Extraer número de teléfono para validación
+            const phoneNumber = from.replace('@c.us', '');
+            
+            // Validar tipo de mensaje antes de procesar
+            const messageValidation = this.validateMessageType(message, messageType, mediaType, phoneNumber);
+            if (messageValidation.shouldIgnore) {
+                console.log('🚫 Mensaje ignorado:', messageValidation.reason);
+                return;
+            }
+
+            if (messageValidation.shouldCancel) {
+                console.log('❌ Orden cancelada:', messageValidation.reason);
+                await this.handleOrderCancellation(connectionId, from, messageValidation.reason, phoneNumber);
+                return;
+            }
+
+            if (messageValidation.shouldRespond) {
+                console.log('📱 Respondiendo a mensaje no-texto:', messageValidation.reason);
+                await this.whatsappService.sendMessage(connectionId, phoneNumber, messageValidation.response);
+                return;
+            }
 
             // Find the connection
             const connection = await WhatsAppConnection.findById(connectionId);
@@ -292,8 +319,10 @@ class WhatsAppController {
 
             console.log('✅ IA habilitada para esta conexión');
 
-            // Extract phone number from WhatsApp format (remove @c.us)
-            const phoneNumber = from.replace('@c.us', '');
+            // phoneNumber ya fue extraído arriba
+
+            // Save incoming message to database
+            await this.saveIncomingMessage(connectionId, phoneNumber, message, messageId, timestamp, connection);
 
             // Upsert persistent session for timers
             try {
@@ -349,8 +378,18 @@ class WhatsAppController {
                         });
                         // Enviar resumen a sucursal SOLO si el texto confirma pedido
                         const looksConfirmed = /PEDIDO\s+CONFIRMADO/i.test(confirmText || '');
+                        console.log('🔍 ===== VERIFICACIÓN DE ENVÍO DE COMANDA =====');
+                        console.log('📝 Texto de confirmación:', confirmText?.substring(0, 100) + '...');
+                        console.log('🎯 ¿Parece confirmado?:', looksConfirmed ? '✅ SÍ' : '❌ NO');
+                        console.log('📱 Connection ID:', connection._id);
+                        console.log('🏪 Customer Service Number:', connection.customerServiceNumber);
+                        console.log('===============================================');
+                        
                         if (looksConfirmed) {
+                            console.log('🚀 Iniciando envío de comanda al restaurante...');
                             await this.sendOrderSummaryToBranch(connection, phoneNumber, message);
+                        } else {
+                            console.log('⚠️ No se enviará comanda - texto no parece confirmación');
                         }
                         return; // Ya se respondió y despachó
                     } catch (e) {
@@ -435,6 +474,9 @@ class WhatsAppController {
                 // Generate AI response with branch-specific configuration
                 let aiResponse;
                 
+                // Obtener historial de conversación para mejor contexto
+                const conversationHistory = await this.getConversationHistory(phoneNumber, connection.branchId);
+                
                 // Use new hybrid AI system for better contextual understanding
                 console.log('🤖 ===== USANDO SISTEMA IA HÍBRIDO MEJORADO =====');
                 aiResponse = await this.aiService.generateFluidResponse(
@@ -444,8 +486,10 @@ class WhatsAppController {
                     {
                         businessType,
                         branchAIConfig,
-                        lastMessages: [], // TODO: Implement conversation history
-                        currentState: 'active_conversation'
+                        lastMessages: conversationHistory.messages || [],
+                        currentState: 'active_conversation',
+                        lastBotMessage: conversationHistory.lastBotMessage || null,
+                        conversationHistory: conversationHistory.messages || []
                     }
                 );
                 console.log('✅ Respuesta IA híbrida generada:', aiResponse);
@@ -459,10 +503,14 @@ class WhatsAppController {
                 // Send AI response
                 const messageTextRaw = typeof aiResponse === 'string' ? aiResponse : aiResponse.text;
                 let messageText = messageTextRaw;
-                // If the AI returned a menu (combos) without a concise recommendation, prepend a simple guide
+                
+                // Solo agregar guía automática si la IA no generó una respuesta guiada específica
+                const isGuidedResponse = /¡Perfecto!|¡Genial!|Entiendo que quieres hacer un pedido/i.test(messageTextRaw || '');
                 const looksLikeAlitasMenu = /COMBOS\s+PERSONALES|COMBOS\s+FAMILIARES|COMBO\s+EMPAREJADO/i.test(messageTextRaw || '');
                 const hasRecommendationHeader = /MI\s+RECOMENDACI[ÓO]N/i.test(messageTextRaw || '');
-                if (looksLikeAlitasMenu && !hasRecommendationHeader) {
+                
+                // Solo agregar guía si es un menú automático Y no es una respuesta guiada
+                if (looksLikeAlitasMenu && !hasRecommendationHeader && !isGuidedResponse) {
                     const quickGuide = `Hagámoslo simple: dime cuántas personas son y te doy la opción más básica adecuada.\n\n` +
 `- 1 persona: Combo 1 (5 alitas + acompañante)\n` +
 `- 2 personas: Combo Emparejado (16 alitas + 2 acompañantes)\n` +
@@ -474,6 +522,7 @@ class WhatsAppController {
 `Escribe "pedir" para ordenar, "menu" para ver todo o "otra sugerencia" para ajustar.\n\n`;
                     messageText = quickGuide + messageTextRaw;
                 }
+                
                 await this.whatsappService.sendMessage(connectionIdStr, phoneNumber, messageText);
 
                 // Update connection stats
@@ -1981,16 +2030,30 @@ Puedes:
             // Verificar que existe el número de servicio al cliente
             if (!connection.customerServiceNumber) {
                 console.log('❌ No hay número de servicio al cliente configurado');
+                console.log('   Connection ID:', connection._id);
+                console.log('   Connection Name:', connection.connectionName);
+                console.log('   Branch ID:', connection.branchId);
+                console.log('   SOLUCIÓN: Configurar customerServiceNumber en la conexión WhatsApp');
                 this.logger.warn('No customer service number configured for connection', { 
                     connectionId: connection._id 
                 });
                 return;
             }
+            
+            console.log('✅ Customer Service Number configurado:', connection.customerServiceNumber);
 
             // Obtener información de la sucursal
             const Branch = require('../models/Branch');
             const branch = await Branch.findById(connection.branchId);
             const branchName = branch?.name || 'Sucursal';
+            
+            // Si no hay customerServiceNumber pero hay teléfono en la sucursal, usarlo
+            if (!connection.customerServiceNumber && branch?.whatsapp?.phoneNumber) {
+                console.log('🔧 Auto-configurando customerServiceNumber desde sucursal...');
+                connection.customerServiceNumber = branch.whatsapp.phoneNumber;
+                await connection.save();
+                console.log('✅ Customer Service Number auto-configurado:', connection.customerServiceNumber);
+            }
             
             console.log('🏪 Información de sucursal:');
             console.log('   Nombre:', branchName);
@@ -2054,15 +2117,25 @@ Puedes:
             
             // Verificar que el cliente WhatsApp esté disponible
             const whatsappService = this.whatsappService;
+            console.log('🔍 Verificando cliente WhatsApp...');
+            console.log('   WhatsApp Service disponible:', !!whatsappService);
+            console.log('   Clientes disponibles:', whatsappService.clients ? whatsappService.clients.size : 0);
+            console.log('   Connection ID buscado:', connectionIdStr);
+            console.log('   Claves de clientes:', whatsappService.clients ? Array.from(whatsappService.clients.keys()) : []);
+            
             const client = whatsappService.clients.get(connectionIdStr);
             
             if (!client) {
                 console.log('❌ Cliente WhatsApp no encontrado para la conexión');
+                console.log('   Connection ID:', connectionIdStr);
+                console.log('   Clientes disponibles:', whatsappService.clients ? whatsappService.clients.size : 0);
                 this.logger.error('WhatsApp client not found for connection', { connectionId: connectionIdStr });
                 return;
             }
             
-            console.log('✅ Cliente WhatsApp encontrado, estado:', client.info ? 'Ready' : 'Not ready');
+            console.log('✅ Cliente WhatsApp encontrado');
+            console.log('   Estado del cliente:', client.info ? 'Ready' : 'Not ready');
+            console.log('   Info del cliente:', client.info ? JSON.stringify(client.info, null, 2) : 'No info available');
             
             // Enviar el mensaje
             console.log('🚀 Enviando mensaje a la sucursal...');
@@ -2164,6 +2237,499 @@ Puedes:
         summary += `¡Gracias por usar nuestro servicio! 🎉`;
 
         return summary;
+    }
+
+    // ===== MÉTODOS DE CONVERSACIÓN =====
+
+    /**
+     * Guardar mensaje entrante en la base de datos
+     */
+    async saveIncomingMessage(connectionId, phoneNumber, message, messageId, timestamp, connection) {
+        try {
+            const whatsappMessage = new WhatsAppMessage({
+                messageId: messageId || `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                connectionId: String(connectionId),
+                phoneNumber,
+                branchId: String(connection.branchId),
+                businessId: String(connection.businessId),
+                direction: 'incoming',
+                content: {
+                    text: message,
+                    mediaType: 'text'
+                },
+                messageType: 'user_message',
+                metadata: {
+                    whatsappMessageId: messageId,
+                    timestamp: timestamp ? new Date(timestamp) : new Date(),
+                    deliveryStatus: 'delivered'
+                }
+            });
+
+            await whatsappMessage.save();
+            console.log('✅ Mensaje entrante guardado:', whatsappMessage.messageId);
+        } catch (error) {
+            console.error('❌ Error guardando mensaje entrante:', error);
+            this.logger.error('Error saving incoming message', { error: error.message });
+        }
+    }
+
+    /**
+     * Guardar respuesta del bot en la base de datos
+     */
+    async saveOutgoingMessage(connectionId, phoneNumber, message, processingData = {}) {
+        try {
+            const whatsappMessage = new WhatsAppMessage({
+                messageId: `bot_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                connectionId: String(connectionId),
+                phoneNumber,
+                direction: 'outgoing',
+                content: {
+                    text: message,
+                    mediaType: 'text'
+                },
+                messageType: 'bot_response',
+                processing: {
+                    intent: processingData.intent || null,
+                    sentiment: processingData.sentiment || null,
+                    confidence: processingData.confidence || null,
+                    processingTime: processingData.processingTime || null,
+                    aiModel: processingData.aiModel || 'default',
+                    conversationStage: processingData.conversationStage || null
+                },
+                metadata: {
+                    timestamp: new Date(),
+                    deliveryStatus: 'sent'
+                }
+            });
+
+            await whatsappMessage.save();
+            console.log('✅ Respuesta del bot guardada:', whatsappMessage.messageId);
+            return whatsappMessage;
+        } catch (error) {
+            console.error('❌ Error guardando respuesta del bot:', error);
+            this.logger.error('Error saving outgoing message', { error: error.message });
+            return null;
+        }
+    }
+
+    /**
+     * Actualizar memoria conversacional
+     */
+    async updateConversationMemory(phoneNumber, branchId, businessId, userMessage, botResponse, processingData = {}) {
+        try {
+            // Buscar o crear memoria conversacional
+            let memory = await ConversationMemory.findOne({
+                phoneNumber,
+                branchId: String(branchId),
+                businessId: String(businessId)
+            });
+
+            if (!memory) {
+                memory = new ConversationMemory({
+                    phoneNumber,
+                    branchId: String(branchId),
+                    businessId: String(businessId),
+                    clientInfo: {
+                        visitFrequency: 'first_time'
+                    },
+                    currentContext: {
+                        conversationStage: 'greeting',
+                        messageCount: 0
+                    },
+                    emotionalState: {
+                        satisfaction: 5,
+                        trust: 5,
+                        engagement: 5
+                    }
+                });
+            }
+
+            // Actualizar contexto actual
+            memory.currentContext.intent = processingData.intent || memory.currentContext.intent;
+            memory.currentContext.mood = processingData.sentiment || memory.currentContext.mood;
+            memory.currentContext.lastMessage = userMessage;
+            memory.currentContext.messageCount += 1;
+            memory.lastInteraction = new Date();
+
+            // Determinar etapa de la conversación
+            if (processingData.intent) {
+                memory.currentContext.conversationStage = this.determineConversationStage(
+                    processingData.intent, 
+                    memory.currentContext.conversationStage
+                );
+            }
+
+            // Actualizar estado emocional
+            if (processingData.sentiment) {
+                memory.updateEmotionalState(processingData.sentiment, processingData.intent);
+            }
+
+            // Agregar al historial
+            memory.addToHistory(userMessage, botResponse, processingData.intent, processingData.sentiment, {
+                messageId: `conv_${Date.now()}`,
+                processingTime: processingData.processingTime || 0,
+                confidence: processingData.confidence || 0
+            });
+
+            await memory.save();
+            console.log('✅ Memoria conversacional actualizada para:', phoneNumber);
+            return memory;
+        } catch (error) {
+            console.error('❌ Error actualizando memoria conversacional:', error);
+            this.logger.error('Error updating conversation memory', { error: error.message });
+            return null;
+        }
+    }
+
+    /**
+     * Determinar etapa de la conversación
+     */
+    determineConversationStage(intent, currentStage) {
+        const stageFlow = {
+            greeting: ['browsing', 'asking_info'],
+            browsing: ['ordering', 'asking_info', 'recommendation'],
+            ordering: ['customizing', 'confirming'],
+            customizing: ['confirming'],
+            confirming: ['greeting'],
+            asking_info: ['browsing', 'ordering'],
+            recommendation: ['ordering', 'browsing'],
+            complaint: ['greeting'],
+            cancellation: ['greeting']
+        };
+
+        const possibleStages = stageFlow[currentStage] || ['greeting'];
+        
+        if (possibleStages.includes(intent)) {
+            return intent;
+        }
+
+        return currentStage;
+    }
+
+    /**
+     * Obtener historial de conversación
+     */
+    async getConversationHistory(phoneNumber, branchId, limit = 50) {
+        try {
+            const messages = await WhatsAppMessage.getConversationHistory(phoneNumber, branchId, limit);
+            const memory = await ConversationMemory.findOne({
+                phoneNumber,
+                branchId: String(branchId)
+            });
+
+            return {
+                messages: messages.reverse(), // Mostrar en orden cronológico
+                memory: memory ? {
+                    clientInfo: memory.clientInfo,
+                    currentContext: memory.currentContext,
+                    emotionalState: memory.emotionalState,
+                    preferences: memory.preferences
+                } : null
+            };
+        } catch (error) {
+            console.error('❌ Error obteniendo historial de conversación:', error);
+            this.logger.error('Error getting conversation history', { error: error.message });
+            return { messages: [], memory: null };
+        }
+    }
+
+    /**
+     * Obtener conversaciones activas
+     */
+    async getActiveConversations(branchId, limit = 50) {
+        try {
+            const conversations = await ConversationMemory.getActiveConversations(branchId, limit);
+            return conversations;
+        } catch (error) {
+            console.error('❌ Error obteniendo conversaciones activas:', error);
+            this.logger.error('Error getting active conversations', { error: error.message });
+            return [];
+        }
+    }
+
+    /**
+     * Obtener estadísticas de conversaciones
+     */
+    async getConversationStats(branchId, startDate, endDate) {
+        try {
+            const [memoryStats, messageStats] = await Promise.all([
+                ConversationMemory.getConversationStats(branchId, startDate, endDate),
+                WhatsAppMessage.getConversationStats(branchId, startDate, endDate)
+            ]);
+
+            return {
+                memory: memoryStats[0] || {},
+                messages: messageStats[0] || {},
+                popularIntents: await WhatsAppMessage.getPopularIntents(branchId, startDate, endDate, 10),
+                sentimentAnalysis: await WhatsAppMessage.getSentimentAnalysis(branchId, startDate, endDate)
+            };
+        } catch (error) {
+            console.error('❌ Error obteniendo estadísticas de conversación:', error);
+            this.logger.error('Error getting conversation stats', { error: error.message });
+            return { memory: {}, messages: {}, popularIntents: [], sentimentAnalysis: [] };
+        }
+    }
+
+    // Validar tipo de mensaje y determinar acción
+    validateMessageType(message, messageType, mediaType, phoneNumber = null) {
+        // Verificar si el contacto está en cooldown
+        if (phoneNumber && this.isContactInCooldown(phoneNumber)) {
+            const cooldownInfo = this.cooldownContacts.get(phoneNumber);
+            const remainingTime = Math.ceil((cooldownInfo.endTime - Date.now()) / 1000 / 60);
+            console.log(`🚫 Contacto ${phoneNumber} en cooldown por ${remainingTime} minutos más`);
+            return {
+                shouldIgnore: true,
+                shouldCancel: false,
+                reason: `Contacto en cooldown por ${remainingTime} minutos más`
+            };
+        }
+
+        // Verificar si es un mensaje que no es texto
+        if (messageType && messageType !== 'text' && messageType !== 'chat') {
+            return {
+                shouldIgnore: false,
+                shouldCancel: false,
+                shouldRespond: true,
+                response: this.generateNonTextMessageResponse(messageType),
+                reason: `Mensaje de tipo ${messageType} recibido`
+            };
+        }
+
+        // Verificar si es un archivo multimedia
+        if (mediaType && mediaType !== 'text') {
+            return {
+                shouldIgnore: false,
+                shouldCancel: false,
+                shouldRespond: true,
+                response: this.generateNonTextMessageResponse(mediaType),
+                reason: `Archivo multimedia de tipo ${mediaType} recibido`
+            };
+        }
+
+        // Verificar si el mensaje está vacío o es solo espacios
+        if (!message || message.trim().length === 0) {
+            return {
+                shouldIgnore: true,
+                shouldCancel: false,
+                reason: 'Mensaje vacío'
+            };
+        }
+
+        // Verificar si es un mensaje sin sentido
+        if (this.isNonsenseMessage(message)) {
+            return {
+                shouldIgnore: false,
+                shouldCancel: true,
+                reason: 'Mensaje sin sentido detectado'
+            };
+        }
+
+        // Mensaje válido para procesar
+        return {
+            shouldIgnore: false,
+            shouldCancel: false,
+            shouldRespond: false
+        };
+    }
+
+    // Generar respuesta para mensajes que no son texto
+    generateNonTextMessageResponse(messageType) {
+        const typeMessages = {
+            'image': '📷',
+            'audio': '🎵',
+            'voice': '🎤',
+            'video': '🎬',
+            'document': '📄',
+            'sticker': '😊',
+            'gif': '🎞️',
+            'location': '📍'
+        };
+
+        const emoji = typeMessages[messageType] || '📎';
+
+        return `${emoji} Lo siento, pero este bot solo puede procesar mensajes de texto.
+
+Por favor envía tu consulta o pedido escribiendo un mensaje de texto.
+
+¿En qué te puedo ayudar? 😊`;
+    }
+
+    // Detectar mensajes sin sentido
+    isNonsenseMessage(message) {
+        const trimmedMessage = message.trim().toLowerCase();
+        
+        // Patrones de mensajes sin sentido
+        const nonsensePatterns = [
+            /^\.+$/, // Solo puntos: .....
+            /^[.,;:!?\-_]+$/, // Solo signos de puntuación
+            /^(.)\1{4,}$/, // Misma letra repetida 5+ veces: aaaaa
+            /^[a-z]\s[a-z]\s[a-z]$/, // Letras separadas: a b c
+            /^(.)\1{2,}$/, // Misma letra repetida 3+ veces: aaa
+            /^[0-9]{1,2}$/, // Solo 1-2 dígitos: 1, 12
+            /^[^a-zA-ZáéíóúñÁÉÍÓÚÑ0-9\s]+$/, // Solo símbolos especiales
+        ];
+
+        // Verificar patrones
+        for (const pattern of nonsensePatterns) {
+            if (pattern.test(trimmedMessage)) {
+                return true;
+            }
+        }
+
+        // Verificar si es muy corto y no tiene sentido
+        if (trimmedMessage.length <= 2 && !this.isValidShortMessage(trimmedMessage)) {
+            return true;
+        }
+
+        // Verificar si contiene solo caracteres especiales repetidos
+        if (trimmedMessage.length <= 3 && /^[^a-zA-ZáéíóúñÁÉÍÓÚÑ0-9\s]+$/.test(trimmedMessage)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    // Verificar si un mensaje corto es válido
+    isValidShortMessage(message) {
+        const validShortMessages = [
+            'si', 'sí', 'no', 'ok', 'okay', 'hola', 'hi', 'hey',
+            'gracias', 'thanks', 'bye', 'adiós', 'chao', 'ciao'
+        ];
+        
+        return validShortMessages.includes(message);
+    }
+
+    // Manejar cancelación de orden
+    async handleOrderCancellation(connectionId, from, reason, phoneNumber = null) {
+        try {
+            console.log('🚫 ===== CANCELANDO ORDEN =====');
+            console.log('📞 Cliente:', from);
+            console.log('🏪 Conexión:', connectionId);
+            console.log('💬 Razón:', reason);
+            console.log('=====================================');
+
+            // Extraer número de teléfono si no se proporcionó
+            if (!phoneNumber) {
+                phoneNumber = from.replace('@c.us', '');
+            }
+
+            // Mensaje de cancelación
+            const cancellationMessage = `❌ **ORDEN CANCELADA**
+
+Hemos cancelado tu pedido porque recibimos un mensaje que no pudimos procesar.
+
+Si quieres hacer un nuevo pedido, solo escribe "hola" y te ayudo desde el principio.
+
+¡Estamos aquí para ayudarte! 😊`;
+
+            // Enviar mensaje de cancelación
+            await this.whatsappService.sendMessage(connectionId, phoneNumber, cancellationMessage);
+
+            // Log de cancelación
+            this.logger.warn('Order cancelled due to nonsense message', {
+                connectionId,
+                phoneNumber,
+                reason
+            });
+
+            console.log('✅ Mensaje de cancelación enviado');
+
+            // Iniciar cooldown de 10 minutos para este contacto
+            this.startCooldownForContact(phoneNumber, reason);
+
+        } catch (error) {
+            console.error('❌ Error manejando cancelación de orden:', error);
+            this.logger.error('Error handling order cancellation', {
+                connectionId,
+                from,
+                reason,
+                error: error.message
+            });
+        }
+    }
+
+    // Iniciar cooldown para un contacto
+    startCooldownForContact(phoneNumber, reason) {
+        const cooldownMinutes = 10;
+        const startTime = Date.now();
+        const endTime = startTime + (cooldownMinutes * 60 * 1000);
+        
+        this.cooldownContacts.set(phoneNumber, {
+            startTime: startTime,
+            endTime: endTime,
+            reason: reason,
+            cooldownMinutes: cooldownMinutes
+        });
+        
+        console.log(`⏰ Cooldown iniciado para ${phoneNumber}: ${cooldownMinutes} minutos`);
+        
+        // Limpiar el cooldown automáticamente después del tiempo
+        setTimeout(() => {
+            this.removeCooldownForContact(phoneNumber);
+        }, cooldownMinutes * 60 * 1000);
+        
+        this.logger.warn('Contact placed in cooldown', {
+            phoneNumber,
+            reason,
+            cooldownMinutes,
+            endTime: new Date(endTime)
+        });
+    }
+
+    // Verificar si un contacto está en cooldown
+    isContactInCooldown(phoneNumber) {
+        if (!this.cooldownContacts.has(phoneNumber)) {
+            return false;
+        }
+        
+        const cooldownInfo = this.cooldownContacts.get(phoneNumber);
+        const now = Date.now();
+        
+        // Si el cooldown ha expirado, removerlo
+        if (now >= cooldownInfo.endTime) {
+            this.removeCooldownForContact(phoneNumber);
+            return false;
+        }
+        
+        return true;
+    }
+
+    // Remover cooldown de un contacto
+    removeCooldownForContact(phoneNumber) {
+        if (this.cooldownContacts.has(phoneNumber)) {
+            const cooldownInfo = this.cooldownContacts.get(phoneNumber);
+            this.cooldownContacts.delete(phoneNumber);
+            
+            console.log(`✅ Cooldown removido para ${phoneNumber}`);
+            
+            this.logger.info('Contact cooldown removed', {
+                phoneNumber,
+                duration: Math.ceil((Date.now() - cooldownInfo.startTime) / 1000 / 60),
+                reason: cooldownInfo.reason
+            });
+        }
+    }
+
+    // Obtener información de cooldown para un contacto
+    getCooldownInfo(phoneNumber) {
+        if (!this.cooldownContacts.has(phoneNumber)) {
+            return null;
+        }
+        
+        const cooldownInfo = this.cooldownContacts.get(phoneNumber);
+        const now = Date.now();
+        
+        if (now >= cooldownInfo.endTime) {
+            this.removeCooldownForContact(phoneNumber);
+            return null;
+        }
+        
+        return {
+            remainingMinutes: Math.ceil((cooldownInfo.endTime - now) / 1000 / 60),
+            reason: cooldownInfo.reason,
+            startTime: cooldownInfo.startTime,
+            endTime: cooldownInfo.endTime
+        };
     }
 }
 

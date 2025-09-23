@@ -21,6 +21,7 @@ const orderRoutes = require('./routes/order');
 const dashboardRoutes = require('./routes/dashboard');
 const reportsRoutes = require('./routes/reports');
 const billingRoutes = require('./routes/billing');
+const conversationRoutes = require('./routes/conversations');
 
 const app = express();
 
@@ -134,6 +135,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/billing', billingRoutes);
+app.use('/api/conversations', conversationRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
