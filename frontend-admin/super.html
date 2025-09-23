@@ -293,11 +293,47 @@
         .alert {
             border: none;
             border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
         }
         
         .alert-danger {
             background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+        }
+        
+        .alert-info {
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+        }
+        
+        .alert-warning {
+            background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%);
+        }
+        
+        .alert-sm {
+            padding: 0.75rem;
+            font-size: 0.875rem;
+        }
+        
+        .cursor-pointer {
+            cursor: pointer;
+        }
+        
+        details summary {
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        details summary:hover {
+            color: var(--bs-primary);
+        }
+        
+        .border-start {
+            border-left: 1px solid var(--bs-border-color) !important;
+        }
+        
+        .border-3 {
+            border-width: 3px !important;
+        }
             color: #c62828;
         }
         
@@ -549,6 +585,64 @@
         .spinner-border {
             width: 2rem;
             height: 2rem;
+        }
+
+        /* Estilos para conversaciones */
+        .conversation-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .conversation-header h6 {
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .order-summary {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+        }
+
+        .messages-container {
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            background: #ffffff;
+        }
+
+        .user-message {
+            background: #007bff;
+            color: white;
+            margin-left: 20%;
+            border-radius: 18px 18px 5px 18px;
+        }
+
+        .bot-message {
+            background: #e9ecef;
+            color: #333;
+            margin-right: 20%;
+            border-radius: 18px 18px 18px 5px;
+        }
+
+        .message-text {
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .message-content small {
+            font-size: 11px;
+            opacity: 0.8;
+        }
+
+        .conversation-messages h6 {
+            color: #495057;
+            font-weight: 600;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e9ecef;
         }
     </style>
 </head>
@@ -941,9 +1035,15 @@
                             <div class="col-md-4">
                                 <div class="card">
                                     <div class="card-header">
-                                        <h5 class="mb-0">
-                                            <i class="fas fa-exclamation-triangle me-2"></i>Alertas
-                                        </h5>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <h5 class="mb-0">
+                                                <i class="fas fa-exclamation-triangle me-2"></i>Alertas
+                                            </h5>
+                                            <div id="alertsStatus" class="small text-muted">
+                                                <i class="fas fa-sync-alt fa-spin" style="display: none;"></i>
+                                                <span class="status-text">Actualizando...</span>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="card-body">
                                         <div id="alertsList">
@@ -1041,7 +1141,6 @@
                                                         <th>ID Pedido</th>
                                                         <th>Cliente</th>
                                                         <th>Sucursal</th>
-                                                        <th>Estado</th>
                                                         <th>Total</th>
                                                         <th>Fecha</th>
                                                         <th>Acciones</th>
@@ -1049,7 +1148,7 @@
                                                 </thead>
                                                 <tbody id="ordersTableBody">
                                                     <tr>
-                                                        <td colspan="7" class="text-center">
+                                                        <td colspan="6" class="text-center">
                                                             <div class="spinner-border text-primary" role="status">
                                                                 <span class="visually-hidden">Cargando...</span>
                                                             </div>
@@ -1090,11 +1189,38 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Modal para ver conversación del pedido -->
+                        <div class="modal fade" id="conversationModal" tabindex="-1" aria-labelledby="conversationModalLabel" aria-hidden="true">
+                            <div class="modal-dialog modal-lg">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title" id="conversationModalLabel">
+                                            <i class="fas fa-comments me-2"></i>Conversación del Pedido
+                                        </h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div id="conversationContent">
+                                            <div class="text-center">
+                                                <div class="spinner-border text-primary" role="status">
+                                                    <span class="visually-hidden">Cargando conversación...</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div id="whatsappSection" style="display: none;">
                         <!-- WhatsApp content will be loaded here -->
                     </div>
+
 
                     <div id="aiSection" style="display: none;">
                         <!-- AI content will be loaded here -->
@@ -1247,6 +1373,7 @@
                 this.setupUserInfo();
                 this.bindEvents();
                 this.loadDashboard();
+                this.startAlertsRefresh();
             }
 
             setupUserInfo() {
@@ -1314,6 +1441,7 @@
                     users: 'Gestión de Usuarios',
                     orders: 'Pedidos',
                     whatsapp: 'WhatsApp',
+                    conversations: 'Conversaciones',
                     ai: 'IA & PDFs',
                     billing: 'Facturación',
                     settings: 'Configuración'
@@ -1355,31 +1483,186 @@
             async loadAlerts() {
                 try {
                     const alertsContainer = document.getElementById('alertsList');
+                    const alertsStatus = document.getElementById('alertsStatus');
                     
-                    // Simulate alerts
-                    const alerts = [
-                        { type: 'warning', message: '3 sucursales sin conexión WhatsApp', time: '1 hora' },
-                        { type: 'info', message: 'Actualización de IA disponible', time: '2 horas' }
-                    ];
+                    // Mostrar indicador de carga
+                    if (alertsStatus) {
+                        alertsStatus.querySelector('.fa-sync-alt').style.display = 'inline';
+                        alertsStatus.querySelector('.status-text').textContent = 'Actualizando...';
+                    }
+                    
+                    // Obtener alertas reales del backend
+                    const response = await fetch(`${this.baseURL}/dashboard/alerts`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al cargar alertas');
+                    }
+
+                    const result = await response.json();
+                    const alerts = result.data || [];
+
+                    // Ocultar indicador de carga y mostrar estado
+                    if (alertsStatus) {
+                        alertsStatus.querySelector('.fa-sync-alt').style.display = 'none';
+                        alertsStatus.querySelector('.status-text').textContent = `Actualizado hace ${new Date().toLocaleTimeString()}`;
+                    }
 
                     if (alerts.length === 0) {
                         alertsContainer.innerHTML = `
                             <div class="text-center text-muted">
                                 <i class="fas fa-check-circle fa-2x mb-3 text-success"></i>
                                 <p>No hay alertas</p>
+                                <small>Todos los sistemas funcionando correctamente</small>
                             </div>
                         `;
                     } else {
                         alertsContainer.innerHTML = alerts.map(alert => `
-                            <div class="alert alert-${alert.type} alert-sm mb-2">
-                                <small>${alert.message}</small>
-                                <br><small class="text-muted">${alert.time}</small>
+                            <div class="alert alert-${alert.type} alert-sm mb-3 border-start border-${alert.type === 'info' ? 'primary' : alert.type === 'warning' ? 'warning' : 'danger'} border-3">
+                                <div class="d-flex align-items-start">
+                                    <div class="flex-shrink-0 me-2">
+                                        <i class="fas fa-${this.getAlertIcon(alert.icon)} text-${alert.type === 'info' ? 'primary' : alert.type === 'warning' ? 'warning' : 'danger'}"></i>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="fw-bold mb-1">${alert.title}</div>
+                                        <div class="small mb-2">${alert.message}</div>
+                                        ${alert.details && alert.details.length > 0 ? `
+                                            <div class="small text-muted">
+                                                <details>
+                                                    <summary class="cursor-pointer">Ver detalles (${alert.details.length})</summary>
+                                                    <div class="mt-2">
+                                                        ${alert.details.slice(0, 3).map(detail => `
+                                                            <div class="border-start border-2 border-${alert.type === 'info' ? 'primary' : alert.type === 'warning' ? 'warning' : 'danger'} ps-2 mb-1">
+                                                                ${this.formatAlertDetail(detail, alert.type)}
+                                                            </div>
+                                                        `).join('')}
+                                                        ${alert.details.length > 3 ? `<div class="small text-muted">... y ${alert.details.length - 3} más</div>` : ''}
+                                                    </div>
+                                                </details>
+                                            </div>
+                                        ` : ''}
+                                        <div class="small text-muted mt-1">
+                                            <i class="fas fa-clock me-1"></i>${alert.time}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         `).join('');
                     }
 
                 } catch (error) {
                     console.error('Error loading alerts:', error);
+                    const alertsContainer = document.getElementById('alertsList');
+                    const alertsStatus = document.getElementById('alertsStatus');
+                    
+                    // Ocultar indicador de carga y mostrar error
+                    if (alertsStatus) {
+                        alertsStatus.querySelector('.fa-sync-alt').style.display = 'none';
+                        alertsStatus.querySelector('.status-text').textContent = 'Error al cargar';
+                    }
+                    
+                    alertsContainer.innerHTML = `
+                        <div class="alert alert-warning alert-sm">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <small>Error cargando alertas: ${error.message}</small>
+                        </div>
+                    `;
+                }
+            }
+
+            getAlertIcon(iconType) {
+                const iconMap = {
+                    'users': 'users',
+                    'clock': 'clock',
+                    'times-circle': 'times-circle',
+                    'user-times': 'user-times',
+                    'whatsapp': 'whatsapp',
+                    'warning': 'exclamation-triangle',
+                    'info': 'info-circle'
+                };
+                return iconMap[iconType] || 'info-circle';
+            }
+
+            formatAlertDetail(detail, alertType) {
+                if (alertType === 'info' && detail.phoneNumber) {
+                    // Detalle de cliente activo
+                    return `
+                        <div class="small">
+                            <strong>${detail.phoneNumber}</strong> - ${detail.branchName}<br>
+                            <span class="text-muted">${detail.status} • ${detail.lastActivity}</span>
+                            ${detail.timeSinceActivity > 5 ? `<br><span class="text-warning">⚠️ Inactivo ${detail.timeSinceActivity} min</span>` : ''}
+                        </div>
+                    `;
+                } else if (alertType === 'warning' && detail.orderId) {
+                    // Detalle de pedido pendiente
+                    return `
+                        <div class="small">
+                            <strong>Pedido #${detail.orderId}</strong> - ${detail.branchName}<br>
+                            <span class="text-muted">${detail.customerName} • $${detail.total}</span><br>
+                            <span class="text-warning">⏰ ${detail.minutesStale} min sin actualizar</span>
+                        </div>
+                    `;
+                } else if (alertType === 'danger' && detail.orderId) {
+                    // Detalle de pedido cancelado
+                    return `
+                        <div class="small">
+                            <strong>Pedido #${detail.orderId}</strong> - ${detail.branchName}<br>
+                            <span class="text-muted">${detail.customerName} • $${detail.total}</span><br>
+                            <span class="text-danger">❌ ${detail.reason}</span>
+                        </div>
+                    `;
+                } else if (alertType === 'warning' && detail.phoneNumber && detail.connectionName) {
+                    // Detalle de WhatsApp desconectado
+                    return `
+                        <div class="small">
+                            <strong>${detail.connectionName}</strong><br>
+                            <span class="text-muted">${detail.branchName} • ${detail.phoneNumber}</span><br>
+                            <span class="text-warning">🔌 ${detail.status}</span>
+                        </div>
+                    `;
+                } else if (alertType === 'info' && detail.orderId && detail.customerMessage) {
+                    // Detalle de pedido cancelado por cliente
+                    return `
+                        <div class="small">
+                            <strong>Pedido #${detail.orderId}</strong> - ${detail.branchName}<br>
+                            <span class="text-muted">${detail.customerName} • $${detail.total}</span><br>
+                            <span class="text-info">👤 Cliente: "${detail.customerMessage}"</span><br>
+                            <span class="text-muted">${detail.cancelledAt}</span>
+                        </div>
+                    `;
+                }
+                return JSON.stringify(detail);
+            }
+
+            // Iniciar actualizaciones automáticas de alertas
+            startAlertsRefresh() {
+                // Actualizar alertas cada 30 segundos
+                this.alertsInterval = setInterval(() => {
+                    if (this.currentSection === 'dashboard') {
+                        this.loadAlerts();
+                    }
+                }, 30000); // 30 segundos
+
+                // Actualizar alertas cuando se cambie a la sección dashboard
+                this.originalShowSection = this.showSection;
+                this.showSection = (sectionName) => {
+                    this.originalShowSection(sectionName);
+                    if (sectionName === 'dashboard') {
+                        // Cargar alertas inmediatamente al mostrar dashboard
+                        this.loadAlerts();
+                    }
+                };
+            }
+
+            // Detener actualizaciones automáticas
+            stopAlertsRefresh() {
+                if (this.alertsInterval) {
+                    clearInterval(this.alertsInterval);
+                    this.alertsInterval = null;
                 }
             }
 
@@ -2844,8 +3127,8 @@
                             <h5 class="mb-0">
                                 <i class="fab fa-whatsapp me-2"></i>Gestión de WhatsApp
                             </h5>
-                            <button class="btn btn-primary btn-sm" onclick="whatsappManager.showNewConnectionModal()">
-                                <i class="fas fa-plus me-2"></i>Nueva Conexión
+                            <button class="whatsapp-btn whatsapp-btn-primary" onclick="whatsappManager.showNewConnectionModal()">
+                                <i class="fas fa-plus me-1"></i>Nueva Conexión
                             </button>
                         </div>
                         <div class="card-body">
@@ -2865,13 +3148,15 @@
                 await this.loadWhatsAppConnections();
             }
 
+            // Función loadConversations eliminada completamente
+
             async loadAI() {
                 const section = document.getElementById('aiSection');
                 section.innerHTML = `
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <h4><i class="fas fa-robot me-2"></i>Configuración de IA por Sucursal</h4>
-                        <button class="btn btn-primary" onclick="dashboardApp.showBranchAIConfigModal()">
-                            <i class="fas fa-plus me-2"></i>Nueva Configuración
+                        <button class="whatsapp-btn whatsapp-btn-primary" onclick="dashboardApp.showBranchAIConfigModal()">
+                            <i class="fas fa-plus me-1"></i>Nueva Configuración
                         </button>
                     </div>
                     <div class="card">
@@ -2937,6 +3222,11 @@
                                     </button>
                                 </li>
                                 <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="monthly-tab" data-bs-toggle="tab" data-bs-target="#monthly" type="button" role="tab">
+                                        <i class="fas fa-calendar-alt me-2"></i>Facturas Mensuales
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
                                     <button class="nav-link" id="invoices-tab" data-bs-toggle="tab" data-bs-target="#invoices" type="button" role="tab">
                                         <i class="fas fa-file-invoice me-2"></i>Cuentas de Cobro
                                     </button>
@@ -2958,6 +3248,52 @@
                                                 <span class="visually-hidden">Cargando pedidos...</span>
                                             </div>
                                             <p class="mt-2">Cargando pedidos para facturar...</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Pestaña de Facturas Mensuales -->
+                                <div class="tab-pane fade" id="monthly" role="tabpanel">
+                                    <div class="mb-3">
+                                        <div class="row">
+                                            <div class="col-md-3">
+                                                <select id="monthlyBranchFilter" class="form-select form-select-sm">
+                                                    <option value="">Todas las sucursales</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <select id="monthlyYearFilter" class="form-select form-select-sm">
+                                                    <option value="">Todos los años</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <select id="monthlyStatusFilter" class="form-select form-select-sm">
+                                                    <option value="">Todos los estados</option>
+                                                    <option value="draft">Borrador</option>
+                                                    <option value="sent">Enviada</option>
+                                                    <option value="paid">Pagada</option>
+                                                    <option value="overdue">Vencida</option>
+                                                    <option value="cancelled">Cancelada</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <button class="btn btn-primary btn-sm" onclick="app.generateMonthlyBill()">
+                                                    <i class="fas fa-plus me-1"></i>Generar Factura Mensual
+                                                </button>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <button class="btn btn-outline-primary btn-sm" onclick="app.refreshMonthlyBills()">
+                                                    <i class="fas fa-sync-alt me-1"></i>Actualizar
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div id="monthlyBillsContent">
+                                        <div class="text-center">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">Cargando facturas mensuales...</span>
+                                            </div>
+                                            <p class="mt-2">Cargando facturas mensuales...</p>
                                         </div>
                                     </div>
                                 </div>
@@ -2996,6 +3332,7 @@
                 // Cargar datos iniciales
                 await this.loadBillingBranches();
                 await this.loadBillingOrders();
+                await this.loadMonthlyBills();
             }
 
             // Funciones de Facturación
@@ -3008,9 +3345,25 @@
                     this.loadBillingOrders();
                 });
 
+                // Filtros de facturas mensuales
+                document.getElementById('monthlyBranchFilter').addEventListener('change', () => {
+                    this.loadMonthlyBills();
+                });
+
+                document.getElementById('monthlyYearFilter').addEventListener('change', () => {
+                    this.loadMonthlyBills();
+                });
+
+                document.getElementById('monthlyStatusFilter').addEventListener('change', () => {
+                    this.loadMonthlyBills();
+                });
+
                 // Cambio de pestañas
                 document.getElementById('orders-tab').addEventListener('click', () => {
                     this.loadBillingOrders();
+                });
+                document.getElementById('monthly-tab').addEventListener('click', () => {
+                    this.loadMonthlyBills();
                 });
                 document.getElementById('invoices-tab').addEventListener('click', () => {
                     this.loadBillingInvoices();
@@ -3053,6 +3406,7 @@
                     let params = new URLSearchParams();
                     if (branchId) params.append('branchId', branchId);
                     if (status) params.append('status', status);
+                    params.append('summary', 'true'); // Solicitar resumen por sucursal
 
                     const response = await fetch(`http://localhost:3000/api/billing/orders?${params}`, {
                         headers: {
@@ -3065,7 +3419,7 @@
                     }
 
                     const data = await response.json();
-                    this.renderBillingOrders(data.data);
+                    this.renderBillingOrdersSummary(data.data);
 
                 } catch (error) {
                     console.error('Error loading billing orders:', error);
@@ -3076,6 +3430,143 @@
                         </div>
                     `;
                 }
+            }
+
+            renderBillingOrdersSummary(data) {
+                const content = document.getElementById('billingOrdersContent');
+                
+                if (!data.summary || data.summary.length === 0) {
+                    content.innerHTML = `
+                        <div class="text-center text-muted">
+                            <i class="fas fa-shopping-cart fa-3x mb-3"></i>
+                            <h5>No hay pedidos pendientes para facturar</h5>
+                            <p>Todas las sucursales están al día con sus facturas.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Resumen general
+                const summaryHTML = `
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-building fa-2x mb-2"></i>
+                                    <h4>${data.totalBranches}</h4>
+                                    <small>Sucursales con pedidos pendientes</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-warning text-white">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-shopping-cart fa-2x mb-2"></i>
+                                    <h4>${data.totalPendingOrders}</h4>
+                                    <small>Pedidos pendientes de facturar</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-success text-white">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-dollar-sign fa-2x mb-2"></i>
+                                    <h4>$${data.totalCommission.toLocaleString()}</h4>
+                                    <small>Total a cobrar</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-info text-white">
+                                <div class="card-body text-center">
+                                    <button class="btn btn-light btn-sm" onclick="app.generateSelectedInvoices()">
+                                        <i class="fas fa-file-invoice me-2"></i>Generar Facturas Seleccionadas
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Lista de sucursales con pedidos pendientes
+                const branchesHTML = data.summary.map(branch => `
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <div class="row align-items-center">
+                                <div class="col-md-1">
+                                    <div class="form-check">
+                                        <input class="form-check-input branch-checkbox" type="checkbox" 
+                                               value="${branch.branchId}" id="branch-${branch.branchId}"
+                                               onchange="app.toggleBranchOrders('${branch.branchId}')">
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-store me-2"></i>${branch.branchName}
+                                    </h6>
+                                    <small class="text-muted">${branch.businessName}</small>
+                                </div>
+                                <div class="col-md-2">
+                                    <span class="badge bg-warning">${branch.pendingOrders} pedidos</span>
+                                </div>
+                                <div class="col-md-2">
+                                    <small class="text-muted">Comisión:</small><br>
+                                    <strong>$${branch.commissionPerOrder}/orden</strong>
+                                </div>
+                                <div class="col-md-2">
+                                    <small class="text-muted">Total a cobrar:</small><br>
+                                    <strong class="text-success">$${branch.totalCommission.toLocaleString()}</strong>
+                                </div>
+                                <div class="col-md-1">
+                                    <button class="btn btn-outline-primary btn-sm" 
+                                            onclick="app.toggleBranchDetails('${branch.branchId}')">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body" id="branch-details-${branch.branchId}" style="display: none;">
+                            <h6>Pedidos pendientes de facturar:</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>
+                                                <input type="checkbox" class="form-check-input" 
+                                                       onchange="app.selectAllBranchOrders('${branch.branchId}', this.checked)">
+                                            </th>
+                                            <th>Pedido</th>
+                                            <th>Cliente</th>
+                                            <th>Fecha</th>
+                                            <th>Total Pedido</th>
+                                            <th>Comisión</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${branch.orders.map(order => `
+                                            <tr>
+                                                <td>
+                                                    <input type="checkbox" class="form-check-input order-checkbox" 
+                                                           data-branch="${branch.branchId}" 
+                                                           data-order="${order.orderId}"
+                                                           data-commission="${branch.commissionPerOrder}"
+                                                           onchange="app.updateSelectedOrders()">
+                                                </td>
+                                                <td>${order.orderId}</td>
+                                                <td>${order.customerName}</td>
+                                                <td>${new Date(order.createdAt).toLocaleDateString('es-ES')}</td>
+                                                <td>$${order.total.toLocaleString()}</td>
+                                                <td class="text-success">$${branch.commissionPerOrder.toLocaleString()}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+                content.innerHTML = summaryHTML + branchesHTML;
             }
 
             renderBillingOrders(data) {
@@ -3372,6 +3863,28 @@
                                                 </div>
                                             </div>
                                         </div>
+                                        
+                                        <hr>
+                                        <h6 class="text-primary">
+                                            <i class="fas fa-percentage me-2"></i>Configuración de Comisiones
+                                        </h6>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Comisión por Orden</label>
+                                                    <div class="input-group">
+                                                        <span class="input-group-text">$</span>
+                                                        <input type="number" class="form-control" id="commissionPerOrder" 
+                                                               value="${billingInfo.commissionPerOrder || 500}" 
+                                                               min="0" step="50">
+                                                    </div>
+                                                    <small class="form-text text-muted">
+                                                        Valor que se cobrará por cada orden entregada (estado: delivered/completed)
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
                                         <div class="d-flex gap-2">
                                             <button type="submit" class="btn btn-primary">
                                                 <i class="fas fa-save me-2"></i>Guardar Configuración
@@ -3423,7 +3936,8 @@
                         email: document.getElementById('email').value,
                         address: document.getElementById('address').value,
                         city: document.getElementById('city').value,
-                        department: document.getElementById('department').value
+                        department: document.getElementById('department').value,
+                        commissionPerOrder: parseInt(document.getElementById('commissionPerOrder').value) || 500
                     };
 
                     const response = await fetch(`http://localhost:3000/api/billing/branch/${branchId}`, {
@@ -3470,6 +3984,7 @@
                     // Recargar datos
                     await this.loadBillingOrders();
                     await this.loadBillingInvoices();
+                    await this.loadMonthlyBills();
 
                 } catch (error) {
                     console.error('Error generating invoice:', error);
@@ -3601,6 +4116,431 @@
             async testBillingInfo() {
                 // Implementar prueba de envío
                 this.showAlert('Funcionalidad de prueba en desarrollo', 'info');
+            }
+
+            // Funciones para manejo de selección de pedidos
+            toggleBranchDetails(branchId) {
+                const details = document.getElementById(`branch-details-${branchId}`);
+                const isVisible = details.style.display !== 'none';
+                details.style.display = isVisible ? 'none' : 'block';
+            }
+
+            toggleBranchOrders(branchId) {
+                const branchCheckbox = document.getElementById(`branch-${branchId}`);
+                const orderCheckboxes = document.querySelectorAll(`input[data-branch="${branchId}"].order-checkbox`);
+                
+                orderCheckboxes.forEach(checkbox => {
+                    checkbox.checked = branchCheckbox.checked;
+                });
+                
+                this.updateSelectedOrders();
+            }
+
+            selectAllBranchOrders(branchId, checked) {
+                const orderCheckboxes = document.querySelectorAll(`input[data-branch="${branchId}"].order-checkbox`);
+                const branchCheckbox = document.getElementById(`branch-${branchId}`);
+                
+                orderCheckboxes.forEach(checkbox => {
+                    checkbox.checked = checked;
+                });
+                
+                // Actualizar checkbox de sucursal
+                branchCheckbox.checked = checked && orderCheckboxes.length > 0;
+                
+                this.updateSelectedOrders();
+            }
+
+            updateSelectedOrders() {
+                // Esta función se puede usar para actualizar contadores o validaciones
+                const selectedOrders = document.querySelectorAll('input.order-checkbox:checked');
+                console.log(`${selectedOrders.length} pedidos seleccionados para facturar`);
+            }
+
+            async generateSelectedInvoices() {
+                const selectedOrders = Array.from(document.querySelectorAll('input.order-checkbox:checked'));
+                
+                if (selectedOrders.length === 0) {
+                    alert('Por favor selecciona al menos un pedido para facturar');
+                    return;
+                }
+
+                // Agrupar pedidos por sucursal
+                const ordersByBranch = {};
+                selectedOrders.forEach(checkbox => {
+                    const branchId = checkbox.dataset.branch;
+                    const orderId = checkbox.dataset.order;
+                    const commission = parseInt(checkbox.dataset.commission);
+                    
+                    if (!ordersByBranch[branchId]) {
+                        ordersByBranch[branchId] = {
+                            orders: [],
+                            commission: commission
+                        };
+                    }
+                    ordersByBranch[branchId].orders.push(orderId);
+                });
+
+                // Confirmar generación
+                const totalBranches = Object.keys(ordersByBranch).length;
+                const totalOrders = selectedOrders.length;
+                
+                if (!confirm(`¿Generar facturas para ${totalOrders} pedidos de ${totalBranches} sucursal(es)?`)) {
+                    return;
+                }
+
+                try {
+                    // Generar factura para cada sucursal
+                    for (const [branchId, data] of Object.entries(ordersByBranch)) {
+                        await this.generateBranchInvoice(branchId, data.orders);
+                    }
+                    
+                    alert('Facturas generadas exitosamente');
+                    await this.loadBillingOrders(); // Recargar la vista
+                    
+                } catch (error) {
+                    console.error('Error generating invoices:', error);
+                    alert('Error al generar las facturas: ' + error.message);
+                }
+            }
+
+            async generateBranchInvoice(branchId, orderIds) {
+                // Aquí implementarías la lógica para generar factura por sucursal
+                // Por ahora, generamos una factura mensual para la sucursal
+                const currentDate = new Date();
+                
+                const response = await fetch('http://localhost:3000/api/billing/generate-monthly-bill', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${this.authService.getToken()}`
+                    },
+                    body: JSON.stringify({
+                        branchId: branchId,
+                        year: currentDate.getFullYear(),
+                        month: currentDate.getMonth() + 1
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(`Error para sucursal ${branchId}: ${data.message}`);
+                }
+                
+                return data;
+            }
+
+            // Funciones de Facturas Mensuales
+            async loadMonthlyBills() {
+                try {
+                    const branchId = document.getElementById('monthlyBranchFilter').value;
+                    const year = document.getElementById('monthlyYearFilter').value;
+                    const status = document.getElementById('monthlyStatusFilter').value;
+
+                    const params = new URLSearchParams();
+                    if (branchId) params.append('branchId', branchId);
+                    if (year) params.append('year', year);
+                    if (status) params.append('status', status);
+
+                    const response = await fetch(`http://localhost:3000/api/billing/monthly-bills?${params}`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Error al cargar facturas mensuales');
+                    }
+
+                    const data = await response.json();
+                    this.renderMonthlyBills(data.data);
+
+                } catch (error) {
+                    console.error('Error loading monthly bills:', error);
+                    document.getElementById('monthlyBillsContent').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Error al cargar facturas mensuales: ${error.message}
+                        </div>
+                    `;
+                }
+            }
+
+            renderMonthlyBills(data) {
+                const content = document.getElementById('monthlyBillsContent');
+                
+                if (!data.bills || data.bills.length === 0) {
+                    content.innerHTML = `
+                        <div class="text-center text-muted">
+                            <i class="fas fa-calendar-alt fa-3x mb-3"></i>
+                            <h5>No hay facturas mensuales</h5>
+                            <p>No se encontraron facturas mensuales con los filtros aplicados.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const billsHTML = data.bills.map(bill => {
+                    const statusClass = this.getBillStatusClass(bill.status);
+                    const statusText = this.getBillStatusText(bill.status);
+                    const dueDate = new Date(bill.dueDate).toLocaleDateString('es-ES');
+                    const isOverdue = bill.status !== 'paid' && new Date() > new Date(bill.dueDate);
+
+                    return `
+                        <div class="card mb-3 ${isOverdue ? 'border-danger' : ''}">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-md-3">
+                                        <h6 class="mb-1">${bill.billNumber}</h6>
+                                        <small class="text-muted">${bill.branchName}</small>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <span class="badge ${statusClass}">${statusText}</span>
+                                        ${isOverdue ? '<br><small class="text-danger">Vencida</small>' : ''}
+                                    </div>
+                                    <div class="col-md-2">
+                                        <small class="text-muted">Período:</small><br>
+                                        <strong>${bill.period.month}/${bill.period.year}</strong>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <small class="text-muted">Órdenes:</small><br>
+                                        <strong>${bill.summary.totalOrders}</strong>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <small class="text-muted">Total a cobrar:</small><br>
+                                        <strong class="text-success">$${bill.summary.totalServiceFee.toLocaleString()}</strong><br>
+                                        <small class="text-muted">($${bill.billingInfo?.commissionPerOrder || 500} por orden)</small>
+                                    </div>
+                                    <div class="col-md-1">
+                                        <div class="dropdown">
+                                            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                Acciones
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li><a class="dropdown-item" href="#" onclick="app.viewBillDetail('${bill.billId}')">
+                                                    <i class="fas fa-eye me-2"></i>Ver Detalle
+                                                </a></li>
+                                                ${bill.status === 'draft' ? `
+                                                <li><a class="dropdown-item" href="#" onclick="app.sendMonthlyBill('${bill.billId}')">
+                                                    <i class="fas fa-paper-plane me-2"></i>Enviar
+                                                </a></li>
+                                                ` : ''}
+                                                ${bill.status === 'sent' ? `
+                                                <li><a class="dropdown-item" href="#" onclick="app.markBillAsPaid('${bill.billId}')">
+                                                    <i class="fas fa-check me-2"></i>Marcar como Pagada
+                                                </a></li>
+                                                ` : ''}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                content.innerHTML = `
+                    <div class="mb-3">
+                        <h6>Facturas Mensuales (${data.bills.length})</h6>
+                    </div>
+                    ${billsHTML}
+                    ${this.generateMonthlyBillsPagination(data.pagination)}
+                `;
+            }
+
+            getBillStatusClass(status) {
+                const classes = {
+                    'draft': 'bg-secondary',
+                    'sent': 'bg-warning',
+                    'paid': 'bg-success',
+                    'overdue': 'bg-danger',
+                    'cancelled': 'bg-dark'
+                };
+                return classes[status] || 'bg-secondary';
+            }
+
+            getBillStatusText(status) {
+                const texts = {
+                    'draft': 'Borrador',
+                    'sent': 'Enviada',
+                    'paid': 'Pagada',
+                    'overdue': 'Vencida',
+                    'cancelled': 'Cancelada'
+                };
+                return texts[status] || status;
+            }
+
+            generateMonthlyBillsPagination(pagination) {
+                if (pagination.pages <= 1) return '';
+
+                let html = '<nav><ul class="pagination justify-content-center">';
+                
+                if (pagination.page > 1) {
+                    html += `<li class="page-item"><a class="page-link" href="#" onclick="app.loadMonthlyBillsPage(${pagination.page - 1})">Anterior</a></li>`;
+                }
+
+                for (let i = 1; i <= pagination.pages; i++) {
+                    if (i === pagination.page) {
+                        html += `<li class="page-item active"><span class="page-link">${i}</span></li>`;
+                    } else {
+                        html += `<li class="page-item"><a class="page-link" href="#" onclick="app.loadMonthlyBillsPage(${i})">${i}</a></li>`;
+                    }
+                }
+
+                if (pagination.page < pagination.pages) {
+                    html += `<li class="page-item"><a class="page-link" href="#" onclick="app.loadMonthlyBillsPage(${pagination.page + 1})">Siguiente</a></li>`;
+                }
+
+                html += '</ul></nav>';
+                return html;
+            }
+
+            async loadMonthlyBillsPage(page) {
+                // Implementar paginación si es necesario
+                await this.loadMonthlyBills();
+            }
+
+            async refreshMonthlyBills() {
+                await this.loadMonthlyBills();
+            }
+
+            async generateMonthlyBill() {
+                // Mostrar modal para generar factura mensual
+                const branchSelect = document.getElementById('monthlyBranchFilter');
+                const yearSelect = document.getElementById('monthlyYearFilter');
+                
+                if (!branchSelect.value) {
+                    alert('Por favor selecciona una sucursal');
+                    return;
+                }
+
+                const currentDate = new Date();
+                const year = yearSelect.value || currentDate.getFullYear();
+                const month = currentDate.getMonth() + 1;
+
+                if (confirm(`¿Generar factura mensual para la sucursal seleccionada en ${month}/${year}?`)) {
+                    try {
+                        const response = await fetch('http://localhost:3000/api/billing/generate-monthly-bill', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${this.authService.getToken()}`
+                            },
+                            body: JSON.stringify({
+                                branchId: branchSelect.value,
+                                year: parseInt(year),
+                                month: parseInt(month)
+                            })
+                        });
+
+                        const data = await response.json();
+
+                        if (data.success) {
+                            alert(`Factura generada exitosamente: ${data.data.billNumber}`);
+                            await this.loadMonthlyBills();
+                        } else {
+                            alert(`Error: ${data.message}`);
+                        }
+
+                    } catch (error) {
+                        console.error('Error generating monthly bill:', error);
+                        alert('Error al generar la factura mensual');
+                    }
+                }
+            }
+
+            async viewBillDetail(billId) {
+                try {
+                    const response = await fetch(`http://localhost:3000/api/billing/monthly-bills/${billId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        this.showBillDetailModal(data.data);
+                    } else {
+                        alert(`Error: ${data.message}`);
+                    }
+
+                } catch (error) {
+                    console.error('Error loading bill detail:', error);
+                    alert('Error al cargar el detalle de la factura');
+                }
+            }
+
+            showBillDetailModal(bill) {
+                const modal = `
+                    <div class="modal fade" id="billDetailModal" tabindex="-1">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Detalle de Factura: ${bill.billNumber}</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <strong>Sucursal:</strong> ${bill.branchName}<br>
+                                            <strong>Período:</strong> ${bill.period.month}/${bill.period.year}<br>
+                                            <strong>Estado:</strong> <span class="badge ${this.getBillStatusClass(bill.status)}">${this.getBillStatusText(bill.status)}</span>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <strong>Total Órdenes:</strong> ${bill.summary.totalOrders}<br>
+                                            <strong>Comisión por Orden:</strong> $${bill.billingInfo?.commissionPerOrder || 500}<br>
+                                            <strong>Total a Cobrar:</strong> $${bill.summary.totalServiceFee.toLocaleString()}<br>
+                                            <strong>Fecha de Vencimiento:</strong> ${new Date(bill.payment.dueDate).toLocaleDateString('es-ES')}
+                                        </div>
+                                    </div>
+                                    
+                                    <h6>Órdenes Incluidas:</h6>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>Pedido</th>
+                                                    <th>Cliente</th>
+                                                    <th>Fecha</th>
+                                                    <th>Total Pedido</th>
+                                                    <th>Comisión</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                ${bill.orders.map(order => `
+                                                    <tr>
+                                                        <td>${order.orderId}</td>
+                                                        <td>${order.customerName}</td>
+                                                        <td>${new Date(order.orderDate).toLocaleDateString('es-ES')}</td>
+                                                        <td>$${order.total.toLocaleString()}</td>
+                                                        <td class="text-success">$${order.serviceFee.toLocaleString()}</td>
+                                                    </tr>
+                                                `).join('')}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Remover modal anterior si existe
+                const existingModal = document.getElementById('billDetailModal');
+                if (existingModal) {
+                    existingModal.remove();
+                }
+
+                // Agregar nuevo modal
+                document.body.insertAdjacentHTML('beforeend', modal);
+                
+                // Mostrar modal
+                const modalElement = new bootstrap.Modal(document.getElementById('billDetailModal'));
+                modalElement.show();
             }
 
             async loadSettings() {
@@ -5416,7 +6356,7 @@
                     if (availability === 'available') params.append('available', 'true');
 
                     const response = await this.authService.makeRequest(`${url}?${params}`);
-                    const data = response.data;
+                    const data = response;
 
                     this.renderServicesList(data.data || []);
                     this.updateServicesStats(data.data || []);
@@ -6293,6 +7233,7 @@
                     }
 
                     const data = await response.json();
+                    
                     this.currentOrders = data.data.orders;
                     this.currentOrderPage = page;
 
@@ -6312,7 +7253,7 @@
                 if (this.currentOrders.length === 0) {
                     tbody.innerHTML = `
                         <tr>
-                            <td colspan="7" class="text-center text-muted py-4">
+                            <td colspan="6" class="text-center text-muted py-4">
                                 <i class="fas fa-shopping-cart fa-2x mb-2"></i>
                                 <p class="mb-0">No hay pedidos disponibles</p>
                             </td>
@@ -6335,15 +7276,10 @@
                         </td>
                         <td>
                             <div>
-                                <strong>${order.branchId?.name || 'N/A'}</strong>
+                                <strong>${order.branchInfo?.name || 'Sucursal no encontrada'}</strong>
                                 <br>
-                                <small class="text-muted">${order.branchId?.address || ''}</small>
+                                <small class="text-muted">${order.branchInfo?.address || ''}</small>
                             </div>
-                        </td>
-                        <td>
-                            <span class="badge ${this.getOrderStatusBadgeClass(order.status)}">
-                                ${this.getOrderStatusText(order.status)}
-                            </span>
                         </td>
                         <td>
                             <strong>$${order.total.toLocaleString()}</strong>
@@ -6357,17 +7293,12 @@
                         </td>
                         <td>
                             <div class="btn-group" role="group">
-                                <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.viewOrderDetails('${order._id}')" title="Ver detalles">
+                                <button class="btn btn-outline-info btn-sm" onclick="dashboardApp.viewOrderConversation('${order._id}')" title="Ver conversación">
                                     <i class="fas fa-eye"></i>
                                 </button>
-                                <button class="btn btn-outline-success btn-sm" onclick="dashboardApp.updateOrderStatus('${order._id}')" title="Actualizar estado">
+                                <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.editOrder('${order._id}')" title="Editar pedido">
                                     <i class="fas fa-edit"></i>
                                 </button>
-                                ${order.status === 'pending' || order.status === 'confirmed' ? `
-                                    <button class="btn btn-outline-danger btn-sm" onclick="dashboardApp.cancelOrder('${order._id}')" title="Cancelar">
-                                        <i class="fas fa-times"></i>
-                                    </button>
-                                ` : ''}
                             </div>
                         </td>
                     </tr>
@@ -6426,8 +7357,16 @@
             // Actualizar estadísticas de pedidos
             updateOrdersStats(stats) {
                 const totalOrdersElement = document.getElementById('totalOrdersCount');
+                const totalRevenueElement = document.getElementById('totalRevenue');
+                
                 if (totalOrdersElement) {
                     totalOrdersElement.textContent = `${stats.totalOrders} pedidos`;
+                }
+                
+                if (totalRevenueElement) {
+                    // Mostrar el valor total de los pedidos realizados por los clientes
+                    const totalRevenue = stats.totalRevenue || 0;
+                    totalRevenueElement.textContent = `$${totalRevenue.toLocaleString()}`;
                 }
             }
 
@@ -6505,8 +7444,500 @@
             }
 
             // Ver detalles del pedido
-            async viewOrderDetails(orderId) {
-                this.showAlert('Función de detalles en desarrollo', 'info');
+            // Ver conversación del pedido
+            async viewOrderConversation(orderId) {
+                try {
+                    // Mostrar el modal
+                    const modal = new bootstrap.Modal(document.getElementById('conversationModal'));
+                    modal.show();
+                    
+                    // Mostrar loading
+                    document.getElementById('conversationContent').innerHTML = `
+                        <div class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Cargando conversación...</span>
+                            </div>
+                        </div>
+                    `;
+
+                    // Buscar el pedido en los datos actuales
+                    const order = this.currentOrders.find(o => o._id === orderId);
+                    if (!order) {
+                        throw new Error('Pedido no encontrado');
+                    }
+
+                    // Obtener el token de autenticación
+                    const token = localStorage.getItem('token');
+                    console.log('🔑 Token obtenido:', token ? `${token.substring(0, 20)}...` : 'null');
+                    if (!token) {
+                        throw new Error('No hay token de autenticación');
+                    }
+                    
+                    // Verificar si el token es válido
+                    try {
+                        const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+                        console.log('🔑 Token payload:', tokenPayload);
+                        console.log('🔑 Token expira en:', new Date(tokenPayload.exp * 1000));
+                        console.log('🔑 Token válido:', new Date() < new Date(tokenPayload.exp * 1000));
+                    } catch (tokenError) {
+                        console.log('⚠️ Error verificando token:', tokenError.message);
+                    }
+
+                    // Obtener el branchId del pedido
+                    const branchId = order.branchId;
+                    const orderIdStr = order.orderId;
+
+                    console.log('🔍 ===== INICIANDO CARGA DE CONVERSACIÓN =====');
+                    console.log('📦 Order ID:', orderIdStr);
+                    console.log('🏪 Branch ID:', branchId);
+                    console.log('🔑 Token:', token ? 'Presente' : 'Ausente');
+
+                    // Llamar al endpoint real para obtener la conversación
+                    const url = `http://localhost:3000/api/ai/${branchId}/order/${orderIdStr}/conversation`;
+                    console.log('🌐 URL completa:', url);
+                    
+                    const response = await fetch(url, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    console.log('🔍 Response status:', response.status);
+                    console.log('🔍 Response headers:', response.headers);
+                    
+                    if (!response.ok) {
+                        // Intentar obtener el error como texto primero
+                        let errorMessage = 'Error al obtener la conversación';
+                        try {
+                            const errorText = await response.text();
+                            console.log('❌ Error response text:', errorText);
+                            
+                            // Intentar parsear como JSON
+                            try {
+                                const errorData = JSON.parse(errorText);
+                                errorMessage = errorData.message || errorMessage;
+                            } catch (parseError) {
+                                console.log('⚠️ Error response is not JSON:', errorText);
+                                errorMessage = `Error ${response.status}: ${errorText}`;
+                            }
+                        } catch (textError) {
+                            console.log('❌ Error reading response text:', textError);
+                            errorMessage = `Error ${response.status}: ${response.statusText}`;
+                        }
+                        
+                        throw new Error(errorMessage);
+                    }
+
+                    // Verificar el content-type antes de parsear JSON
+                    const contentType = response.headers.get('content-type');
+                    console.log('🔍 Content-Type:', contentType);
+                    
+                    if (!contentType || !contentType.includes('application/json')) {
+                        const responseText = await response.text();
+                        console.log('❌ Response is not JSON:', responseText);
+                        console.log('❌ Content-Type:', contentType);
+                        console.log('❌ Response status:', response.status);
+                        throw new Error(`Respuesta no es JSON válido. Content-Type: ${contentType}. Respuesta: ${responseText.substring(0, 200)}...`);
+                    }
+
+                    // Intentar parsear JSON con manejo de errores específico
+                    let data;
+                    try {
+                        const responseText = await response.text();
+                        console.log('📄 Response text length:', responseText.length);
+                        console.log('📄 Response text preview:', responseText.substring(0, 200));
+                        
+                        data = JSON.parse(responseText);
+                        console.log('✅ JSON parsed successfully:', data);
+                    } catch (parseError) {
+                        console.log('❌ JSON Parse Error:', parseError);
+                        console.log('❌ Error message:', parseError.message);
+                        console.log('❌ Error stack:', parseError.stack);
+                        throw new Error(`Error parseando JSON: ${parseError.message}`);
+                    }
+                    
+                    if (!data.success) {
+                        throw new Error(data.message || 'Error en la respuesta del servidor');
+                    }
+
+                    // Generar la conversación real
+                    const conversation = this.generateRealOrderConversation(data.data);
+                    
+                    // Mostrar la conversación
+                    document.getElementById('conversationContent').innerHTML = conversation;
+                    
+                } catch (error) {
+                    console.error('Error cargando conversación:', error);
+                    document.getElementById('conversationContent').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Error al cargar la conversación: ${error.message}
+                        </div>
+                    `;
+                }
+            }
+
+            // Generar conversación real del pedido usando datos del endpoint
+            generateRealOrderConversation(data) {
+                const { orderId, orderDate, customerPhone, customerName, branchName, conversation, orderDetails } = data;
+                
+                let html = `
+                    <style>
+                        .whatsapp-chat {
+                            background: #e5ddd5;
+                            border-radius: 10px;
+                            padding: 15px;
+                            max-height: 500px;
+                            overflow-y: auto;
+                            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                        }
+                        .whatsapp-message {
+                            margin-bottom: 10px;
+                            display: flex;
+                            align-items: flex-end;
+                        }
+                        .whatsapp-message.user {
+                            justify-content: flex-end;
+                        }
+                        .whatsapp-message.bot {
+                            justify-content: flex-start;
+                        }
+                        .message-bubble {
+                            max-width: 70%;
+                            padding: 8px 12px;
+                            border-radius: 18px;
+                            position: relative;
+                            word-wrap: break-word;
+                            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+                        }
+                        .message-bubble.user {
+                            background: #dcf8c6;
+                            color: #000;
+                            border-bottom-right-radius: 4px;
+                        }
+                        .message-bubble.bot {
+                            background: #ffffff;
+                            color: #000;
+                            border-bottom-left-radius: 4px;
+                        }
+                        .message-time {
+                            font-size: 11px;
+                            color: #999;
+                            margin-top: 2px;
+                            text-align: right;
+                        }
+                        .message-time.bot {
+                            text-align: left;
+                        }
+                        .message-sender {
+                            font-size: 12px;
+                            font-weight: bold;
+                            margin-bottom: 2px;
+                            color: #075e54;
+                        }
+                        .conversation-header {
+                            background: #075e54;
+                            color: white;
+                            padding: 15px;
+                            border-radius: 10px 10px 0 0;
+                            margin-bottom: 0;
+                        }
+                        .order-summary {
+                            background: #f0f0f0;
+                            padding: 15px;
+                            border-radius: 0 0 10px 10px;
+                            margin-bottom: 0;
+                        }
+                        .whatsapp-chat-container {
+                            border: 1px solid #ddd;
+                            border-radius: 10px;
+                            overflow: hidden;
+                        }
+                    </style>
+                    
+                    <div class="whatsapp-chat-container">
+                        <div class="conversation-header">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6 class="mb-1"><i class="fas fa-shopping-cart me-2"></i>Pedido: ${orderId}</h6>
+                                    <small>Cliente: ${customerName} (${customerPhone})</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6 class="mb-1"><i class="fas fa-store me-2"></i>Sucursal: ${branchName}</h6>
+                                    <small>Fecha: ${new Date(orderDate).toLocaleString()}</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="order-summary">
+                            <h6><i class="fas fa-list me-2"></i>Resumen del Pedido:</h6>
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <ul class="list-unstyled mb-0">
+                                        ${orderDetails.items.map(item => `
+                                            <li><strong>${item.name}</strong> x${item.quantity} - $${item.totalPrice.toLocaleString()}</li>
+                                        `).join('')}
+                                    </ul>
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <div class="fw-bold">Total: $${orderDetails.total.toLocaleString()}</div>
+                                    <small class="text-muted">${orderDetails.delivery.type === 'delivery' ? 'Domicilio' : 'Recoger'}</small>
+                                </div>
+                            </div>
+                        </div>
+                `;
+
+                if (conversation && conversation.length > 0) {
+                    html += `
+                        <div class="whatsapp-chat">
+                            <div class="text-center mb-3">
+                                <small class="text-muted">
+                                    <i class="fab fa-whatsapp me-1"></i>
+                                    Conversación de WhatsApp (${conversation.length} mensajes)
+                                </small>
+                            </div>
+                    `;
+
+                    conversation.forEach((msg, index) => {
+                        const isUser = msg.user && !msg.assistant;
+                        const messageText = isUser ? msg.user : msg.assistant;
+                        const timestamp = new Date(msg.timestamp).toLocaleTimeString('es-CO', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        });
+                        const senderName = isUser ? customerName : `${branchName} (Bot)`;
+                        
+                        html += `
+                            <div class="whatsapp-message ${isUser ? 'user' : 'bot'}">
+                                <div class="message-bubble ${isUser ? 'user' : 'bot'}">
+                                    <div class="message-sender">${senderName}</div>
+                                    <div class="message-text">${messageText}</div>
+                                    <div class="message-time ${isUser ? 'user' : 'bot'}">${timestamp}</div>
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    html += `
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="whatsapp-chat">
+                            <div class="alert alert-info m-3">
+                                <i class="fas fa-info-circle me-2"></i>
+                                No se encontraron mensajes de conversación para este pedido.
+                            </div>
+                        </div>
+                    `;
+                }
+
+                html += `</div>`;
+                return html;
+            }
+
+            // Generar conversación del pedido (método anterior para compatibilidad)
+            generateOrderConversation(order) {
+                const messages = [];
+                
+                // Convertir createdAt a Date si es string
+                const orderDate = new Date(order.createdAt);
+                
+                // Mensaje inicial del cliente
+                messages.push({
+                    sender: 'Cliente',
+                    message: 'Hola, buenos días',
+                    timestamp: new Date(orderDate.getTime() - 10 * 60 * 1000), // 10 min antes
+                    type: 'customer'
+                });
+
+                // Respuesta del bot
+                messages.push({
+                    sender: 'Bot',
+                    message: '¡Hola! 😊 Somos alitas mix. ¿Cómo andas? ¿En qué te puedo ayudar? Si deseas, puedo enviarte el menú para que lo revises. Solo dime "menú" o "envíame el menú".',
+                    timestamp: new Date(orderDate.getTime() - 9 * 60 * 1000), // 9 min antes
+                    type: 'bot'
+                });
+
+                // Cliente pide menú
+                messages.push({
+                    sender: 'Cliente',
+                    message: 'Menú',
+                    timestamp: new Date(orderDate.getTime() - 8 * 60 * 1000), // 8 min antes
+                    type: 'customer'
+                });
+
+                // Bot envía menú
+                messages.push({
+                    sender: 'Bot',
+                    message: '🍗 MENÚ ALITAS MIX 🍽️\n\nCOMBOS PERSONALES\n• Combo 1: 5 alitas + acompañante + salsas - $21.900\n• Combo 2: 7 alitas + acompañante + salsas - $26.900\n• Combo 3: 9 alitas + acompañante + salsas - $30.900\n• Combo 4: 14 alitas + acompañante + salsas - $42.900\n\n👨‍👩‍👧‍👦 COMBOS FAMILIARES\n• Familiar 1: 20 alitas + acompañante + salsas + gaseosa 1.5L - $65.900\n• Familiar 2: 30 alitas + acompañante + salsas + gaseosa 1.5L - $62.900\n• Familiar 3: 40 alitas + acompañante + salsas + gaseosa 1.5L - $87.900\n• Familiar 4: 50 alitas + 2 acompañantes + salsas + gaseosa 1.5L - $107.900',
+                    timestamp: new Date(orderDate.getTime() - 7 * 60 * 1000), // 7 min antes
+                    type: 'bot'
+                });
+
+                // Cliente hace pedido
+                const orderItem = order.items[0];
+                messages.push({
+                    sender: 'Cliente',
+                    message: `Quiero ${orderItem.name}`,
+                    timestamp: new Date(orderDate.getTime() - 6 * 60 * 1000), // 6 min antes
+                    type: 'customer'
+                });
+
+                // Bot confirma pedido
+                messages.push({
+                    sender: 'Bot',
+                    message: `✅ PEDIDO CONFIRMADO 🆔\nNúmero de pedido: ${order.orderId}\n📍 Entrega: ${order.delivery.type === 'delivery' ? 'A domicilio' : 'Recoger en tienda'}\n${order.delivery.address ? `📦 Dirección: ${order.delivery.address.street}` : ''}\n📞 Contacto: ${order.customer.phone}\n👤 Recibe: ${order.customer.name}\n💰 Total: $${order.total.toLocaleString()}\n⏰ Tiempo estimado: ${order.delivery.estimatedTime} minutos\n\n¡Gracias por tu pedido! Tu domicilio va en camino.`,
+                    timestamp: new Date(orderDate.getTime() - 5 * 60 * 1000), // 5 min antes
+                    type: 'bot'
+                });
+
+                // Cliente agradece
+                messages.push({
+                    sender: 'Cliente',
+                    message: 'Gracias',
+                    timestamp: new Date(orderDate.getTime() - 4 * 60 * 1000), // 4 min antes
+                    type: 'customer'
+                });
+
+                // Bot responde
+                messages.push({
+                    sender: 'Bot',
+                    message: '¡De nada! Fue un gusto atenderte, espero poder ayudarte de nuevo pronto. 😊',
+                    timestamp: new Date(orderDate.getTime() - 3 * 60 * 1000), // 3 min antes
+                    type: 'bot'
+                });
+
+                // Generar HTML de la conversación
+                return `
+                    <div class="conversation-container">
+                        <div class="conversation-header mb-3">
+                            <h6><i class="fas fa-shopping-cart me-2"></i>Pedido: ${order.orderId}</h6>
+                            <p class="text-muted mb-0">
+                                <i class="fas fa-user me-1"></i>${order.customer.name} (${order.customer.phone})<br>
+                                <i class="fas fa-calendar me-1"></i>${this.formatDate(orderDate)} ${this.formatTime(orderDate)}
+                            </p>
+                        </div>
+                        
+                        <div class="conversation-messages" style="max-height: 400px; overflow-y: auto;">
+                            ${messages.map(msg => `
+                                <div class="message ${msg.type === 'customer' ? 'customer-message' : 'bot-message'} mb-3">
+                                    <div class="d-flex ${msg.type === 'customer' ? 'justify-content-end' : 'justify-content-start'}">
+                                        <div class="message-bubble ${msg.type === 'customer' ? 'bg-primary text-white' : 'bg-light'} p-3 rounded" style="max-width: 80%;">
+                                            <div class="message-header d-flex justify-content-between align-items-center mb-2">
+                                                <strong>${msg.sender}</strong>
+                                                <small class="opacity-75">${this.formatTime(msg.timestamp)}</small>
+                                            </div>
+                                            <div class="message-content" style="white-space: pre-line;">${msg.message}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        
+                        <div class="conversation-summary mt-3 p-3 bg-light rounded">
+                            <h6><i class="fas fa-info-circle me-2"></i>Resumen del Pedido</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <strong>Productos:</strong><br>
+                                    ${order.items.map(item => `• ${item.name} x${item.quantity} - $${item.totalPrice.toLocaleString()}`).join('<br>')}
+                                </div>
+                                <div class="col-md-6">
+                                    <strong>Detalles:</strong><br>
+                                    • Total: $${order.total.toLocaleString()}<br>
+                                    • Estado: ${this.getOrderStatusText(order.status)}<br>
+                                    • Entrega: ${order.delivery.type === 'delivery' ? 'A domicilio' : 'Recoger en tienda'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Editar pedido
+            async editOrder(orderId) {
+                try {
+                    // Buscar el pedido en los datos actuales
+                    const order = this.currentOrders.find(o => o._id === orderId);
+                    if (!order) {
+                        throw new Error('Pedido no encontrado');
+                    }
+
+                    // Mostrar modal de edición (por ahora solo mostrar detalles)
+                    const modal = new bootstrap.Modal(document.getElementById('orderDetailsModal'));
+                    modal.show();
+                    
+                    // Cargar detalles del pedido
+                    document.getElementById('orderDetailsContent').innerHTML = `
+                        <div class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Cargando detalles...</span>
+                            </div>
+                        </div>
+                    `;
+
+                    // Simular carga de detalles
+                    setTimeout(() => {
+                        document.getElementById('orderDetailsContent').innerHTML = `
+                            <div class="order-details">
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <h6><i class="fas fa-shopping-cart me-2"></i>Información del Pedido</h6>
+                                        <p><strong>ID:</strong> ${order.orderId}</p>
+                                        <p><strong>Estado:</strong> <span class="badge ${this.getOrderStatusBadgeClass(order.status)}">${this.getOrderStatusText(order.status)}</span></p>
+                                        <p><strong>Total:</strong> $${order.total.toLocaleString()}</p>
+                                        <p><strong>Fecha:</strong> ${this.formatDate(order.createdAt)} ${this.formatTime(order.createdAt)}</p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6><i class="fas fa-user me-2"></i>Información del Cliente</h6>
+                                        <p><strong>Nombre:</strong> ${order.customer.name}</p>
+                                        <p><strong>Teléfono:</strong> ${order.customer.phone}</p>
+                                        <p><strong>Dirección:</strong> ${order.delivery.address ? order.delivery.address.street : 'Recoger en tienda'}</p>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mb-3">
+                                    <div class="col-12">
+                                        <h6><i class="fas fa-list me-2"></i>Productos</h6>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Producto</th>
+                                                        <th>Cantidad</th>
+                                                        <th>Precio Unit.</th>
+                                                        <th>Total</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    ${order.items.map(item => `
+                                                        <tr>
+                                                            <td>${item.name}</td>
+                                                            <td>${item.quantity}</td>
+                                                            <td>$${item.unitPrice.toLocaleString()}</td>
+                                                            <td>$${item.totalPrice.toLocaleString()}</td>
+                                                        </tr>
+                                                    `).join('')}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <strong>Nota:</strong> La funcionalidad de edición completa está en desarrollo. Por ahora solo se pueden ver los detalles del pedido.
+                                </div>
+                            </div>
+                        `;
+                    }, 1000);
+                    
+                } catch (error) {
+                    console.error('Error editando pedido:', error);
+                    this.showAlert('Error al cargar detalles del pedido: ' + error.message, 'danger');
+                }
             }
 
             // Actualizar estado del pedido
@@ -6816,7 +8247,22 @@
             toggleUserStatus(userId) {
                 return window.toggleUserStatus(userId);
             }
+
+            // ===== MÉTODOS DE CONVERSACIONES =====
+
+            // Función loadConversationData eliminada
+
+            // Función loadBranchFilter eliminada
+
+            // Función loadConversationStats eliminada
+
+            // Función loadActiveConversations eliminada
+
+            // Funciones de conversaciones eliminadas completamente
         }
+
+        // Funciones globales para conversaciones
+        // Funciones globales de conversaciones eliminadas
 
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', () => {

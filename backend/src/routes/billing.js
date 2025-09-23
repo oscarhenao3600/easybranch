@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const Business = require('../models/Business');
 const Branch = require('../models/Branch');
 const Order = require('../models/Order');
+const Bill = require('../models/Bill');
 const authMiddleware = require('../middleware/auth');
 const LoggerService = require('../services/LoggerService');
 
@@ -19,7 +20,8 @@ router.get('/orders', authMiddleware.verifyToken, authMiddleware.requireRole(['s
             startDate,
             endDate,
             page = 1,
-            limit = 20
+            limit = 20,
+            summary = false
         } = req.query;
 
         // Construir filtros
@@ -57,17 +59,96 @@ router.get('/orders', authMiddleware.verifyToken, authMiddleware.requireRole(['s
 
         // Obtener pedidos con información de sucursal
         const orders = await Order.find(filter)
-            .populate('branchId', 'name businessId')
             .populate('businessId', 'name')
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(parseInt(limit));
 
+        // Obtener información de sucursales por separado ya que branchId es string
+        const branchIds = [...new Set(orders.map(order => order.branchId).filter(Boolean))];
+        const branches = await Branch.find({ branchId: { $in: branchIds } });
+        const branchMap = {};
+        branches.forEach(branch => {
+            branchMap[branch.branchId] = branch;
+        });
+
+        // Agregar información de sucursal a cada pedido
+        orders.forEach(order => {
+            if (order.branchId && branchMap[order.branchId]) {
+                order.branchInfo = {
+                    name: branchMap[order.branchId].name,
+                    businessId: branchMap[order.branchId].businessId
+                };
+            }
+        });
+
         // Contar total
         const total = await Order.countDocuments(filter);
 
+        // Si se solicita resumen por sucursal
+        if (summary === 'true') {
+            // Obtener resumen por sucursal
+            const branchSummary = await Order.aggregate([
+                {
+                    $match: {
+                        ...filter,
+                        status: { $in: ['delivered', 'completed'] },
+                        'billingInfo.invoiceNumber': { $exists: false } // Solo pedidos sin facturar
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$branchId',
+                        pendingOrders: { $sum: 1 },
+                        totalValue: { $sum: '$total' },
+                        orders: { $push: '$$ROOT' }
+                    }
+                }
+            ]);
+
+            // Obtener información de sucursales para el resumen
+            const branchIds = branchSummary.map(item => item._id);
+            const branches = await Branch.find({ branchId: { $in: branchIds } });
+            const branchMap = {};
+            branches.forEach(branch => {
+                branchMap[branch.branchId] = branch;
+            });
+
+            const summaryData = branchSummary.map(item => {
+                const branch = branchMap[item._id];
+                const commissionPerOrder = branch?.billingInfo?.commissionPerOrder || 500;
+                
+                return {
+                    branchId: item._id,
+                    branchName: branch?.name || 'Sucursal no encontrada',
+                    businessName: branch?.businessId ? 'Business' : 'N/A', // Se puede mejorar con populate
+                    pendingOrders: item.pendingOrders,
+                    totalValue: item.totalValue,
+                    totalCommission: item.pendingOrders * commissionPerOrder,
+                    commissionPerOrder: commissionPerOrder,
+                    orders: item.orders.map(order => ({
+                        orderId: order.orderId,
+                        customerName: order.customer.name,
+                        total: order.total,
+                        createdAt: order.createdAt,
+                        status: order.status
+                    }))
+                };
+            });
+
+            return res.json({
+                success: true,
+                data: {
+                    summary: summaryData,
+                    totalBranches: summaryData.length,
+                    totalPendingOrders: summaryData.reduce((sum, item) => sum + item.pendingOrders, 0),
+                    totalCommission: summaryData.reduce((sum, item) => sum + item.totalCommission, 0)
+                }
+            });
+        }
+
         // Obtener sucursales disponibles para filtros
-        const branches = await Branch.find(
+        const availableBranches = await Branch.find(
             req.user.role === 'business_admin' ? { businessId: req.user.businessId } : {}
         ).select('branchId name businessId').populate('businessId', 'name');
 
@@ -77,7 +158,7 @@ router.get('/orders', authMiddleware.verifyToken, authMiddleware.requireRole(['s
                 orders: orders.map(order => ({
                     orderId: order.orderId,
                     businessName: order.businessId?.name,
-                    branchName: order.branchId?.name,
+                    branchName: order.branchInfo?.name || 'Sucursal no encontrada',
                     customer: order.customer,
                     items: order.items,
                     total: order.total,
@@ -87,7 +168,7 @@ router.get('/orders', authMiddleware.verifyToken, authMiddleware.requireRole(['s
                     payment: order.payment,
                     billingInfo: order.billingInfo || null
                 })),
-                branches,
+                branches: availableBranches,
                 pagination: {
                     page: parseInt(page),
                     limit: parseInt(limit),
@@ -145,7 +226,8 @@ router.get('/branch/:branchId', authMiddleware.verifyToken, authMiddleware.requi
                     email: '',
                     address: '',
                     city: '',
-                    department: ''
+                    department: '',
+                    commissionPerOrder: 500
                 }
             }
         };
@@ -166,7 +248,7 @@ router.get('/branch/:branchId', authMiddleware.verifyToken, authMiddleware.requi
 router.put('/branch/:branchId', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), async (req, res) => {
     try {
         const { branchId } = req.params;
-        const { nit, phone, email, address, city, department } = req.body;
+        const { nit, phone, email, address, city, department, commissionPerOrder } = req.body;
 
         const branch = await Branch.findOne({ branchId });
 
@@ -192,7 +274,8 @@ router.put('/branch/:branchId', authMiddleware.verifyToken, authMiddleware.requi
             email: email || branch.billingInfo?.email || '',
             address: address || branch.billingInfo?.address || '',
             city: city || branch.billingInfo?.city || '',
-            department: department || branch.billingInfo?.department || ''
+            department: department || branch.billingInfo?.department || '',
+            commissionPerOrder: commissionPerOrder !== undefined ? commissionPerOrder : (branch.billingInfo?.commissionPerOrder || 500)
         };
 
         await branch.save();
@@ -221,7 +304,6 @@ router.post('/generate-invoice', authMiddleware.verifyToken, authMiddleware.requ
 
         // Obtener el pedido
         const order = await Order.findOne({ orderId })
-            .populate('branchId', 'name businessId billingInfo')
             .populate('businessId', 'name');
 
         if (!order) {
@@ -300,7 +382,6 @@ router.post('/send-invoice', authMiddleware.verifyToken, authMiddleware.requireR
 
         // Obtener el pedido
         const order = await Order.findOne({ orderId })
-            .populate('branchId', 'name businessId billingInfo')
             .populate('businessId', 'name');
 
         if (!order) {
@@ -414,7 +495,6 @@ router.get('/invoices', authMiddleware.verifyToken, authMiddleware.requireRole([
 
         // Obtener pedidos con cuentas de cobro
         const orders = await Order.find(filter)
-            .populate('branchId', 'name businessId')
             .populate('businessId', 'name')
             .sort({ 'billingInfo.generatedAt': -1 })
             .skip(skip)
@@ -451,6 +531,406 @@ router.get('/invoices', authMiddleware.verifyToken, authMiddleware.requireRole([
 
     } catch (error) {
         logger.error('Error getting billing invoices:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error interno del servidor',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+// POST /api/billing/generate-monthly-bill - Generar factura mensual por sucursal
+router.post('/generate-monthly-bill', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin']), async (req, res) => {
+    try {
+        const { branchId, year, month } = req.body;
+
+        if (!branchId || !year || !month) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Se requieren branchId, year y month' 
+            });
+        }
+
+        // Verificar que la sucursal existe
+        const branch = await Branch.findOne({ branchId });
+        if (!branch) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Sucursal no encontrada' 
+            });
+        }
+
+        // Verificar acceso
+        if (req.user.role === 'business_admin' && branch.businessId !== req.user.businessId) {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'No tienes acceso a esta sucursal' 
+            });
+        }
+
+        // Verificar si ya existe una factura para ese período
+        const existingBill = await Bill.findOne({
+            branchId: branchId,
+            'period.year': parseInt(year),
+            'period.month': parseInt(month)
+        });
+
+        if (existingBill) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `Ya existe una factura para ${branch.name} en ${month}/${year}`,
+                data: {
+                    billId: existingBill.billId,
+                    billNumber: existingBill.billNumber
+                }
+            });
+        }
+
+        // Generar la factura mensual
+        const bill = await Bill.generateMonthlyBill(branchId, parseInt(year), parseInt(month));
+
+        if (!bill) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'No hay órdenes para facturar en el período especificado' 
+            });
+        }
+
+        bill.generatedBy = req.user.userId;
+        await bill.save();
+
+        logger.info(`Monthly bill generated: ${bill.billNumber} for branch: ${branchId}`);
+        
+        res.json({ 
+            success: true, 
+            message: 'Factura mensual generada correctamente',
+            data: {
+                billId: bill.billId,
+                billNumber: bill.billNumber,
+                totalOrders: bill.summary.totalOrders,
+                totalServiceFee: bill.summary.totalServiceFee,
+                period: bill.period,
+                dueDate: bill.payment.dueDate
+            }
+        });
+
+    } catch (error) {
+        logger.error('Error generating monthly bill:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error interno del servidor',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+// GET /api/billing/monthly-bills - Obtener facturas mensuales
+router.get('/monthly-bills', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin']), async (req, res) => {
+    try {
+        const { 
+            branchId, 
+            businessId,
+            year,
+            month,
+            status,
+            page = 1,
+            limit = 20
+        } = req.query;
+
+        // Construir filtros
+        let filter = {};
+        
+        if (req.user.role === 'business_admin') {
+            filter.businessId = req.user.businessId;
+        } else if (businessId) {
+            filter.businessId = businessId;
+        }
+
+        if (branchId) {
+            filter.branchId = branchId;
+        }
+
+        if (year) {
+            filter['period.year'] = parseInt(year);
+        }
+
+        if (month) {
+            filter['period.month'] = parseInt(month);
+        }
+
+        if (status) {
+            filter.status = status;
+        }
+
+        // Paginación
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+
+        // Obtener facturas con información de sucursal
+        const bills = await Bill.find(filter)
+            .populate('businessId', 'name')
+            .sort({ 'period.year': -1, 'period.month': -1 })
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        // Obtener información de sucursales
+        const branchIds = [...new Set(bills.map(bill => bill.branchId).filter(Boolean))];
+        const branches = await Branch.find({ branchId: { $in: branchIds } });
+        const branchMap = {};
+        branches.forEach(branch => {
+            branchMap[branch.branchId] = branch;
+        });
+
+        // Agregar información de sucursal
+        bills.forEach(bill => {
+            if (bill.branchId && branchMap[bill.branchId]) {
+                bill.branchInfo = {
+                    name: branchMap[bill.branchId].name
+                };
+            }
+        });
+
+        // Contar total
+        const total = await Bill.countDocuments(filter);
+
+        const result = {
+            success: true,
+            data: {
+                bills: bills.map(bill => ({
+                    billId: bill.billId,
+                    billNumber: bill.billNumber,
+                    businessName: bill.businessId?.name,
+                    branchName: bill.branchInfo?.name || 'Sucursal no encontrada',
+                    period: bill.period,
+                    summary: bill.summary,
+                    status: bill.status,
+                    dueDate: bill.payment.dueDate,
+                    paidDate: bill.payment.paidDate,
+                    createdAt: bill.createdAt
+                })),
+                pagination: {
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    total,
+                    pages: Math.ceil(total / parseInt(limit))
+                }
+            }
+        };
+
+        logger.info(`Monthly bills retrieved: ${bills.length} bills`);
+        res.json(result);
+
+    } catch (error) {
+        logger.error('Error getting monthly bills:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error interno del servidor',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+// GET /api/billing/monthly-bills/:billId - Obtener detalle de una factura mensual
+router.get('/monthly-bills/:billId', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin']), async (req, res) => {
+    try {
+        const { billId } = req.params;
+
+        const bill = await Bill.findOne({ billId })
+            .populate('businessId', 'name')
+            .populate('generatedBy', 'name');
+
+        if (!bill) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Factura no encontrada' 
+            });
+        }
+
+        // Verificar acceso
+        if (req.user.role === 'business_admin' && bill.businessId.businessId !== req.user.businessId) {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'No tienes acceso a esta factura' 
+            });
+        }
+
+        // Obtener información de la sucursal
+        const branch = await Branch.findOne({ branchId: bill.branchId });
+
+        const result = {
+            success: true,
+            data: {
+                billId: bill.billId,
+                billNumber: bill.billNumber,
+                businessName: bill.businessId?.name,
+                branchName: branch?.name || 'Sucursal no encontrada',
+                period: bill.period,
+                orders: bill.orders,
+                summary: bill.summary,
+                billingInfo: bill.billingInfo,
+                status: bill.status,
+                payment: bill.payment,
+                generatedBy: bill.generatedBy?.name,
+                createdAt: bill.createdAt,
+                sentAt: bill.sentAt,
+                paidAt: bill.paidAt
+            }
+        };
+
+        res.json(result);
+
+    } catch (error) {
+        logger.error('Error getting bill detail:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error interno del servidor',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+// PUT /api/billing/monthly-bills/:billId/status - Actualizar estado de factura
+router.put('/monthly-bills/:billId/status', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin']), async (req, res) => {
+    try {
+        const { billId } = req.params;
+        const { status, paymentMethod, paymentReference, notes } = req.body;
+
+        const bill = await Bill.findOne({ billId });
+
+        if (!bill) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Factura no encontrada' 
+            });
+        }
+
+        // Verificar acceso
+        if (req.user.role === 'business_admin' && bill.businessId !== req.user.businessId) {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'No tienes acceso a esta factura' 
+            });
+        }
+
+        bill.status = status;
+
+        if (status === 'paid') {
+            bill.markAsPaid(paymentMethod, paymentReference, notes);
+        } else if (status === 'sent') {
+            bill.sentAt = new Date();
+        }
+
+        await bill.save();
+
+        logger.info(`Bill status updated: ${billId} to ${status}`);
+        
+        res.json({ 
+            success: true, 
+            message: 'Estado de factura actualizado correctamente',
+            data: {
+                billId: bill.billId,
+                status: bill.status,
+                paidAt: bill.paidAt,
+                sentAt: bill.sentAt
+            }
+        });
+
+    } catch (error) {
+        logger.error('Error updating bill status:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error interno del servidor',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+// GET /api/billing/branch-summary/:branchId - Obtener resumen de facturación por sucursal
+router.get('/branch-summary/:branchId', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin']), async (req, res) => {
+    try {
+        const { branchId } = req.params;
+        const { year } = req.query;
+
+        const branch = await Branch.findOne({ branchId })
+            .populate('businessId', 'name');
+
+        if (!branch) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Sucursal no encontrada' 
+            });
+        }
+
+        // Verificar acceso
+        if (req.user.role === 'business_admin' && branch.businessId.businessId !== req.user.businessId) {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'No tienes acceso a esta sucursal' 
+            });
+        }
+
+        // Construir filtros
+        let filter = { branchId };
+        if (year) {
+            filter['period.year'] = parseInt(year);
+        }
+
+        // Obtener facturas de la sucursal
+        const bills = await Bill.find(filter).sort({ 'period.year': -1, 'period.month': -1 });
+
+        // Calcular estadísticas
+        const stats = {
+            totalBills: bills.length,
+            totalServiceFee: bills.reduce((sum, bill) => sum + bill.summary.totalServiceFee, 0),
+            totalOrders: bills.reduce((sum, bill) => sum + bill.summary.totalOrders, 0),
+            totalOrdersValue: bills.reduce((sum, bill) => sum + bill.summary.totalOrdersValue, 0),
+            paidBills: bills.filter(bill => bill.status === 'paid').length,
+            pendingBills: bills.filter(bill => ['draft', 'sent'].includes(bill.status)).length,
+            overdueBills: bills.filter(bill => bill.isOverdue()).length,
+            monthlyBreakdown: {}
+        };
+
+        // Desglose mensual
+        bills.forEach(bill => {
+            const monthKey = `${bill.period.year}-${bill.period.month}`;
+            if (!stats.monthlyBreakdown[monthKey]) {
+                stats.monthlyBreakdown[monthKey] = {
+                    year: bill.period.year,
+                    month: bill.period.month,
+                    bills: 0,
+                    serviceFee: 0,
+                    orders: 0,
+                    status: bill.status
+                };
+            }
+            stats.monthlyBreakdown[monthKey].bills++;
+            stats.monthlyBreakdown[monthKey].serviceFee += bill.summary.totalServiceFee;
+            stats.monthlyBreakdown[monthKey].orders += bill.summary.totalOrders;
+        });
+
+        const result = {
+            success: true,
+            data: {
+                branchId: branch.branchId,
+                branchName: branch.name,
+                businessName: branch.businessId?.name,
+                stats,
+                bills: bills.map(bill => ({
+                    billId: bill.billId,
+                    billNumber: bill.billNumber,
+                    period: bill.period,
+                    summary: bill.summary,
+                    status: bill.status,
+                    dueDate: bill.payment.dueDate,
+                    paidDate: bill.payment.paidDate,
+                    isOverdue: bill.isOverdue()
+                }))
+            }
+        };
+
+        res.json(result);
+
+    } catch (error) {
+        logger.error('Error getting branch billing summary:', error);
         res.status(500).json({ 
             success: false, 
             message: 'Error interno del servidor',

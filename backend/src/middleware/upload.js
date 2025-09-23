@@ -7,7 +7,10 @@ class UploadMiddleware {
   constructor() {
     this.logger = new LoggerService();
     this.uploadPath = process.env.UPLOAD_PATH || './uploads';
-    this.maxFileSize = parseInt(process.env.MAX_FILE_SIZE) || 10485760; // 10MB por defecto
+    // Tamaño máximo por defecto 25MB; permite override vía MAX_FILE_SIZE_BYTES o MAX_FILE_SIZE_MB
+    const maxBytes = process.env.MAX_FILE_SIZE_BYTES ? parseInt(process.env.MAX_FILE_SIZE_BYTES) : null;
+    const maxMb = process.env.MAX_FILE_SIZE_MB ? parseInt(process.env.MAX_FILE_SIZE_MB) * 1024 * 1024 : null;
+    this.maxFileSize = maxBytes || maxMb || 25 * 1024 * 1024; // 25MB por defecto
     this.allowedFileTypes = (process.env.ALLOWED_FILE_TYPES || 'application/pdf').split(',');
     
     // Crear directorio de uploads si no existe
@@ -77,14 +80,16 @@ class UploadMiddleware {
     const upload = this.getPDFUploadConfig();
     
     return (req, res, next) => {
-      upload.single('pdf')(req, res, (err) => {
+      // Aceptar tanto 'pdf' como 'menuPDF'
+      const fieldsUpload = upload.fields([{ name: 'pdf', maxCount: 1 }, { name: 'menuPDF', maxCount: 1 }]);
+      fieldsUpload(req, res, (err) => {
         if (err) {
           this.logger.error('Error en subida de PDF:', err);
           
           if (err.code === 'LIMIT_FILE_SIZE') {
             return res.status(400).json({
               success: false,
-              message: `El archivo es demasiado grande. Máximo permitido: ${this.maxFileSize / 1024 / 1024}MB`
+              message: `El archivo es demasiado grande. Máximo permitido: ${(this.maxFileSize / 1024 / 1024).toFixed(0)}MB`
             });
           }
           
@@ -101,7 +106,14 @@ class UploadMiddleware {
           });
         }
         
-        if (!req.file) {
+        // Normalizar req.file desde los campos aceptados
+        let file = null;
+        if (req.files) {
+          if (req.files['menuPDF'] && req.files['menuPDF'][0]) file = req.files['menuPDF'][0];
+          else if (req.files['pdf'] && req.files['pdf'][0]) file = req.files['pdf'][0];
+        }
+        
+        if (!file) {
           return res.status(400).json({
             success: false,
             message: 'No se ha seleccionado ningún archivo PDF'
@@ -110,11 +122,11 @@ class UploadMiddleware {
         
         // Agregar información del archivo al request
         req.uploadedFile = {
-          filename: req.file.filename,
-          originalName: req.file.originalname,
-          path: req.file.path,
-          size: req.file.size,
-          mimetype: req.file.mimetype,
+          filename: file.filename,
+          originalName: file.originalname,
+          path: file.path,
+          size: file.size,
+          mimetype: file.mimetype,
           uploadedAt: new Date()
         };
         

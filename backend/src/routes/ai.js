@@ -1,5 +1,6 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
+const mongoose = require('mongoose');
 const Branch = require('../models/Branch');
 const Business = require('../models/Business');
 const AIService = require('../services/AIService');
@@ -12,6 +13,9 @@ const router = express.Router();
 const logger = new LoggerService();
 const aiService = new AIService();
 const pdfParserService = new PDFParserService();
+
+// Aplicar middleware de autenticación a todas las rutas
+router.use(authMiddleware.verifyToken);
 
 // GET /api/ai/status - Get AI service status
 router.get('/status', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), async (req, res) => {
@@ -533,7 +537,18 @@ router.get('/:branchId/conversation-history', authMiddleware.requireRole(['super
 
         let history = [];
         if (clientId) {
-            history = aiService.getConversationHistory(clientId);
+            // Convertir branchId a ObjectId para la búsqueda
+            const branchIdObjectId = new mongoose.Types.ObjectId(branchId);
+            const rawHistory = await aiService.getConversationHistory(clientId, branchIdObjectId, limit);
+            // Asegurar que todos los mensajes tengan la estructura esperada
+            history = rawHistory.map(msg => {
+                return {
+                    user: msg.user || '',
+                    assistant: msg.assistant || 'Respuesta del asistente',
+                    timestamp: msg.timestamp || new Date().toISOString(),
+                    intent: msg.intent || 'consulta_general'
+                };
+            });
         }
 
         res.json({
@@ -549,6 +564,88 @@ router.get('/:branchId/conversation-history', authMiddleware.requireRole(['super
     } catch (error) {
         logger.error('Error getting conversation history:', error);
         res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+});
+
+// GET /api/ai/:branchId/order/:orderId/conversation - Get conversation for specific order
+router.get('/:branchId/order/:orderId/conversation', authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), authMiddleware.requireBranchAccess(), async (req, res) => {
+    try {
+        const { branchId, orderId } = req.params;
+        
+        const branch = await Branch.findById(branchId)
+            .select('branchId name businessId')
+            .populate('businessId', 'name');
+
+        if (!branch) {
+            return res.status(404).json({ success: false, message: 'Sucursal no encontrada' });
+        }
+
+        // Buscar el pedido
+        const Order = require('../models/Order');
+        const order = await Order.findOne({ 
+            orderId: orderId,
+            branchId: branchId 
+        });
+
+        if (!order) {
+            return res.status(404).json({ success: false, message: 'Pedido no encontrado' });
+        }
+
+        // Obtener conversación del cliente
+        const clientId = order.customer.phone;
+        // Convertir branchId a ObjectId para la búsqueda
+        const branchIdObjectId = new mongoose.Types.ObjectId(branchId);
+        const conversationHistory = await aiService.getConversationHistory(clientId, branchIdObjectId, 100);
+
+        // Filtrar mensajes relacionados con este pedido (aproximadamente en la fecha del pedido)
+        const orderDate = new Date(order.createdAt);
+        const startTime = new Date(orderDate.getTime() - 2 * 60 * 60 * 1000); // 2 horas antes
+        const endTime = new Date(orderDate.getTime() + 1 * 60 * 60 * 1000); // 1 hora después
+
+        const relevantMessages = conversationHistory.filter(msg => {
+            try {
+                const msgDate = new Date(msg.timestamp);
+                return msgDate >= startTime && msgDate <= endTime;
+            } catch (error) {
+                logger.warn('Error procesando timestamp de mensaje:', { msg, error: error.message });
+                return false;
+            }
+        }).map(msg => {
+            // Asegurar que todos los mensajes tengan la estructura esperada
+            return {
+                user: msg.user || '',
+                assistant: msg.assistant || 'Respuesta del asistente',
+                timestamp: msg.timestamp || new Date().toISOString(),
+                intent: msg.intent || 'consulta_general'
+            };
+        });
+
+        res.json({
+            success: true,
+            data: {
+                orderId: order.orderId,
+                orderDate: order.createdAt,
+                customerPhone: clientId,
+                customerName: order.customer.name,
+                branchId,
+                branchName: branch.name,
+                conversation: relevantMessages,
+                totalMessages: relevantMessages.length,
+                orderDetails: {
+                    items: order.items || [],
+                    total: order.total || 0,
+                    delivery: order.delivery || {},
+                    status: order.status || 'pending'
+                }
+            }
+        });
+    } catch (error) {
+        logger.error('Error getting order conversation:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error interno del servidor',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     }
 });
 

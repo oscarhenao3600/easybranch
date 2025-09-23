@@ -78,12 +78,20 @@ class RecommendationService {
     // Crear nueva sesión de recomendación
     async createSession(phoneNumber, branchId, businessId, peopleCount = 1) {
         const sessionId = `rec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
+
+        // Normalizar identificadores y teléfono
+        const branchIdStr = branchId ? String(branchId) : '';
+        const businessIdStr = businessId ? String(businessId) : '';
+        const phoneNormalized = (phoneNumber || '')
+            .replace('@c.us', '')
+            .replace(/^\+/, '')
+            .replace(/\s+/g, '');
+
         const session = new RecommendationSession({
             sessionId,
-            phoneNumber,
-            branchId,
-            businessId,
+            phoneNumber: phoneNormalized,
+            branchId: branchIdStr,
+            businessId: businessIdStr,
             status: 'active',
             currentStep: 0,
             maxSteps: 5,
@@ -115,7 +123,7 @@ class RecommendationService {
         
         return {
             type: 'question',
-            question: nextQuestion.question,
+            question: this.getQuestionTextVariant(nextQuestion.id, nextQuestion.question, session),
             options: nextQuestion.options,
             sessionId: session.sessionId,
             step: session.currentStep + 1,
@@ -123,7 +131,7 @@ class RecommendationService {
         };
     }
 
-    // Seleccionar siguiente pregunta de manera inteligente
+    // Seleccionar siguiente pregunta de manera inteligente (con variación determinística por sesión)
     selectNextQuestion(session) {
         const answeredQuestions = session.responses.map(r => r.questionId);
         const availableQuestions = this.questionBank.filter(q => !answeredQuestions.includes(q.id));
@@ -132,22 +140,60 @@ class RecommendationService {
             return null; // No hay más preguntas
         }
 
-        // Ordenar por peso y seleccionar la más importante
-        availableQuestions.sort((a, b) => b.weight - a.weight);
+        // Secuencia base
+        const baseSequence = ['budget', 'meal_type', 'dietary_restrictions', 'cuisine_preference', 'special_occasion'];
         
-        // Secuencia inteligente para 5 preguntas
-        const questionSequence = ['budget', 'meal_type', 'dietary_restrictions', 'cuisine_preference', 'special_occasion'];
+        // Rotación basada en peopleCount y una semilla del sessionId
+        const seedChar = session.sessionId && session.sessionId.length > 0 ? session.sessionId.charCodeAt(0) : 0;
+        const rotation = ((session.peopleCount || 1) + seedChar) % baseSequence.length;
+        const rotated = baseSequence.slice(rotation).concat(baseSequence.slice(0, rotation));
         
-        // Buscar la siguiente pregunta en la secuencia
-        for (const questionId of questionSequence) {
+        for (const questionId of rotated) {
             if (!answeredQuestions.includes(questionId)) {
                 const question = availableQuestions.find(q => q.id === questionId);
                 if (question) return question;
             }
         }
-
-        // Si no se encuentra en la secuencia, tomar la de mayor peso
+        
+        // Si no se encuentra en la secuencia, tomar la primera disponible
         return availableQuestions[0];
+    }
+
+    // Variantes de texto para cada pregunta
+    getQuestionTextVariant(questionId, fallback, session) {
+        const variants = {
+            budget: [
+                '¿Cuál es tu presupuesto aproximado para esta comida? 💰',
+                'Para esta ocasión, ¿qué presupuesto tienes en mente? 💵',
+                'Para saber qué recomendarte, ¿cuál es tu presupuesto? 💸'
+            ],
+            meal_type: [
+                '¿Qué tipo de comida prefieres? 🍽️',
+                '¿Qué te antoja más ahora mismo? 🍛',
+                'Pensando en el momento, ¿qué tipo de comida quieres? 🥗'
+            ],
+            dietary_restrictions: [
+                '¿Tienes alguna restricción alimentaria? 🥗',
+                '¿Debo tener en cuenta alguna preferencia o restricción? ✅',
+                '¿Comes de todo o prefieres evitar algo? 🚫'
+            ],
+            cuisine_preference: [
+                '¿Qué tipo de cocina prefieres? 🌮',
+                '¿Te gusta más cocina colombiana u otra? 🍝',
+                '¿Qué estilo de comida te provoca? 🍣'
+            ],
+            special_occasion: [
+                '¿Es para alguna ocasión especial? 🎉',
+                '¿La salida es casual o algo especial? ✨',
+                '¿Hay alguna ocasión particular para este plan? 🎈'
+            ]
+        };
+
+        const pool = variants[questionId];
+        if (!pool || pool.length === 0) return fallback;
+        const seedChar = session.sessionId && session.sessionId.length > 1 ? session.sessionId.charCodeAt(1) : 0;
+        const idx = ((session.peopleCount || 1) + seedChar) % pool.length;
+        return pool[idx];
     }
 
     // Procesar respuesta del usuario
@@ -561,9 +607,15 @@ class RecommendationService {
 
     // Obtener sesión activa
     async getActiveSession(phoneNumber, branchId) {
+        const branchIdStr = branchId ? String(branchId) : '';
+        const phoneNormalized = (phoneNumber || '')
+            .replace('@c.us', '')
+            .replace(/^\+/, '')
+            .replace(/\s+/g, '');
+
         return await RecommendationSession.findOne({
-            phoneNumber,
-            branchId,
+            phoneNumber: phoneNormalized,
+            branchId: branchIdStr,
             status: 'active'
         });
     }
