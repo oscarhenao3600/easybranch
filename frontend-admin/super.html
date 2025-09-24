@@ -3208,7 +3208,7 @@
                                     <option value="all">Todos</option>
                                     <option value="pending">Pendientes</option>
                                 </select>
-                                <button class="btn btn-outline-primary btn-sm" onclick="app.refreshBilling()">
+                                <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.refreshBilling()">
                                     <i class="fas fa-sync-alt me-1"></i>Actualizar
                                 </button>
                             </div>
@@ -3277,12 +3277,12 @@
                                                 </select>
                                             </div>
                                             <div class="col-md-3">
-                                                <button class="btn btn-primary btn-sm" onclick="app.generateMonthlyBill()">
+                                                <button class="btn btn-primary btn-sm" onclick="dashboardApp.generateMonthlyBill()">
                                                     <i class="fas fa-plus me-1"></i>Generar Factura Mensual
                                                 </button>
                                             </div>
                                             <div class="col-md-2">
-                                                <button class="btn btn-outline-primary btn-sm" onclick="app.refreshMonthlyBills()">
+                                                <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.refreshMonthlyBills()">
                                                     <i class="fas fa-sync-alt me-1"></i>Actualizar
                                                 </button>
                                             </div>
@@ -3388,7 +3388,7 @@
                         
                         data.data.forEach(branch => {
                             const option = document.createElement('option');
-                            option.value = branch.branchId;
+                            option.value = branch._id; // Usar _id en lugar de branchId para que coincida con los pedidos
                             option.textContent = branch.name;
                             branchSelect.appendChild(option);
                         });
@@ -3406,9 +3406,13 @@
                     let params = new URLSearchParams();
                     if (branchId) params.append('branchId', branchId);
                     if (status) params.append('status', status);
-                    params.append('summary', 'true'); // Solicitar resumen por sucursal
+                    params.append('summary', 'true'); // Solicitar resumen de comisiones por sucursal
 
-                    const response = await fetch(`http://localhost:3000/api/billing/orders?${params}`, {
+                    console.log('🔍 Frontend - Loading billing orders with params:', params.toString());
+                    const url = `http://localhost:3000/api/billing/orders?${params}`;
+                    console.log('🌐 Frontend - Request URL:', url);
+
+                    const response = await fetch(url, {
                         headers: {
                             'Authorization': `Bearer ${this.authService.getToken()}`
                         }
@@ -3419,6 +3423,7 @@
                     }
 
                     const data = await response.json();
+                    console.log('📊 Frontend - Response data:', data);
                     this.renderBillingOrdersSummary(data.data);
 
                 } catch (error) {
@@ -3439,8 +3444,8 @@
                     content.innerHTML = `
                         <div class="text-center text-muted">
                             <i class="fas fa-shopping-cart fa-3x mb-3"></i>
-                            <h5>No hay pedidos pendientes para facturar</h5>
-                            <p>Todas las sucursales están al día con sus facturas.</p>
+                            <h5>No hay pedidos entregados para calcular comisiones</h5>
+                            <p>No hay sucursales con pedidos completados para facturar comisiones.</p>
                         </div>
                     `;
                     return;
@@ -3454,7 +3459,7 @@
                                 <div class="card-body text-center">
                                     <i class="fas fa-building fa-2x mb-2"></i>
                                     <h4>${data.totalBranches}</h4>
-                                    <small>Sucursales con pedidos pendientes</small>
+                                    <small>Sucursales con comisiones pendientes</small>
                                 </div>
                             </div>
                         </div>
@@ -3463,7 +3468,7 @@
                                 <div class="card-body text-center">
                                     <i class="fas fa-shopping-cart fa-2x mb-2"></i>
                                     <h4>${data.totalPendingOrders}</h4>
-                                    <small>Pedidos pendientes de facturar</small>
+                                    <small>Pedidos entregados (para comisión)</small>
                                 </div>
                             </div>
                         </div>
@@ -3472,14 +3477,14 @@
                                 <div class="card-body text-center">
                                     <i class="fas fa-dollar-sign fa-2x mb-2"></i>
                                     <h4>$${data.totalCommission.toLocaleString()}</h4>
-                                    <small>Total a cobrar</small>
+                                    <small>Total de comisiones a cobrar</small>
                                 </div>
                             </div>
                         </div>
                         <div class="col-md-3">
                             <div class="card bg-info text-white">
                                 <div class="card-body text-center">
-                                    <button class="btn btn-light btn-sm" onclick="app.generateSelectedInvoices()">
+                                    <button class="btn btn-light btn-sm" onclick="dashboardApp.generateSelectedInvoices()">
                                         <i class="fas fa-file-invoice me-2"></i>Generar Facturas Seleccionadas
                                     </button>
                                 </div>
@@ -3497,7 +3502,7 @@
                                     <div class="form-check">
                                         <input class="form-check-input branch-checkbox" type="checkbox" 
                                                value="${branch.branchId}" id="branch-${branch.branchId}"
-                                               onchange="app.toggleBranchOrders('${branch.branchId}')">
+                                               onchange="dashboardApp.toggleBranchOrders('${branch.branchId}')">
                                     </div>
                                 </div>
                                 <div class="col-md-4">
@@ -3519,7 +3524,7 @@
                                 </div>
                                 <div class="col-md-1">
                                     <button class="btn btn-outline-primary btn-sm" 
-                                            onclick="app.toggleBranchDetails('${branch.branchId}')">
+                                            onclick="dashboardApp.toggleBranchDetails('${branch.branchId}')">
                                         <i class="fas fa-eye"></i>
                                     </button>
                                 </div>
@@ -3533,7 +3538,7 @@
                                         <tr>
                                             <th>
                                                 <input type="checkbox" class="form-check-input" 
-                                                       onchange="app.selectAllBranchOrders('${branch.branchId}', this.checked)">
+                                                       onchange="dashboardApp.selectAllBranchOrders('${branch.branchId}', this.checked)">
                                             </th>
                                             <th>Pedido</th>
                                             <th>Cliente</th>
@@ -3550,7 +3555,7 @@
                                                            data-branch="${branch.branchId}" 
                                                            data-order="${order.orderId}"
                                                            data-commission="${branch.commissionPerOrder}"
-                                                           onchange="app.updateSelectedOrders()">
+                                                           onchange="dashboardApp.updateSelectedOrders()">
                                                 </td>
                                                 <td>${order.orderId}</td>
                                                 <td>${order.customerName}</td>
@@ -3625,15 +3630,15 @@
                                         </td>
                                         <td>
                                             <div class="btn-group btn-group-sm">
-                                                <button class="btn btn-outline-primary" onclick="app.viewOrderDetails('${order.orderId}')" title="Ver detalles">
+                                                <button class="btn btn-outline-primary" onclick="dashboardApp.viewOrderDetails('${order.orderId}')" title="Ver detalles">
                                                     <i class="fas fa-eye"></i>
                                                 </button>
                                                 ${!order.billingInfo ? `
-                                                    <button class="btn btn-outline-success" onclick="app.generateInvoice('${order.orderId}')" title="Generar cuenta de cobro">
+                                                    <button class="btn btn-outline-success" onclick="dashboardApp.generateInvoice('${order.orderId}')" title="Generar cuenta de cobro">
                                                         <i class="fas fa-file-invoice"></i>
                                                     </button>
                                                 ` : `
-                                                    <button class="btn btn-outline-info" onclick="app.sendInvoice('${order.orderId}')" title="Enviar cuenta de cobro">
+                                                    <button class="btn btn-outline-info" onclick="dashboardApp.sendInvoice('${order.orderId}')" title="Enviar cuenta de cobro">
                                                         <i class="fas fa-paper-plane"></i>
                                                     </button>
                                                 `}
@@ -3742,10 +3747,10 @@
                                         </td>
                                         <td>
                                             <div class="btn-group btn-group-sm">
-                                                <button class="btn btn-outline-primary" onclick="app.viewInvoiceDetails('${invoice.invoiceNumber}')" title="Ver detalles">
+                                                <button class="btn btn-outline-primary" onclick="dashboardApp.viewInvoiceDetails('${invoice.invoiceNumber}')" title="Ver detalles">
                                                     <i class="fas fa-eye"></i>
                                                 </button>
-                                                <button class="btn btn-outline-info" onclick="app.sendInvoice('${invoice.orderId}')" title="Reenviar">
+                                                <button class="btn btn-outline-info" onclick="dashboardApp.sendInvoice('${invoice.orderId}')" title="Reenviar">
                                                     <i class="fas fa-paper-plane"></i>
                                                 </button>
                                             </div>
@@ -3889,7 +3894,7 @@
                                             <button type="submit" class="btn btn-primary">
                                                 <i class="fas fa-save me-2"></i>Guardar Configuración
                                             </button>
-                                            <button type="button" class="btn btn-outline-secondary" onclick="app.testBillingInfo()">
+                                            <button type="button" class="btn btn-outline-secondary" onclick="dashboardApp.testBillingInfo()">
                                                 <i class="fas fa-test-tube me-2"></i>Probar Envío
                                             </button>
                                         </div>
@@ -4010,7 +4015,7 @@
                     const data = await response.json();
                     let message = 'Cuenta de cobro enviada correctamente';
                     
-                    if (data.data.whatsapp.sent) message += ' (WhatsApp)';
+                    if (data.data.whatsdashboardApp.sent) message += ' (WhatsApp)';
                     if (data.data.email.sent) message += ' (Email)';
                     
                     this.showAlert(message, 'success');
@@ -4074,7 +4079,7 @@
                 
                 // Botón anterior
                 if (pagination.page > 1) {
-                    html += `<li class="page-item"><a class="page-link" href="#" onclick="app.loadBillingPage(${pagination.page - 1})">Anterior</a></li>`;
+                    html += `<li class="page-item"><a class="page-link" href="#" onclick="dashboardApp.loadBillingPage(${pagination.page - 1})">Anterior</a></li>`;
                 }
                 
                 // Páginas
@@ -4082,13 +4087,13 @@
                     if (i === pagination.page) {
                         html += `<li class="page-item active"><span class="page-link">${i}</span></li>`;
                     } else {
-                        html += `<li class="page-item"><a class="page-link" href="#" onclick="app.loadBillingPage(${i})">${i}</a></li>`;
+                        html += `<li class="page-item"><a class="page-link" href="#" onclick="dashboardApp.loadBillingPage(${i})">${i}</a></li>`;
                     }
                 }
                 
                 // Botón siguiente
                 if (pagination.page < pagination.pages) {
-                    html += `<li class="page-item"><a class="page-link" href="#" onclick="app.loadBillingPage(${pagination.page + 1})">Siguiente</a></li>`;
+                    html += `<li class="page-item"><a class="page-link" href="#" onclick="dashboardApp.loadBillingPage(${pagination.page + 1})">Siguiente</a></li>`;
                 }
                 
                 return html;
@@ -4189,12 +4194,28 @@
                 }
 
                 try {
+                    let hasExisting = false;
+                    let hasNew = false;
+                    
                     // Generar factura para cada sucursal
                     for (const [branchId, data] of Object.entries(ordersByBranch)) {
-                        await this.generateBranchInvoice(branchId, data.orders);
+                        const result = await this.generateBranchInvoice(branchId, data.orders);
+                        if (result.existing) {
+                            hasExisting = true;
+                        } else {
+                            hasNew = true;
+                        }
                     }
                     
-                    alert('Facturas generadas exitosamente');
+                    // Mostrar mensaje apropiado
+                    if (hasNew && hasExisting) {
+                        alert('Facturas procesadas: algunas fueron generadas y otras ya existían');
+                    } else if (hasExisting) {
+                        alert('Las facturas ya existían y se mostraron en el modal');
+                    } else {
+                        alert('Facturas generadas exitosamente');
+                    }
+                    
                     await this.loadBillingOrders(); // Recargar la vista
                     
                 } catch (error) {
@@ -4222,9 +4243,17 @@
                 });
 
                 const data = await response.json();
+                console.log('📄 Respuesta generateBranchInvoice:', data);
                 
                 if (!data.success) {
-                    throw new Error(`Error para sucursal ${branchId}: ${data.message}`);
+                    // Si ya existe una factura, buscar la existente y mostrarla
+                    if (data.message && data.message.includes('Ya existe una factura')) {
+                        console.log('🔍 Factura existente detectada en generateBranchInvoice, buscando...');
+                        await this.findAndShowExistingBill(branchId, currentDate.getFullYear(), currentDate.getMonth() + 1);
+                        return { success: true, existing: true }; // Indicar que se mostró una factura existente
+                    } else {
+                        throw new Error(`Error para sucursal ${branchId}: ${data.message}`);
+                    }
                 }
                 
                 return data;
@@ -4317,16 +4346,16 @@
                                                 Acciones
                                             </button>
                                             <ul class="dropdown-menu">
-                                                <li><a class="dropdown-item" href="#" onclick="app.viewBillDetail('${bill.billId}')">
+                                                <li><a class="dropdown-item" href="#" onclick="dashboardApp.viewBillDetail('${bill.billId}')">
                                                     <i class="fas fa-eye me-2"></i>Ver Detalle
                                                 </a></li>
                                                 ${bill.status === 'draft' ? `
-                                                <li><a class="dropdown-item" href="#" onclick="app.sendMonthlyBill('${bill.billId}')">
+                                                <li><a class="dropdown-item" href="#" onclick="dashboardApp.sendMonthlyBill('${bill.billId}')">
                                                     <i class="fas fa-paper-plane me-2"></i>Enviar
                                                 </a></li>
                                                 ` : ''}
                                                 ${bill.status === 'sent' ? `
-                                                <li><a class="dropdown-item" href="#" onclick="app.markBillAsPaid('${bill.billId}')">
+                                                <li><a class="dropdown-item" href="#" onclick="dashboardApp.markBillAsPaid('${bill.billId}')">
                                                     <i class="fas fa-check me-2"></i>Marcar como Pagada
                                                 </a></li>
                                                 ` : ''}
@@ -4376,19 +4405,19 @@
                 let html = '<nav><ul class="pagination justify-content-center">';
                 
                 if (pagination.page > 1) {
-                    html += `<li class="page-item"><a class="page-link" href="#" onclick="app.loadMonthlyBillsPage(${pagination.page - 1})">Anterior</a></li>`;
+                    html += `<li class="page-item"><a class="page-link" href="#" onclick="dashboardApp.loadMonthlyBillsPage(${pagination.page - 1})">Anterior</a></li>`;
                 }
 
                 for (let i = 1; i <= pagination.pages; i++) {
                     if (i === pagination.page) {
                         html += `<li class="page-item active"><span class="page-link">${i}</span></li>`;
                     } else {
-                        html += `<li class="page-item"><a class="page-link" href="#" onclick="app.loadMonthlyBillsPage(${i})">${i}</a></li>`;
+                        html += `<li class="page-item"><a class="page-link" href="#" onclick="dashboardApp.loadMonthlyBillsPage(${i})">${i}</a></li>`;
                     }
                 }
 
                 if (pagination.page < pagination.pages) {
-                    html += `<li class="page-item"><a class="page-link" href="#" onclick="app.loadMonthlyBillsPage(${pagination.page + 1})">Siguiente</a></li>`;
+                    html += `<li class="page-item"><a class="page-link" href="#" onclick="dashboardApp.loadMonthlyBillsPage(${pagination.page + 1})">Siguiente</a></li>`;
                 }
 
                 html += '</ul></nav>';
@@ -4418,7 +4447,7 @@
                 const year = yearSelect.value || currentDate.getFullYear();
                 const month = currentDate.getMonth() + 1;
 
-                if (confirm(`¿Generar factura mensual para la sucursal seleccionada en ${month}/${year}?`)) {
+                if (confirm(`¿Generar o ver factura mensual para la sucursal seleccionada en ${month}/${year}?\n\nSi ya existe una factura, se mostrará la existente.`)) {
                     try {
                         const response = await fetch('http://localhost:3000/api/billing/generate-monthly-bill', {
                             method: 'POST',
@@ -4434,18 +4463,345 @@
                         });
 
                         const data = await response.json();
+                        console.log('📄 Respuesta de generación de factura:', data);
 
                         if (data.success) {
-                            alert(`Factura generada exitosamente: ${data.data.billNumber}`);
+                            console.log('✅ Factura generada exitosamente, mostrando modal...');
+                            // Mostrar modal con PDF
+                            this.showBillPDFModal(data.data);
                             await this.loadMonthlyBills();
                         } else {
-                            alert(`Error: ${data.message}`);
+                            console.error('❌ Error en generación:', data.message);
+                            console.log('🔍 Mensaje completo de error:', data);
+                            
+                            // Si ya existe una factura, buscar la existente y mostrarla
+                            if (data.message && data.message.includes('Ya existe una factura')) {
+                                console.log('🔍 Buscando factura existente...');
+                                await this.findAndShowExistingBill(branchSelect.value, parseInt(year), parseInt(month));
+                            } else {
+                                console.log('⚠️ Mensaje de error no contiene "Ya existe una factura"');
+                                alert(`Error: ${data.message}`);
+                            }
                         }
 
                     } catch (error) {
-                        console.error('Error generating monthly bill:', error);
+                        console.error('🚨 Error en catch - generando factura mensual:', error);
+                        console.log('🚨 Error completo:', error.message);
                         alert('Error al generar la factura mensual');
                     }
+                }
+            }
+
+            async findAndShowExistingBill(branchId, year, month) {
+                try {
+                    console.log(`🔍 Buscando factura existente para sucursal ${branchId}, período ${month}/${year}`);
+                    
+                    const response = await fetch(`http://localhost:3000/api/billing/monthly-bills?branchId=${branchId}&year=${year}&month=${month}`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    const data = await response.json();
+                    console.log('📋 Facturas encontradas:', data);
+
+                    if (data.success && data.data.bills && data.data.bills.length > 0) {
+                        const existingBill = data.data.bills[0];
+                        console.log('✅ Factura existente encontrada:', existingBill);
+                        
+                        // Obtener detalles completos de la factura
+                        await this.getBillDetailsAndShow(existingBill.billId);
+                    } else {
+                        alert('No se encontró la factura existente');
+                    }
+                } catch (error) {
+                    console.error('Error buscando factura existente:', error);
+                    alert('Error al buscar la factura existente');
+                }
+            }
+
+            async getBillDetailsAndShow(billId) {
+                try {
+                    console.log(`📄 Obteniendo detalles de factura: ${billId}`);
+                    
+                    const response = await fetch(`http://localhost:3000/api/billing/monthly-bills/${billId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authService.getToken()}`
+                        }
+                    });
+
+                    const data = await response.json();
+                    console.log('📋 Detalles de factura:', data);
+
+                    if (data.success) {
+                        // Formatear los datos para que coincidan con el formato esperado por el modal
+                        const billData = {
+                            billId: data.data.billId,
+                            billNumber: data.data.billNumber,
+                            totalOrders: data.data.summary.totalOrders,
+                            totalServiceFee: data.data.summary.totalServiceFee,
+                            period: data.data.period,
+                            dueDate: data.data.payment.dueDate,
+                            orders: data.data.orders,
+                            billingInfo: data.data.billingInfo,
+                            branchInfo: {
+                                name: data.data.branchName,
+                                phone: data.data.billingInfo?.phone,
+                                email: data.data.billingInfo?.email
+                            }
+                        };
+                        
+                        console.log('✅ Mostrando factura existente en modal...');
+                        this.showBillPDFModal(billData);
+                    } else {
+                        alert('Error al obtener los detalles de la factura');
+                    }
+                } catch (error) {
+                    console.error('Error obteniendo detalles de factura:', error);
+                    alert('Error al obtener los detalles de la factura');
+                }
+            }
+
+            showBillPDFModal(billData) {
+                console.log('🎯 Mostrando modal PDF con datos:', billData);
+                // Crear modal dinámicamente
+                const modalHTML = `
+                    <div class="modal fade" id="billPDFModal" tabindex="-1" aria-labelledby="billPDFModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-xl">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="billPDFModalLabel">
+                                        <i class="fas fa-file-pdf me-2"></i>Factura: ${billData.billNumber}
+                                    </h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="row">
+                                        <div class="col-md-8">
+                                            <div id="billPDFContent" class="border p-3" style="min-height: 600px; background: white;">
+                                                <!-- Contenido del PDF se generará aquí -->
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="card">
+                                                <div class="card-header">
+                                                    <h6><i class="fas fa-send me-2"></i>Enviar Factura</h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    <div class="mb-3">
+                                                        <label class="form-label">WhatsApp</label>
+                                                        <div class="input-group">
+                                                            <span class="input-group-text">+57</span>
+                                                            <input type="tel" id="whatsappPhone" class="form-control" 
+                                                                   placeholder="${billData.branchInfo?.phone || 'Teléfono de la sucursal'}" 
+                                                                   value="${billData.branchInfo?.phone || ''}">
+                                                        </div>
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Email</label>
+                                                        <input type="email" id="emailAddress" class="form-control" 
+                                                               placeholder="${billData.branchInfo?.email || 'Email de la sucursal'}" 
+                                                               value="${billData.branchInfo?.email || ''}">
+                                                    </div>
+                                                    <div class="d-grid gap-2">
+                                                        <button class="btn btn-success" onclick="dashboardApp.sendBillViaWhatsApp('${billData.billId}')">
+                                                            <i class="fas fa-whatsapp me-2"></i>Enviar por WhatsApp
+                                                        </button>
+                                                        <button class="btn btn-primary" onclick="dashboardApp.sendBillViaEmail('${billData.billId}')">
+                                                            <i class="fas fa-envelope me-2"></i>Enviar por Email
+                                                        </button>
+                                                        <button class="btn btn-outline-secondary" onclick="dashboardApp.downloadBillPDF('${billData.billId}')">
+                                                            <i class="fas fa-download me-2"></i>Descargar PDF
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Remover modal anterior si existe
+                const existingModal = document.getElementById('billPDFModal');
+                if (existingModal) {
+                    existingModal.remove();
+                }
+
+                // Agregar modal al DOM
+                document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+                // Generar contenido del PDF
+                console.log('📝 Generando contenido PDF...');
+                this.generateBillPDFContent(billData);
+
+                // Mostrar modal
+                console.log('🚀 Mostrando modal...');
+                const modal = new bootstrap.Modal(document.getElementById('billPDFModal'));
+                modal.show();
+            }
+
+            generateBillPDFContent(billData) {
+                const content = document.getElementById('billPDFContent');
+                
+                const pdfHTML = `
+                    <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto;">
+                        <!-- Header -->
+                        <div style="text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px;">
+                            <h1 style="color: #333; margin: 0;">FACTURA DE COMISIONES</h1>
+                            <h2 style="color: #666; margin: 10px 0;">${billData.billNumber}</h2>
+                            <p style="margin: 0; color: #888;">Período: ${billData.period.month}/${billData.period.year}</p>
+                        </div>
+
+                        <!-- Información de la Empresa -->
+                        <div style="margin-bottom: 30px;">
+                            <h3 style="color: #333; border-bottom: 1px solid #ddd; padding-bottom: 10px;">INFORMACIÓN DE LA EMPRESA</h3>
+                            <div style="display: flex; justify-content: space-between;">
+                                <div>
+                                    <p><strong>Empresa:</strong> ${billData.branchInfo.name}</p>
+                                    <p><strong>Dirección:</strong> ${billData.billingInfo?.address || 'No especificada'}</p>
+                                    <p><strong>Ciudad:</strong> ${billData.billingInfo?.city || 'No especificada'}</p>
+                                </div>
+                                <div>
+                                    <p><strong>Teléfono:</strong> ${billData.branchInfo?.phone || 'No especificado'}</p>
+                                    <p><strong>Email:</strong> ${billData.branchInfo?.email || 'No especificado'}</p>
+                                    <p><strong>NIT:</strong> ${billData.billingInfo?.nit || 'No especificado'}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Resumen de Órdenes -->
+                        <div style="margin-bottom: 30px;">
+                            <h3 style="color: #333; border-bottom: 1px solid #ddd; padding-bottom: 10px;">RESUMEN DE ÓRDENES</h3>
+                            <div style="display: flex; justify-content: space-between; background: #f8f9fa; padding: 15px; border-radius: 5px;">
+                                <div>
+                                    <p><strong>Total de Órdenes:</strong> ${billData.totalOrders}</p>
+                                    <p><strong>Comisión por Orden:</strong> $${billData.billingInfo?.commissionPerOrder || 500}</p>
+                                </div>
+                                <div style="text-align: right;">
+                                    <p><strong>Total a Pagar:</strong> $${billData.totalServiceFee}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Detalle de Órdenes -->
+                        <div style="margin-bottom: 30px;">
+                            <h3 style="color: #333; border-bottom: 1px solid #ddd; padding-bottom: 10px;">DETALLE DE ÓRDENES</h3>
+                            <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+                                <thead>
+                                    <tr style="background: #f8f9fa;">
+                                        <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">#</th>
+                                        <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">Orden ID</th>
+                                        <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">Cliente</th>
+                                        <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">Fecha</th>
+                                        <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">Total Orden</th>
+                                        <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">Comisión</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${billData.orders?.map((order, index) => `
+                                        <tr>
+                                            <td style="border: 1px solid #ddd; padding: 8px;">${index + 1}</td>
+                                            <td style="border: 1px solid #ddd; padding: 8px;">${order.orderId}</td>
+                                            <td style="border: 1px solid #ddd; padding: 8px;">${order.customerName}</td>
+                                            <td style="border: 1px solid #ddd; padding: 8px;">${new Date(order.orderDate).toLocaleDateString()}</td>
+                                            <td style="border: 1px solid #ddd; padding: 8px;">$${order.total}</td>
+                                            <td style="border: 1px solid #ddd; padding: 8px;">$${order.serviceFee}</td>
+                                        </tr>
+                                    `).join('') || ''}
+                                </tbody>
+                                <tfoot>
+                                    <tr style="background: #e9ecef; font-weight: bold;">
+                                        <td colspan="5" style="border: 1px solid #ddd; padding: 10px; text-align: right;">TOTAL:</td>
+                                        <td style="border: 1px solid #ddd; padding: 10px;">$${billData.totalServiceFee}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+
+                        <!-- Información de Pago -->
+                        <div style="margin-bottom: 30px;">
+                            <h3 style="color: #333; border-bottom: 1px solid #ddd; padding-bottom: 10px;">INFORMACIÓN DE PAGO</h3>
+                            <p><strong>Fecha de Vencimiento:</strong> ${new Date(billData.dueDate).toLocaleDateString()}</p>
+                            <p><strong>Método de Pago:</strong> Transferencia bancaria o efectivo</p>
+                        </div>
+
+                        <!-- Footer -->
+                        <div style="text-align: center; border-top: 2px solid #333; padding-top: 20px; margin-top: 40px;">
+                            <p style="color: #888; font-size: 12px;">
+                                Esta factura fue generada automáticamente el ${new Date().toLocaleDateString()} a las ${new Date().toLocaleTimeString()}
+                            </p>
+                            <p style="color: #888; font-size: 12px;">
+                                EasyBranch - Sistema de Gestión de Pedidos
+                            </p>
+                        </div>
+                    </div>
+                `;
+
+                content.innerHTML = pdfHTML;
+            }
+
+            async sendBillViaWhatsApp(billId) {
+                const phone = document.getElementById('whatsappPhone').value;
+                if (!phone) {
+                    alert('Por favor ingresa un número de WhatsApp');
+                    return;
+                }
+
+                try {
+                    // Aquí implementarías la lógica para enviar por WhatsApp
+                    alert(`Factura ${billId} enviada por WhatsApp al número +57${phone}`);
+                } catch (error) {
+                    console.error('Error sending WhatsApp:', error);
+                    alert('Error al enviar por WhatsApp');
+                }
+            }
+
+            async sendBillViaEmail(billId) {
+                const email = document.getElementById('emailAddress').value;
+                if (!email) {
+                    alert('Por favor ingresa un email');
+                    return;
+                }
+
+                try {
+                    // Aquí implementarías la lógica para enviar por email
+                    alert(`Factura ${billId} enviada por email a ${email}`);
+                } catch (error) {
+                    console.error('Error sending email:', error);
+                    alert('Error al enviar por email');
+                }
+            }
+
+            async downloadBillPDF(billId) {
+                try {
+                    // Generar PDF usando la API del navegador
+                    const content = document.getElementById('billPDFContent');
+                    const printWindow = window.open('', '_blank');
+                    printWindow.document.write(`
+                        <html>
+                            <head>
+                                <title>Factura ${billId}</title>
+                                <style>
+                                    body { font-family: Arial, sans-serif; margin: 20px; }
+                                    @media print { body { margin: 0; } }
+                                </style>
+                            </head>
+                            <body>
+                                ${content.innerHTML}
+                            </body>
+                        </html>
+                    `);
+                    printWindow.document.close();
+                    printWindow.print();
+                } catch (error) {
+                    console.error('Error downloading PDF:', error);
+                    alert('Error al descargar PDF');
                 }
             }
 
@@ -4585,7 +4941,7 @@
                                 <select id="servicesBranchFilter" class="form-select form-select-sm" style="width: 200px;">
                                     <option value="">Seleccionar sucursal</option>
                                 </select>
-                                <button class="btn btn-outline-primary btn-sm" onclick="app.refreshServices()">
+                                <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.refreshServices()">
                                     <i class="fas fa-sync-alt me-1"></i>Actualizar
                                 </button>
                             </div>
@@ -4609,7 +4965,7 @@
                                     </select>
                                 </div>
                                 <div class="col-md-2">
-                                    <button class="btn btn-primary w-100" onclick="app.applyServicesFilters()">
+                                    <button class="btn btn-primary w-100" onclick="dashboardApp.applyServicesFilters()">
                                         <i class="fas fa-search me-1"></i>Filtrar
                                     </button>
                                 </div>
@@ -4696,10 +5052,10 @@
                                     <option value="90d">Últimos 90 días</option>
                                     <option value="custom">Personalizado</option>
                                 </select>
-                                <button class="btn btn-outline-primary btn-sm" onclick="app.refreshReports()">
+                                <button class="btn btn-outline-primary btn-sm" onclick="dashboardApp.refreshReports()">
                                     <i class="fas fa-sync-alt me-1"></i>Actualizar
                                 </button>
-                                <button class="btn btn-success btn-sm" onclick="app.exportReport()">
+                                <button class="btn btn-success btn-sm" onclick="dashboardApp.exportReport()">
                                     <i class="fas fa-download me-1"></i>Exportar
                                 </button>
                             </div>
@@ -6501,7 +6857,7 @@
                 if (pagination.page > 1) {
                     paginationHtml += `
                         <li class="page-item">
-                            <a class="page-link" href="#" onclick="app.loadServicesData(${pagination.page - 1})">
+                            <a class="page-link" href="#" onclick="dashboardApp.loadServicesData(${pagination.page - 1})">
                                 <i class="fas fa-chevron-left"></i>
                             </a>
                         </li>
@@ -6515,7 +6871,7 @@
                 for (let i = startPage; i <= endPage; i++) {
                     paginationHtml += `
                         <li class="page-item ${i === pagination.page ? 'active' : ''}">
-                            <a class="page-link" href="#" onclick="app.loadServicesData(${i})">${i}</a>
+                            <a class="page-link" href="#" onclick="dashboardApp.loadServicesData(${i})">${i}</a>
                         </li>
                     `;
                 }
@@ -6524,7 +6880,7 @@
                 if (pagination.page < pagination.pages) {
                     paginationHtml += `
                         <li class="page-item">
-                            <a class="page-link" href="#" onclick="app.loadServicesData(${pagination.page + 1})">
+                            <a class="page-link" href="#" onclick="dashboardApp.loadServicesData(${pagination.page + 1})">
                                 <i class="fas fa-chevron-right"></i>
                             </a>
                         </li>

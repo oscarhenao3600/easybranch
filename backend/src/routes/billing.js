@@ -42,6 +42,9 @@ router.get('/orders', authMiddleware.verifyToken, authMiddleware.requireRole(['s
             // Todos los pedidos
         } else if (status === 'pending') {
             filter.status = { $in: ['pending', 'confirmed', 'preparing', 'ready'] };
+        } else if (status === 'delivered') {
+            // Para facturación, usar 'confirmed' como equivalente a 'delivered'
+            filter.status = 'confirmed';
         } else {
             filter.status = status;
         }
@@ -87,24 +90,31 @@ router.get('/orders', authMiddleware.verifyToken, authMiddleware.requireRole(['s
 
         // Si se solicita resumen por sucursal
         if (summary === 'true') {
-            // Obtener resumen por sucursal
+            console.log('🔍 Billing Summary Request - Filter:', JSON.stringify(filter, null, 2));
+            
+            // Log de filtro para debugging
+            console.log('🔍 Billing Summary - Filter applied:', JSON.stringify(filter, null, 2));
+            
+            // Obtener resumen por sucursal - TODOS los pedidos confirmados para calcular comisión
             const branchSummary = await Order.aggregate([
                 {
                     $match: {
                         ...filter,
-                        status: { $in: ['delivered', 'completed'] },
-                        'billingInfo.invoiceNumber': { $exists: false } // Solo pedidos sin facturar
+                        status: { $in: ['confirmed', 'completed'] }
+                        // Removido filtro de facturación - queremos TODOS los confirmados
                     }
                 },
                 {
                     $group: {
                         _id: '$branchId',
-                        pendingOrders: { $sum: 1 },
+                        totalOrders: { $sum: 1 },
                         totalValue: { $sum: '$total' },
                         orders: { $push: '$$ROOT' }
                     }
                 }
             ]);
+
+            console.log('📊 Branch Summary Results:', JSON.stringify(branchSummary, null, 2));
 
             // Obtener información de sucursales para el resumen
             const branchIds = branchSummary.map(item => item._id);
@@ -122,9 +132,9 @@ router.get('/orders', authMiddleware.verifyToken, authMiddleware.requireRole(['s
                     branchId: item._id,
                     branchName: branch?.name || 'Sucursal no encontrada',
                     businessName: branch?.businessId ? 'Business' : 'N/A', // Se puede mejorar con populate
-                    pendingOrders: item.pendingOrders,
+                    totalOrders: item.totalOrders,
                     totalValue: item.totalValue,
-                    totalCommission: item.pendingOrders * commissionPerOrder,
+                    totalCommission: item.totalOrders * commissionPerOrder,
                     commissionPerOrder: commissionPerOrder,
                     orders: item.orders.map(order => ({
                         orderId: order.orderId,
@@ -141,7 +151,7 @@ router.get('/orders', authMiddleware.verifyToken, authMiddleware.requireRole(['s
                 data: {
                     summary: summaryData,
                     totalBranches: summaryData.length,
-                    totalPendingOrders: summaryData.reduce((sum, item) => sum + item.pendingOrders, 0),
+                    totalPendingOrders: summaryData.reduce((sum, item) => sum + item.totalOrders, 0),
                     totalCommission: summaryData.reduce((sum, item) => sum + item.totalCommission, 0)
                 }
             });
@@ -196,7 +206,7 @@ router.get('/branch/:branchId', authMiddleware.verifyToken, authMiddleware.requi
     try {
         const { branchId } = req.params;
 
-        const branch = await Branch.findOne({ branchId })
+        const branch = await Branch.findById(branchId)
             .populate('businessId', 'name');
 
         if (!branch) {
@@ -250,7 +260,7 @@ router.put('/branch/:branchId', authMiddleware.verifyToken, authMiddleware.requi
         const { branchId } = req.params;
         const { nit, phone, email, address, city, department, commissionPerOrder } = req.body;
 
-        const branch = await Branch.findOne({ branchId });
+        const branch = await Branch.findById(branchId);
 
         if (!branch) {
             return res.status(404).json({ 
@@ -552,7 +562,7 @@ router.post('/generate-monthly-bill', authMiddleware.verifyToken, authMiddleware
         }
 
         // Verificar que la sucursal existe
-        const branch = await Branch.findOne({ branchId });
+        const branch = await Branch.findById(branchId);
         if (!branch) {
             return res.status(404).json({ 
                 success: false, 
@@ -610,7 +620,12 @@ router.post('/generate-monthly-bill', authMiddleware.verifyToken, authMiddleware
                 totalOrders: bill.summary.totalOrders,
                 totalServiceFee: bill.summary.totalServiceFee,
                 period: bill.period,
-                dueDate: bill.payment.dueDate
+                dueDate: bill.payment.dueDate,
+                branchInfo: {
+                    name: branch.name,
+                    phone: branch.billingInfo?.phone || branch.contact?.phone,
+                    email: branch.billingInfo?.email || branch.contact?.email
+                }
             }
         });
 
@@ -735,8 +750,7 @@ router.get('/monthly-bills/:billId', authMiddleware.verifyToken, authMiddleware.
         const { billId } = req.params;
 
         const bill = await Bill.findOne({ billId })
-            .populate('businessId', 'name')
-            .populate('generatedBy', 'name');
+            .populate('businessId', 'name');
 
         if (!bill) {
             return res.status(404).json({ 
@@ -754,7 +768,7 @@ router.get('/monthly-bills/:billId', authMiddleware.verifyToken, authMiddleware.
         }
 
         // Obtener información de la sucursal
-        const branch = await Branch.findOne({ branchId: bill.branchId });
+        const branch = await Branch.findById(bill.branchId);
 
         const result = {
             success: true,
@@ -769,7 +783,7 @@ router.get('/monthly-bills/:billId', authMiddleware.verifyToken, authMiddleware.
                 billingInfo: bill.billingInfo,
                 status: bill.status,
                 payment: bill.payment,
-                generatedBy: bill.generatedBy?.name,
+                generatedBy: bill.generatedBy,
                 createdAt: bill.createdAt,
                 sentAt: bill.sentAt,
                 paidAt: bill.paidAt
@@ -850,7 +864,7 @@ router.get('/branch-summary/:branchId', authMiddleware.verifyToken, authMiddlewa
         const { branchId } = req.params;
         const { year } = req.query;
 
-        const branch = await Branch.findOne({ branchId })
+        const branch = await Branch.findById(branchId)
             .populate('businessId', 'name');
 
         if (!branch) {
@@ -934,6 +948,60 @@ router.get('/branch-summary/:branchId', authMiddleware.verifyToken, authMiddlewa
         res.status(500).json({ 
             success: false, 
             message: 'Error interno del servidor',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+// POST /api/billing/generate-pdf/:billId - Generar PDF de factura
+router.post('/generate-pdf/:billId', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin']), async (req, res) => {
+    try {
+        const { billId } = req.params;
+
+        const bill = await Bill.findOne({ billId })
+            .populate('businessId', 'name')
+            .populate('branchId', 'name billingInfo contact');
+
+        if (!bill) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Factura no encontrada' 
+            });
+        }
+
+        // Verificar acceso
+        if (req.user.role === 'business_admin' && bill.businessId !== req.user.businessId) {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'No tienes acceso a esta factura' 
+            });
+        }
+
+        // Generar HTML del PDF (por ahora devolvemos los datos para que el frontend genere el PDF)
+        const pdfData = {
+            billId: bill.billId,
+            billNumber: bill.billNumber,
+            businessName: bill.businessId?.name,
+            branchName: bill.branchId?.name,
+            period: bill.period,
+            orders: bill.orders,
+            summary: bill.summary,
+            billingInfo: bill.billingInfo,
+            payment: bill.payment,
+            generatedAt: bill.createdAt
+        };
+
+        res.json({ 
+            success: true, 
+            message: 'Datos para PDF generados correctamente',
+            data: pdfData
+        });
+
+    } catch (error) {
+        logger.error('Error generating PDF:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error al generar PDF',
             error: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
