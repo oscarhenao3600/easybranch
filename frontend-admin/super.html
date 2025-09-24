@@ -7492,10 +7492,11 @@
                     console.log('🏪 Branch ID:', branchId);
                     console.log('🔑 Token:', token ? 'Presente' : 'Ausente');
 
-                    // Llamar al endpoint real para obtener la conversación
-                    const url = `http://localhost:3000/api/ai/${branchId}/order/${orderIdStr}/conversation`;
+                    // Usar historial por teléfono del cliente
+                    const phoneNumber = (order.customer && order.customer.phone) ? String(order.customer.phone).replace(/^\+/, '') : '';
+                    const url = `http://localhost:3000/api/conversations/history/${phoneNumber}?branchId=${branchId}`;
                     console.log('🌐 URL completa:', url);
-                    
+
                     const response = await fetch(url, {
                         method: 'GET',
                         headers: {
@@ -7562,8 +7563,107 @@
                         throw new Error(data.message || 'Error en la respuesta del servidor');
                     }
 
+                    // Adaptar respuesta de /conversations/history a formato del render
+                    const historyData = data.data;
+                    const msgs = Array.isArray(historyData.messages) ? historyData.messages : [];
+                    let adaptedConversation = msgs.flatMap(m => {
+                        const arr = [];
+                        const text = (m && m.content && (m.content.text || m.content.caption)) || m.text || m.message || '';
+                        const ts = m && m.createdAt ? m.createdAt : new Date().toISOString();
+                        const isSystem = (
+                            m.role === 'system' || m.type === 'system' || m.messageType === 'system' ||
+                            m.category === 'system' || m.direction === 'system' || m.sender === 'system' ||
+                            (m.content && (m.content.type === 'system' || m.content.role === 'system')) ||
+                            m.origin === 'system' || m.isSystem === true || m.fromSystem === true ||
+                            (m.meta && (m.meta.role === 'system' || m.meta.type === 'system')) ||
+                            (m.processing && (m.processing.role === 'system' || m.processing.type === 'system' || m.processing.source === 'system')) ||
+                            m.senderName === 'Sistema'
+                        );
+
+                        // Main message bubble
+                        if (isSystem) {
+                            arr.push({ role: 'system', system: text, timestamp: ts });
+                        } else if (m.direction === 'incoming') {
+                            arr.push({ role: 'user', user: text, timestamp: ts });
+                        } else if (m.direction === 'outgoing') {
+                            arr.push({ role: 'assistant', assistant: text, timestamp: ts });
+                        } else {
+                            arr.push({ role: 'system', system: text, timestamp: ts });
+                        }
+
+                        // Optional system insight bubble from processing metadata
+                        const p = m && m.processing ? m.processing : null;
+                        if (p) {
+                            const parts = [];
+                            if (p.intent) parts.push(`Intención: ${p.intent}`);
+                            if (typeof p.sentiment === 'string') parts.push(`Sentimiento: ${p.sentiment}`);
+                            if (typeof p.confidence === 'number') parts.push(`Confianza: ${(p.confidence * 100).toFixed(0)}%`);
+                            // Common correction fields if present
+                            const corr = p.corrections || p.correction || p.normalized || p.notes;
+                            if (corr && typeof corr === 'string') parts.push(corr);
+                            if (Array.isArray(corr)) parts.push(corr.join(' | '));
+                            if (parts.length > 0) {
+                                arr.push({ role: 'system', system: parts.join(' • '), timestamp: ts });
+                            }
+                        }
+
+                        return arr;
+                    });
+
+                    // Merge AI conversation history (assistant/system) by clientId (phone)
+                    try {
+                        const aiUrl = `http://localhost:3000/api/ai/${branchId}/conversation-history?clientId=${encodeURIComponent(phoneNumber)}&limit=200`;
+                        const aiRes = await fetch(aiUrl, {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        if (aiRes.ok) {
+                            const aiJson = await aiRes.json();
+                            const aiHist = (aiJson && aiJson.data && Array.isArray(aiJson.data.history)) ? aiJson.data.history : [];
+                            const aiAdapted = aiHist.map(h => {
+                                const ts = h.timestamp || new Date().toISOString();
+                                const role = h.role || (h.system ? 'system' : (h.user && !h.assistant ? 'user' : 'assistant'));
+                                const text = h.message || h.system || h.assistant || h.user || '';
+                                if (role === 'system') return { role: 'system', system: text, timestamp: ts };
+                                if (role === 'assistant') return { role: 'assistant', assistant: text, timestamp: ts };
+                                return { role: 'user', user: text, timestamp: ts };
+                            });
+                            adaptedConversation = adaptedConversation.concat(aiAdapted);
+                        }
+                    } catch (e) {
+                        console.log('⚠️ No se pudo cargar historial AI adicional:', e.message);
+                    }
+
+                    // Sort by timestamp ascending
+                    adaptedConversation.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+                    const dataForRender = {
+                        orderId: order.orderId,
+                        orderDate: order.createdAt,
+                        customerPhone: order.customer?.phone || '',
+                        customerName: order.customer?.name || 'Cliente',
+                        branchName: order.branchName || 'Sucursal',
+                        conversation: adaptedConversation,
+                        orderDetails: {
+                            items: (order.items || []).map(it => ({
+                                name: it.name,
+                                quantity: it.quantity,
+                                totalPrice: it.totalPrice || it.price || 0
+                            })),
+                            total: order.total || 0,
+                            delivery: {
+                                type: order.delivery?.type || 'delivery',
+                                address: order.delivery?.address || null,
+                                estimatedTime: order.delivery?.estimatedTime || 30
+                            }
+                        }
+                    };
+
                     // Generar la conversación real
-                    const conversation = this.generateRealOrderConversation(data.data);
+                    const conversation = this.generateRealOrderConversation(dataForRender);
                     
                     // Mostrar la conversación
                     document.getElementById('conversationContent').innerHTML = conversation;
@@ -7701,20 +7801,30 @@
                     `;
 
                     conversation.forEach((msg, index) => {
-                        const isUser = msg.user && !msg.assistant;
-                        const messageText = isUser ? msg.user : msg.assistant;
+                        // Detect role and content
+                        const normalizedRole = (msg.role || '').toString();
+                        const role = normalizedRole
+                            || (msg.system ? 'system' : (msg.user && !(msg.assistant || msg.bot) ? 'user' : 'assistant'));
+                        const assistantText = msg.assistant || msg.bot || (role === 'assistant' ? (msg.content || msg.text || '') : '');
+                        const systemText = msg.system || (role === 'system' ? (msg.content || msg.text || '') : '');
+                        const userText = msg.user || (role === 'user' ? (msg.content || msg.text || '') : '');
+                        const messageText = (msg.message || (role === 'system' ? systemText : (role === 'assistant' ? assistantText : userText)) || '').toString();
                         const timestamp = new Date(msg.timestamp).toLocaleTimeString('es-CO', {
                             hour: '2-digit',
                             minute: '2-digit'
                         });
-                        const senderName = isUser ? customerName : `${branchName} (Bot)`;
-                        
+                        const senderName = role === 'user'
+                            ? customerName
+                            : (role === 'assistant' ? `${branchName} (Bot)` : 'Sistema');
+
+                        const bubbleClass = role === 'user' ? 'user' : (role === 'assistant' ? 'bot' : 'bot');
+
                         html += `
-                            <div class="whatsapp-message ${isUser ? 'user' : 'bot'}">
-                                <div class="message-bubble ${isUser ? 'user' : 'bot'}">
+                            <div class="whatsapp-message ${bubbleClass}">
+                                <div class="message-bubble ${bubbleClass}">
                                     <div class="message-sender">${senderName}</div>
                                     <div class="message-text">${messageText}</div>
-                                    <div class="message-time ${isUser ? 'user' : 'bot'}">${timestamp}</div>
+                                    <div class="message-time ${bubbleClass}">${timestamp}</div>
                                 </div>
                             </div>
                         `;

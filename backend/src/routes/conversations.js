@@ -77,6 +77,39 @@ router.get('/history/:phoneNumber', authMiddleware.verifyToken, authMiddleware.r
     }
 });
 
+// Obtener historial de conversación por pedido
+router.get('/history-by-order/:orderId', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        const { branchId, phoneNumber, limit = 100 } = req.query;
+
+        if (!branchId || !orderId) {
+            return res.status(400).json({
+                success: false,
+                error: 'orderId y branchId son requeridos'
+            });
+        }
+
+        const messages = await WhatsAppMessage.getConversationHistoryByOrder(orderId, String(branchId), phoneNumber || null, parseInt(limit));
+
+        res.json({
+            success: true,
+            data: {
+                messages: messages.reverse(),
+                orderId,
+                branchId,
+                phoneNumber: phoneNumber || null
+            }
+        });
+    } catch (error) {
+        console.error('Error getting conversation history by order:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Error al obtener historial de conversación por pedido'
+        });
+    }
+});
+
 // Obtener estadísticas de conversaciones
 router.get('/stats', authMiddleware.verifyToken, authMiddleware.requireRole(['super_admin', 'business_admin', 'branch_admin']), async (req, res) => {
     try {

@@ -2244,7 +2244,7 @@ Puedes:
     /**
      * Guardar mensaje entrante en la base de datos
      */
-    async saveIncomingMessage(connectionId, phoneNumber, message, messageId, timestamp, connection) {
+    async saveIncomingMessage(connectionId, phoneNumber, message, messageId, timestamp, connection, extraContext = {}) {
         try {
             const whatsappMessage = new WhatsAppMessage({
                 messageId: messageId || `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -2258,6 +2258,10 @@ Puedes:
                     mediaType: 'text'
                 },
                 messageType: 'user_message',
+                context: {
+                    orderId: extraContext.orderId || null,
+                    sessionId: extraContext.sessionId || null
+                },
                 metadata: {
                     whatsappMessageId: messageId,
                     timestamp: timestamp ? new Date(timestamp) : new Date(),
@@ -2276,7 +2280,7 @@ Puedes:
     /**
      * Guardar respuesta del bot en la base de datos
      */
-    async saveOutgoingMessage(connectionId, phoneNumber, message, processingData = {}) {
+    async saveOutgoingMessage(connectionId, phoneNumber, message, processingData = {}, extraContext = {}) {
         try {
             const whatsappMessage = new WhatsAppMessage({
                 messageId: `bot_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -2288,6 +2292,10 @@ Puedes:
                     mediaType: 'text'
                 },
                 messageType: 'bot_response',
+                context: {
+                    orderId: extraContext.orderId || processingData.orderId || null,
+                    sessionId: extraContext.sessionId || processingData.sessionId || null
+                },
                 processing: {
                     intent: processingData.intent || null,
                     sentiment: processingData.sentiment || null,

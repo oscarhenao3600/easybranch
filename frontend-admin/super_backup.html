@@ -7873,20 +7873,29 @@
                     `;
 
                     conversation.forEach((msg, index) => {
-                        const isUser = msg.user && !msg.assistant;
-                        const messageText = isUser ? msg.user : msg.assistant;
+                        const normalizedRole = (msg.role || '').toString();
+                        const role = normalizedRole
+                            || (msg.system ? 'system' : (msg.user && !(msg.assistant || msg.bot) ? 'user' : 'assistant'));
+                        const assistantText = msg.assistant || msg.bot || (role === 'assistant' ? (msg.content || msg.text || '') : '');
+                        const systemText = msg.system || (role === 'system' ? (msg.content || msg.text || '') : '');
+                        const userText = msg.user || (role === 'user' ? (msg.content || msg.text || '') : '');
+                        const messageText = (msg.message || (role === 'system' ? systemText : (role === 'assistant' ? assistantText : userText)) || '').toString();
                         const timestamp = new Date(msg.timestamp).toLocaleTimeString('es-CO', {
                             hour: '2-digit',
                             minute: '2-digit'
                         });
-                        const senderName = isUser ? customerName : `${branchName} (Bot)`;
-                        
+                        const senderName = role === 'user'
+                            ? customerName
+                            : (role === 'assistant' ? `${branchName} (Bot)` : 'Sistema');
+
+                        const bubbleClass = role === 'user' ? 'user' : (role === 'assistant' ? 'bot' : 'bot');
+
                         html += `
-                            <div class="whatsapp-message ${isUser ? 'user' : 'bot'}">
-                                <div class="message-bubble ${isUser ? 'user' : 'bot'}">
+                            <div class="whatsapp-message ${bubbleClass}">
+                                <div class="message-bubble ${bubbleClass}">
                                     <div class="message-sender">${senderName}</div>
                                     <div class="message-text">${messageText}</div>
-                                    <div class="message-time ${isUser ? 'user' : 'bot'}">${timestamp}</div>
+                                    <div class="message-time ${bubbleClass}">${timestamp}</div>
                                 </div>
                             </div>
                         `;

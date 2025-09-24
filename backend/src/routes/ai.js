@@ -540,14 +540,75 @@ router.get('/:branchId/conversation-history', authMiddleware.requireRole(['super
             // Convertir branchId a ObjectId para la búsqueda
             const branchIdObjectId = new mongoose.Types.ObjectId(branchId);
             const rawHistory = await aiService.getConversationHistory(clientId, branchIdObjectId, limit);
-            // Asegurar que todos los mensajes tengan la estructura esperada
-            history = rawHistory.map(msg => {
-                return {
-                    user: msg.user || '',
-                    assistant: msg.assistant || 'Respuesta del asistente',
-                    timestamp: msg.timestamp || new Date().toISOString(),
-                    intent: msg.intent || 'consulta_general'
-                };
+            // Asegurar que todos los mensajes tengan la estructura esperada, preservando role y system
+            // Expand combined turns (user+assistant in same object) into individual messages
+            history = rawHistory.flatMap(msg => {
+                const entries = [];
+                const baseTimestamp = msg.timestamp || new Date().toISOString();
+
+                // OpenAI-like single message {role, content}
+                if (msg.role && (msg.content || msg.text)) {
+                    entries.push({
+                        role: msg.role,
+                        message: msg.message || msg.content || msg.text,
+                        content: msg.content || msg.text,
+                        user: msg.role === 'user' ? (msg.content || msg.text) : '',
+                        assistant: msg.role === 'assistant' ? (msg.content || msg.text) : '',
+                        system: msg.role === 'system' ? (msg.content || msg.text) : '',
+                        timestamp: baseTimestamp,
+                        intent: msg.intent || 'consulta_general'
+                    });
+                } else {
+                    // Legacy turn with possibly multiple fields
+                    if (msg.system) {
+                        entries.push({
+                            role: 'system',
+                            message: msg.system,
+                            system: msg.system,
+                            user: '',
+                            assistant: '',
+                            timestamp: baseTimestamp,
+                            intent: msg.intent || 'consulta_general'
+                        });
+                    }
+                    if (msg.user) {
+                        entries.push({
+                            role: 'user',
+                            message: msg.user,
+                            user: msg.user,
+                            assistant: '',
+                            system: '',
+                            timestamp: baseTimestamp,
+                            intent: msg.intent || 'consulta_general'
+                        });
+                    }
+                    const assistantText = msg.assistant || msg.bot;
+                    if (assistantText) {
+                        entries.push({
+                            role: 'assistant',
+                            message: assistantText,
+                            assistant: assistantText,
+                            bot: msg.bot || '',
+                            user: '',
+                            system: '',
+                            timestamp: baseTimestamp,
+                            intent: msg.intent || 'consulta_general'
+                        });
+                    }
+                }
+
+                // Fallback if nothing matched
+                if (entries.length === 0) {
+                    entries.push({
+                        role: msg.role || 'assistant',
+                        message: msg.message || msg.content || msg.text || '',
+                        content: msg.content || msg.text || '',
+                        timestamp: baseTimestamp,
+                        intent: msg.intent || 'consulta_general'
+                    });
+                }
+
+                return entries;
             });
         }
 
