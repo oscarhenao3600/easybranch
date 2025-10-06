@@ -324,6 +324,185 @@ class WhatsAppController {
             // Save incoming message to database
             await this.saveIncomingMessage(connectionId, phoneNumber, message, messageId, timestamp, connection);
 
+            // Normalizar alias de productos para facilitar la detección (sin alterar el contenido guardado)
+            let effectiveMessageForAI = message;
+            try {
+                const normBasic = (t) => (t||'').toLowerCase()
+                    .replace(/[áäàâ]/g,'a').replace(/[éëèê]/g,'e').replace(/[íïìî]/g,'i')
+                    .replace(/[óöòô]/g,'o').replace(/[úüùû]/g,'u').replace(/ñ/g,'n');
+                const nm = normBasic(message || '');
+                // Mapear pluralizaciones y variaciones a nombres canónicos
+                if (/\bemparejad[oa]s?\b/.test(nm)) {
+                    effectiveMessageForAI = 'combo emparejado';
+                } else {
+                    const fam = nm.match(/\bfamiliar\s*(\d)\b/);
+                    const combo = nm.match(/\bcombo\s*(\d)\b/);
+                    const personal = nm.match(/\bpersonal\s*(\d)\b/);
+                    if (fam) effectiveMessageForAI = `familiar ${fam[1]}`;
+                    else if (combo) effectiveMessageForAI = `combo ${combo[1]}`;
+                    else if (personal) effectiveMessageForAI = `combo ${personal[1]}`;
+                }
+            } catch (_) {}
+
+            // Fuzzy detection for "menú" intent with typos; and affirmative replies when bot ofreció el menú
+            try {
+                const normalize = (txt) => {
+                    return (txt || '')
+                        .toLowerCase()
+                        .replace(/[áäàâ]/g,'a').replace(/[éëèê]/g,'e').replace(/[íïìî]/g,'i')
+                        .replace(/[óöòô]/g,'o').replace(/[úüùû]/g,'u').replace(/ñ/g,'n')
+                        .replace(/[\.,!¡¿?\-_:;\(\)\[\]"]+/g, ' ')
+                        .trim();
+                };
+                const dist = (a, b) => {
+                    const m = a.length, n = b.length;
+                    if (m === 0) return n; if (n === 0) return m;
+                    const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+                    for (let i = 0; i <= m; i++) dp[i][0] = i;
+                    for (let j = 0; j <= n; j++) dp[0][j] = j;
+                    for (let i = 1; i <= m; i++) {
+                        for (let j = 1; j <= n; j++) {
+                            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+                            dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+                        }
+                    }
+                    return dp[m][n];
+                };
+                const nm = normalize(message);
+                const tokens = nm.split(/\s+/).filter(Boolean);
+                const directMenu = nm.includes('menu') || nm.includes('enviame el menu') || nm.includes('mandame el menu') || nm.includes('carta') || nm.includes('menu');
+                let fuzzyMenu = false;
+                for (const t of tokens) { if (dist(t, 'menu') <= 1) { fuzzyMenu = true; break; } }
+                // Affirmative tokens to accept menu offer (amplio, coloquial y con typos comunes)
+                const positives = new Set([
+                    'si','sí','sii','siii','sip','sep','asimismo','asi es','así es','correcto','exacto',
+                    'ok','okay','okey','oki','okis','okas','oki doki','ok doki','okidoki',
+                    'dale','de una','hágale','hagale','hágale pues','hagale pues','hágale de una','hagale de una',
+                    'listo','listoo','listico','listis','va','vamos','vale','va pues',
+                    'genial','perfecto','super','súper','bueno','bien',
+                    'claro','claro que si','claro que sí','obvio','obviamente',
+                    'gracias','porfa','por favor','sí porfa','si porfa','si por favor','sí por favor',
+                    'yes','yeah','yep','ya','okey dokey'
+                ]);
+                const isAffirmative = nm && (positives.has(nm) || tokens.some(t => positives.has(t)));
+                // Check if last bot message offered the menu
+                let lastBotAskedMenu = false;
+                try {
+                    const ch = await this.getConversationHistory(phoneNumber, connection.branchId, 10);
+                    const lb = normalize(ch.lastBotMessage || '');
+                    lastBotAskedMenu = lb.includes('enviarte el menu') || lb.includes('enviame el menu') || lb.includes('solo dime menu') || lb.includes('menu');
+                } catch (_) {}
+                // Si no se pudo determinar por memoria, revisar últimos mensajes salientes
+                if (!lastBotAskedMenu) {
+                    try {
+                        const recentBotMsgs = await WhatsAppMessage.find({
+                            phoneNumber,
+                            direction: 'outgoing'
+                        }).sort({ 'metadata.timestamp': -1 }).limit(5).select('content');
+                        for (const m of recentBotMsgs) {
+                            const txt = normalize(m?.content?.text || '');
+                            if (txt.includes('enviarte el menu') || txt.includes('enviame el menu') || txt.includes('solo dime menu') || txt.includes('solo dime menu o enviame el menu')) {
+                                lastBotAskedMenu = true; break;
+                            }
+                        }
+                    } catch (_) {}
+                }
+
+                if (directMenu || fuzzyMenu || (isAffirmative && lastBotAskedMenu)) {
+                    // Try to fetch configured menu content
+                    let menuText = null;
+                    try {
+                        let cfg = await BranchAIConfig.findOne({ branchId: connection.branchId });
+                        if (!cfg) cfg = await BranchAIConfig.findOne({ branchId: String(connection.branchId) });
+                        if (cfg && cfg.menuContent) menuText = cfg.menuContent;
+                    } catch (_) {}
+                    if (!menuText && this.aiService && this.aiService.menuContent?.get) {
+                        const cached = this.aiService.menuContent.get(connection.branchId);
+                        if (cached && (cached.menu || typeof cached === 'string')) menuText = cached.menu || cached;
+                    }
+                    if (menuText) {
+                        try {
+                            if (!this._sessionTimerService) {
+                                const SessionTimerService = require('../services/SessionTimerService');
+                                this._sessionTimerService = new SessionTimerService();
+                                this._sessionTimerService.start();
+                            }
+                            await this._sessionTimerService.onMenuRequest({ phoneNumber, branchId: connection.branchId });
+                        } catch (_) {}
+                        // Presentación más amigable del menú sin alterar el contenido
+                        const formatMenuForWhatsApp = (raw) => {
+                            if (!raw) return '';
+                            // Mantener contenido pero mejorar legibilidad con saltos de línea y viñetas donde aplica
+                            let txt = String(raw);
+                            // Evitar colapsar saltos existentes, solo limpiar espacios excesivos entre palabras
+                            txt = txt.replace(/[\t ]{2,}/g, ' ');
+                            // Separar secciones conocidas
+                            const sectionPattern = /(COMBOS?\s+PERSONALES|COMBOS?\s+FAMILIARES|COMBO\s+EMPAREJADO|ACOMPA[ÑN]ANTES|ADICIONES)/gi;
+                            txt = txt.replace(sectionPattern, '\n\n$1\n');
+                            // Añadir saltos antes de ítems típicos de menú
+                            txt = txt.replace(/\b(Combo\s*\d+)\b/gi, '\n* $1');
+                            txt = txt.replace(/\b(Familiar\s*\d+)\b/gi, '\n* $1');
+                            txt = txt.replace(/\b(Emparejado)\b/gi, '\n* $1');
+                            // Si hay listado de acompañantes/adiciones, asegurar viñetas por cada palabra-capitalizada seguida de precio opcional
+                            // Ej: "Papas criollas - $9.000" -> forzar línea
+                            txt = txt.replace(/\s(\*?\s?[A-ZÁÉÍÓÚÑ][^\n$]{2,}?\s?-\s?\$\d[\d\.\,]*)/g, '\n* $1');
+                            // Insertar salto antes de cada precio pegado al nombre si falta
+                            txt = txt.replace(/([^\n])\s*(\$\d[\d\.\,]+)/g, '$1 $2');
+                            // Encabezado si no está presente
+                            const firstLine = (txt.split(/\n/)[0] || '').trim();
+                            const hasHeader = /\bmen[uú]|carta|secci[óo]n\s+1/i.test(firstLine);
+                            const header = hasHeader ? '' : '🍗 MENÚ\n';
+                            const cta = '\n\nPara ordenar, responde con el nombre del combo o producto.';
+                            return (header + txt.trim() + cta).trim();
+                        };
+                        const chunkMessage = (text, limit = 3500) => {
+                            const parts = [];
+                            let remaining = text;
+                            while (remaining.length > limit) {
+                                // intentar cortar en salto de línea cercano
+                                const slice = remaining.slice(0, limit);
+                                const cutAt = slice.lastIndexOf('\n');
+                                const take = cutAt > 200 ? cutAt : limit; // evita cortar demasiado pronto
+                                parts.push(remaining.slice(0, take));
+                                remaining = remaining.slice(take);
+                            }
+                            if (remaining) parts.push(remaining);
+                            return parts;
+                        };
+
+                        const prettyMenu = formatMenuForWhatsApp(menuText);
+                        const chunks = chunkMessage(prettyMenu);
+                        for (const chunk of chunks) {
+                            await this.whatsappService.sendMessage(connectionIdStr, phoneNumber, chunk);
+                        }
+                        // Guardar primer chunk como último mensaje del bot para contexto
+                        try {
+                            const saved = await this.saveOutgoingMessage(
+                                connectionIdStr,
+                                phoneNumber,
+                                chunks[0] || prettyMenu,
+                                { conversationStage: 'showing_menu', branchId: connection.branchId, businessId: connection.businessId },
+                                { branchId: connection.branchId, businessId: connection.businessId }
+                            );
+                            await this.updateConversationMemory(phoneNumber, connection.branchId, connection.businessId, message, chunks[0] || prettyMenu, { conversationStage: 'showing_menu' });
+                        } catch (_) {}
+                        // Enviar botones rápidos para guiar al cliente (máx 3)
+                        try {
+                            const quickText = '¿Qué te gustaría hacer ahora?';
+                            const quickButtons = ['Pedir', 'Ver combos', 'Ver acompañantes'];
+                            if (this.whatsappService.sendQuickReplies) {
+                                await this.whatsappService.sendQuickReplies(connectionIdStr, phoneNumber, quickText, quickButtons);
+                            }
+                        } catch (_) { /* opcional */ }
+                        connection.messagesToday = (connection.messagesToday || 0) + 1;
+                        connection.totalMessages = (connection.totalMessages || 0) + 1;
+                        await connection.save();
+                        return;
+                    }
+                    // If no configured menu, let normal AI flow continue
+                }
+            } catch (_) { /* ignore and continue normal flow */ }
+
             // Upsert persistent session for timers
             try {
                 const SessionTimerService = require('../services/SessionTimerService');
@@ -347,8 +526,36 @@ class WhatsAppController {
                 const isOrderRequest = ['pedir', 'ordenar', 'comprar'].some(keyword => 
                     lowerMessage.includes(keyword.toLowerCase())
                 );
-                // Usar IA para confirmar detección robusta
-                const isOrderConfirmation = this.aiService.isOrderConfirmation ? this.aiService.isOrderConfirmation(message) : ['sí','si','acepto','confirmo','ok','listo','vale','yes'].some(k=>lowerMessage.includes(k));
+                // Usar IA para confirmar detección robusta, pero SOLO si el contexto indica confirmación
+                let isOrderConfirmation = this.aiService.isOrderConfirmation ? this.aiService.isOrderConfirmation(message) : ['sí','si','acepto','confirmo','ok','listo','vale','yes'].some(k=>lowerMessage.includes(k));
+                if (isOrderConfirmation) {
+                    try {
+                        // Verificar contexto reciente del bot pidiendo confirmación
+                        let askedForConfirmation = false;
+                        const recentBotMsgs = await WhatsAppMessage.find({
+                            phoneNumber,
+                            direction: 'outgoing'
+                        }).sort({ 'metadata.timestamp': -1 }).limit(6).select('content');
+                        const norm = (t) => (t||'').toLowerCase()
+                            .replace(/[áäàâ]/g,'a').replace(/[éëèê]/g,'e').replace(/[íïìî]/g,'i')
+                            .replace(/[óöòô]/g,'o').replace(/[úüùû]/g,'u').replace(/ñ/g,'n');
+                        for (const m of recentBotMsgs) {
+                            const txt = norm(m?.content?.text || '');
+                            if (
+                                txt.includes('confirmas este pedido') ||
+                                txt.includes('quieres confirmar') ||
+                                txt.includes('pedido confirmado') ||
+                                txt.includes('confirmar pedido')
+                            ) { askedForConfirmation = true; break; }
+                        }
+                        if (!askedForConfirmation) {
+                            isOrderConfirmation = false;
+                        }
+                    } catch (_) {
+                        // Si falla la verificación de contexto, ser conservadores y no confirmar
+                        isOrderConfirmation = false;
+                    }
+                }
 
                 if (isGreeting) {
                     // Iniciar sesión de saludo con timer de 3 minutos
@@ -509,8 +716,8 @@ class WhatsAppController {
                 const looksLikeAlitasMenu = /COMBOS\s+PERSONALES|COMBOS\s+FAMILIARES|COMBO\s+EMPAREJADO/i.test(messageTextRaw || '');
                 const hasRecommendationHeader = /MI\s+RECOMENDACI[ÓO]N/i.test(messageTextRaw || '');
                 
-                // Solo agregar guía si es un menú automático Y no es una respuesta guiada
-                if (looksLikeAlitasMenu && !hasRecommendationHeader && !isGuidedResponse) {
+                // Deshabilitar prepend de guía rápida para no alterar el menú configurado
+                if (false && looksLikeAlitasMenu && !hasRecommendationHeader && !isGuidedResponse) {
                     const quickGuide = `Hagámoslo simple: dime cuántas personas son y te doy la opción más básica adecuada.\n\n` +
 `- 1 persona: Combo 1 (5 alitas + acompañante)\n` +
 `- 2 personas: Combo Emparejado (16 alitas + 2 acompañantes)\n` +
@@ -524,6 +731,17 @@ class WhatsAppController {
                 }
                 
                 await this.whatsappService.sendMessage(connectionIdStr, phoneNumber, messageText);
+                // Guardar respuesta del bot y actualizar memoria
+                try {
+                    const saved = await this.saveOutgoingMessage(
+                        connectionIdStr,
+                        phoneNumber,
+                        messageText,
+                        { conversationStage: 'active_conversation', branchId: connection.branchId, businessId: connection.businessId },
+                        { branchId: connection.branchId, businessId: connection.businessId }
+                    );
+                    await this.updateConversationMemory(phoneNumber, connection.branchId, connection.businessId, message, messageText, { conversationStage: 'active_conversation' });
+                } catch (_) {}
 
                 // Update connection stats
                 connection.messagesToday = (connection.messagesToday || 0) + 1;
@@ -2282,10 +2500,23 @@ Puedes:
      */
     async saveOutgoingMessage(connectionId, phoneNumber, message, processingData = {}, extraContext = {}) {
         try {
+            // Asegurar branchId y businessId para cumplir validación del modelo
+            let branchIdForMsg = extraContext.branchId || processingData.branchId || null;
+            let businessIdForMsg = extraContext.businessId || processingData.businessId || null;
+            if (!branchIdForMsg || !businessIdForMsg) {
+                try {
+                    const WhatsAppConnection = require('../models/WhatsAppConnection');
+                    const connDoc = await WhatsAppConnection.findById(connectionId).select('branchId businessId');
+                    branchIdForMsg = branchIdForMsg || (connDoc && String(connDoc.branchId));
+                    businessIdForMsg = businessIdForMsg || (connDoc && String(connDoc.businessId));
+                } catch (_) {}
+            }
             const whatsappMessage = new WhatsAppMessage({
                 messageId: `bot_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                 connectionId: String(connectionId),
                 phoneNumber,
+                branchId: branchIdForMsg ? String(branchIdForMsg) : undefined,
+                businessId: businessIdForMsg ? String(businessIdForMsg) : undefined,
                 direction: 'outgoing',
                 content: {
                     text: message,

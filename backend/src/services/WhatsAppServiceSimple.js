@@ -3,7 +3,7 @@ const LoggerService = require('./LoggerService');
 const EventEmitter = require('events');
 
 // Lazy load whatsapp-web.js to avoid initialization issues
-let Client, LocalAuth, MessageMedia;
+let Client, LocalAuth, MessageMedia, Buttons, List;
 
 class WhatsAppServiceSimple extends EventEmitter {
     static getInstance() {
@@ -95,6 +95,8 @@ class WhatsAppServiceSimple extends EventEmitter {
                 Client = whatsappWeb.Client;
                 LocalAuth = whatsappWeb.LocalAuth;
                 MessageMedia = whatsappWeb.MessageMedia;
+                Buttons = whatsappWeb.Buttons;
+                List = whatsappWeb.List;
             }
             
             const client = new Client({
@@ -189,6 +191,8 @@ class WhatsAppServiceSimple extends EventEmitter {
                 Client = whatsappWeb.Client;
                 LocalAuth = whatsappWeb.LocalAuth;
                 MessageMedia = whatsappWeb.MessageMedia;
+                Buttons = whatsappWeb.Buttons;
+                List = whatsappWeb.List;
             }
 
             // Check if client already exists
@@ -476,6 +480,41 @@ class WhatsAppServiceSimple extends EventEmitter {
                 to, 
                 error: error.message 
             });
+            throw error;
+        }
+    }
+
+    // Send quick reply buttons (WhatsApp interactive Buttons)
+    async sendQuickReplies(connectionId, to, text, buttons) {
+        try {
+            const key = this.normalizeId(connectionId);
+            const client = this.clients.get(key);
+            if (!client) {
+                throw new Error(`WhatsApp client not found for connection ${key}`);
+            }
+            if (!client.info) {
+                throw new Error('WhatsApp client is not ready yet');
+            }
+            // Format number
+            let formattedNumber = to;
+            if (formattedNumber.startsWith('+')) formattedNumber = formattedNumber.substring(1);
+            if (formattedNumber.includes('@c.us')) formattedNumber = formattedNumber.replace('@c.us', '');
+            formattedNumber = formattedNumber + '@c.us';
+
+            // Build Buttons payload
+            const btns = (buttons || []).map(label => ({ body: String(label).slice(0, 20) }));
+            // Ensure at least 1 and at most 3 buttons per WhatsApp constraints
+            const btnSlice = btns.slice(0, 3);
+            if (!Buttons) {
+                const whatsappWeb = require('whatsapp-web.js');
+                Buttons = whatsappWeb.Buttons;
+            }
+            const payload = new Buttons(text, btnSlice, '', '');
+            const result = await client.sendMessage(formattedNumber, payload);
+            this.logger.info('Quick replies sent via WhatsApp Web', { connectionId: key, to, messageId: result.id._serialized });
+            return { success: true, messageId: result.id._serialized, provider: 'whatsapp-web' };
+        } catch (error) {
+            this.logger.error('Failed to send quick replies via WhatsApp Web', { connectionId, to, error: error.message });
             throw error;
         }
     }
