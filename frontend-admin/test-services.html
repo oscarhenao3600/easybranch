@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Services Endpoint</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .result { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e8; color: #2e7d32; }
+        .product { background: white; padding: 10px; margin: 5px 0; border-left: 4px solid #2196f3; }
+        button { background: #2196f3; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #1976d2; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Test Services Endpoint</h1>
+    
+    <button onclick="testEndpoint()">Probar Endpoint</button>
+    <button onclick="clearResults()">Limpiar Resultados</button>
+    
+    <div id="results"></div>
+
+    <script>
+        async function testEndpoint() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div class="result">🔄 Probando endpoint...</div>';
+            
+            try {
+                console.log('🔍 Probando endpoint /api/branch/services...');
+                
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    throw new Error('No hay token en localStorage. Por favor, inicia sesión primero.');
+                }
+                
+                console.log('🔑 Token encontrado:', token.substring(0, 50) + '...');
+                
+                const response = await fetch('/api/branch/services?limit=100', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                console.log('📊 Status:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Error ${response.status}: ${errorText}`);
+                }
+                
+                const data = await response.json();
+                console.log('✅ Respuesta del servidor:', data);
+                
+                // Mostrar resultados en la página
+                let html = `
+                    <div class="result success">
+                        <h3>✅ Endpoint funcionando correctamente</h3>
+                        <p><strong>Status:</strong> ${response.status}</p>
+                        <p><strong>Total productos:</strong> ${data.data?.length || 0}</p>
+                        <p><strong>Páginas:</strong> ${data.pagination?.pages || 1}</p>
+                    </div>
+                `;
+                
+                if (data.data && data.data.length > 0) {
+                    html += '<div class="result"><h3>📋 Productos encontrados:</h3>';
+                    
+                    // Agrupar por categoría
+                    const categories = {};
+                    data.data.forEach(product => {
+                        if (!categories[product.category]) {
+                            categories[product.category] = [];
+                        }
+                        categories[product.category].push(product);
+                    });
+                    
+                    Object.keys(categories).forEach(category => {
+                        html += `<h4>${category} (${categories[category].length} productos)</h4>`;
+                        categories[category].forEach(product => {
+                            html += `
+                                <div class="product">
+                                    <strong>${product.name}</strong> - $${product.price?.toLocaleString()}
+                                    ${product.description ? `<br><small>${product.description}</small>` : ''}
+                                    ${product.tags && product.tags.length > 0 ? `<br><small>Tags: ${product.tags.join(', ')}</small>` : ''}
+                                </div>
+                            `;
+                        });
+                    });
+                    
+                    html += '</div>';
+                } else {
+                    html += '<div class="result error"><h3>❌ No se encontraron productos</h3></div>';
+                }
+                
+                resultsDiv.innerHTML = html;
+                
+            } catch (error) {
+                console.error('❌ Error:', error.message);
+                resultsDiv.innerHTML = `
+                    <div class="result error">
+                        <h3>❌ Error</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+        
+        // Probar automáticamente al cargar la página
+        window.onload = function() {
+            console.log('🚀 Página cargada, probando endpoint automáticamente...');
+            testEndpoint();
+        };
+    </script>
+</body>
+</html>

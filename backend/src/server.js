@@ -25,6 +25,16 @@ async function startServer() {
       logger.info(`🌍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
     });
 
+    // Iniciar SessionTimerService global (persistente)
+    try {
+      const SessionTimerService = require('./services/SessionTimerService');
+      const timers = new SessionTimerService();
+      timers.start();
+      logger.info('⏰ SessionTimerService iniciado correctamente');
+    } catch (e) {
+      logger.error('❌ No se pudo iniciar SessionTimerService:', e.message);
+    }
+
   } catch (error) {
     logger.error('❌ Error iniciando servidor:', error);
     process.exit(1);

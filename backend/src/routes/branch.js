@@ -148,6 +148,17 @@ router.get('/services', authMiddleware.verifyToken, authMiddleware.requireRole([
 // Función auxiliar para parsear menú a productos
 function parseMenuToProducts(menuContent, branchId, businessId) {
     const products = [];
+    
+    // Detectar si es un menú de alitas mix
+    const isAlitasMenu = menuContent.toLowerCase().includes('alitas') || 
+                         menuContent.toLowerCase().includes('combo') ||
+                         menuContent.includes('🍗');
+    
+    if (isAlitasMenu) {
+        return parseAlitasMenu(menuContent, branchId, businessId);
+    }
+    
+    // Parser original para menús de cafetería
     const lines = menuContent.split(/\r?\n/).filter(Boolean);
     let currentCategory = 'General';
     const productPattern = /^[•\-\*]\s*(.+?)\s*-\s*\$?([0-9,]+)/i;
@@ -185,6 +196,85 @@ function parseMenuToProducts(menuContent, branchId, businessId) {
             });
         }
     }
+    return products;
+}
+
+function parseAlitasMenu(menuContent, branchId, businessId) {
+    const products = [];
+    
+    // Para el formato comprimido de alitas mix, necesitamos un enfoque diferente
+    // Los precios están al final en secuencia: $21.900 $26.900 $30.900 $42.900 $65.900 $62.900 $87.900 $107.900 $123.900
+    
+    // Extraer todos los precios del menú
+    const priceMatches = menuContent.match(/\$([0-9,]+)/g);
+    const prices = priceMatches ? priceMatches.map(p => parseInt(p.replace(/[$,]/g, ''))) : [];
+    
+    console.log('💰 Precios encontrados:', prices);
+    
+    // Definir los combos con sus precios correspondientes
+    const combos = [
+        { name: 'Combo 1', category: 'Combos Personales', alitas: 5, priceIndex: 0 },
+        { name: 'Combo 2', category: 'Combos Personales', alitas: 7, priceIndex: 1 },
+        { name: 'Combo 3', category: 'Combos Personales', alitas: 9, priceIndex: 2 },
+        { name: 'Combo 4', category: 'Combos Personales', alitas: 14, priceIndex: 3 },
+        { name: 'Combo Familiar 1', category: 'Combos Familiares', alitas: 20, priceIndex: 4 },
+        { name: 'Combo Familiar 2', category: 'Combos Familiares', alitas: 30, priceIndex: 5 },
+        { name: 'Combo Familiar 3', category: 'Combos Familiares', alitas: 40, priceIndex: 6 },
+        { name: 'Combo Familiar 4', category: 'Combos Familiares', alitas: 50, priceIndex: 7 },
+        { name: 'Combo Emparejado', category: 'Combo Emparejado', alitas: 16, priceIndex: 8 }
+    ];
+    
+    // Crear productos basados en los precios encontrados
+    combos.forEach(combo => {
+        if (prices[combo.priceIndex]) {
+            products.push({
+                serviceId: `SVC_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                businessId: businessId ? String(businessId) : '',
+                branchId: branchId ? String(branchId) : '',
+                name: combo.name,
+                description: `${combo.alitas} alitas + acompañante + salsas${combo.category.includes('Familiar') ? ' + gaseosa 1.5L' : ''}${combo.category.includes('Emparejado') ? ' + 2 limonadas' : ''}`,
+                category: combo.category,
+                subcategory: null,
+                price: prices[combo.priceIndex],
+                currency: 'COP',
+                images: [],
+                options: [],
+                availability: { isAvailable: true, stock: -1, preparationTime: 20 },
+                tags: ['alitas', 'combo'],
+                isActive: true,
+                alitasCount: combo.alitas
+            });
+        }
+    });
+    
+    // Buscar acompañantes con precios específicos
+    const accompaniments = [
+        { name: 'Papas criollas', price: 9000 },
+        { name: 'Cascos', price: 9000 },
+        { name: 'Yucas', price: 9000 },
+        { name: 'Arepitas', price: 9000 },
+        { name: 'Papas francesa', price: 9000 }
+    ];
+    
+    accompaniments.forEach(accompaniment => {
+        products.push({
+            serviceId: `SVC_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+            businessId: businessId ? String(businessId) : '',
+            branchId: branchId ? String(branchId) : '',
+            name: accompaniment.name,
+            description: 'Acompañante para alitas',
+            category: 'Acompañantes',
+            subcategory: null,
+            price: accompaniment.price,
+            currency: 'COP',
+            images: [],
+            options: [],
+            availability: { isAvailable: true, stock: -1, preparationTime: 10 },
+            tags: ['acompañante'],
+            isActive: true
+        });
+    });
+    
     return products;
 }
 

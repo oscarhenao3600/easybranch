@@ -3,9 +3,16 @@ const LoggerService = require('./LoggerService');
 const EventEmitter = require('events');
 
 // Lazy load whatsapp-web.js to avoid initialization issues
-let Client, LocalAuth, MessageMedia;
+let Client, LocalAuth, MessageMedia, Buttons, List;
 
 class WhatsAppServiceSimple extends EventEmitter {
+    static getInstance() {
+        if (!global.__waServiceSimpleInstance) {
+            global.__waServiceSimpleInstance = new WhatsAppServiceSimple();
+        }
+        return global.__waServiceSimpleInstance;
+    }
+
     constructor() {
         super();
         this.logger = new LoggerService('whatsapp-service-simple');
@@ -19,6 +26,21 @@ class WhatsAppServiceSimple extends EventEmitter {
         setTimeout(() => {
             this.autoReconnectConnections();
         }, 5000); // Wait 5 seconds for the app to fully initialize
+    }
+
+    // Normalize map key usage
+    normalizeId(id) {
+        // Handle both ObjectId and string IDs
+        return id ? String(id) : id;
+    }
+
+    async ensureClient(connectionId, phoneNumber) {
+        const key = this.normalizeId(connectionId);
+        if (!this.clients.has(key)) {
+            this.logger.info('Ensuring WhatsApp client for connection', { connectionId: key, phoneNumber });
+            await this.createWhatsAppWebClient(key, phoneNumber);
+        }
+        return this.clients.get(key);
     }
 
     // Auto-reconnect existing WhatsApp connections
@@ -62,8 +84,9 @@ class WhatsAppServiceSimple extends EventEmitter {
     // Create WhatsApp Web client
     async createWhatsAppWebClient(connectionId, phoneNumber) {
         try {
+            const key = this.normalizeId(connectionId);
             console.log('📱 ===== CREANDO CLIENTE WHATSAPP =====');
-            console.log('📱 Connection ID:', connectionId);
+            console.log('📱 Connection ID:', key);
             console.log('📞 Phone Number:', phoneNumber);
             
             // Load whatsapp-web.js if not already loaded
@@ -72,6 +95,8 @@ class WhatsAppServiceSimple extends EventEmitter {
                 Client = whatsappWeb.Client;
                 LocalAuth = whatsappWeb.LocalAuth;
                 MessageMedia = whatsappWeb.MessageMedia;
+                Buttons = whatsappWeb.Buttons;
+                List = whatsappWeb.List;
             }
             
             const client = new Client({
@@ -94,46 +119,47 @@ class WhatsAppServiceSimple extends EventEmitter {
             });
 
             // Store client reference
-            this.clients.set(connectionId, client);
+            const normalizedId = this.normalizeId(connectionId);
+            this.clients.set(normalizedId, client);
 
             // Set up event handlers
             client.on('qr', async (qr) => {
-                console.log('📱 QR Code generado para conexión:', connectionId);
-                this.logger.info('QR Code generated for connection', { connectionId, phoneNumber });
+                console.log('📱 QR Code generado para conexión:', key);
+                this.logger.info('QR Code generated for connection', { connectionId: key, phoneNumber });
             });
 
             client.on('ready', () => {
                 console.log('✅ ===== WHATSAPP CLIENT READY =====');
-                console.log('📱 Connection ID:', connectionId);
+                console.log('📱 Connection ID:', key);
                 console.log('📞 Phone Number:', phoneNumber);
                 console.log('🎯 Client Info:', client.info);
-                console.log('💾 Session Path:', `./sessions/${connectionId}`);
+                console.log('💾 Session Path:', `./sessions/${key}`);
                 console.log('====================================');
-                this.logger.info('WhatsApp Web client ready', { connectionId, phoneNumber });
+                this.logger.info('WhatsApp Web client ready', { connectionId: key, phoneNumber });
             });
 
             client.on('authenticated', () => {
                 console.log('🔐 ===== WHATSAPP CLIENT AUTHENTICATED =====');
-                console.log('📱 Connection ID:', connectionId);
+                console.log('📱 Connection ID:', key);
                 console.log('📞 Phone Number:', phoneNumber);
-                console.log('💾 Session saved to:', `./sessions/${connectionId}`);
+                console.log('💾 Session saved to:', `./sessions/${key}`);
                 console.log('==========================================');
-                this.logger.info('WhatsApp Web client authenticated', { connectionId, phoneNumber });
+                this.logger.info('WhatsApp Web client authenticated', { connectionId: key, phoneNumber });
             });
 
             client.on('auth_failure', (msg) => {
                 console.error('❌ WhatsApp authentication failed:', msg);
-                this.logger.error('WhatsApp Web authentication failed', { connectionId, phoneNumber, error: msg });
+                this.logger.error('WhatsApp Web authentication failed', { connectionId: key, phoneNumber, error: msg });
             });
 
             client.on('disconnected', (reason) => {
                 console.warn('⚠️ WhatsApp client disconnected:', reason);
-                this.logger.warn('WhatsApp Web client disconnected', { connectionId, phoneNumber, reason });
+                this.logger.warn('WhatsApp Web client disconnected', { connectionId: key, phoneNumber, reason });
             });
 
             client.on('message', async (message) => {
-                console.log('📨 Mensaje recibido en cliente:', connectionId);
-                await this.handleIncomingMessage(message, connectionId);
+                console.log('📨 Mensaje recibido en cliente:', key);
+                await this.handleIncomingMessage(message, key);
             });
 
             // Initialize the client
@@ -165,6 +191,8 @@ class WhatsAppServiceSimple extends EventEmitter {
                 Client = whatsappWeb.Client;
                 LocalAuth = whatsappWeb.LocalAuth;
                 MessageMedia = whatsappWeb.MessageMedia;
+                Buttons = whatsappWeb.Buttons;
+                List = whatsappWeb.List;
             }
 
             // Check if client already exists
@@ -195,7 +223,8 @@ class WhatsAppServiceSimple extends EventEmitter {
             });
 
             // Store client reference
-            this.clients.set(connectionId, client);
+            const normalizedId = this.normalizeId(connectionId);
+            this.clients.set(normalizedId, client);
 
             // Set up event handlers
             client.on('qr', async (qr) => {
@@ -381,15 +410,16 @@ class WhatsAppServiceSimple extends EventEmitter {
     // Send message via WhatsApp Web
     async sendMessage(connectionId, to, message) {
         try {
+            const key = this.normalizeId(connectionId);
             console.log('🔍 ===== VERIFICANDO CLIENTE WHATSAPP =====');
-            console.log('📱 Connection ID:', connectionId);
+            console.log('📱 Connection ID:', key);
             console.log('📊 Total clients:', this.clients.size);
             console.log('🔑 Client keys:', Array.from(this.clients.keys()));
             
-            const client = this.clients.get(connectionId);
+            const client = this.clients.get(key);
             if (!client) {
-                console.error('❌ Cliente no encontrado para connection:', connectionId);
-                throw new Error(`WhatsApp client not found for connection ${connectionId}`);
+                console.error('❌ Cliente no encontrado para connection:', key);
+                throw new Error(`WhatsApp client not found for connection ${key}`);
             }
             
             console.log('✅ Cliente encontrado:', !!client);
@@ -413,7 +443,7 @@ class WhatsAppServiceSimple extends EventEmitter {
             formattedNumber = formattedNumber + '@c.us';
             
             console.log('📤 ===== ENVIANDO MENSAJE WHATSAPP =====');
-            console.log('📱 Connection ID:', connectionId);
+            console.log('📱 Connection ID:', key);
             console.log('📞 To:', to);
             console.log('💬 Message:', message);
             console.log('🔢 Formatted Number:', formattedNumber);
@@ -428,13 +458,13 @@ class WhatsAppServiceSimple extends EventEmitter {
             const result = await client.sendMessage(formattedNumber, message);
             
             console.log('✅ ===== MENSAJE ENVIADO EXITOSAMENTE =====');
-            console.log('📱 Connection ID:', connectionId);
+            console.log('📱 Connection ID:', key);
             console.log('📞 To:', to);
             console.log('🆔 Message ID:', result.id._serialized);
             console.log('==========================================');
             
             this.logger.info('Message sent via WhatsApp Web', { 
-                connectionId, 
+                connectionId: key, 
                 to, 
                 messageId: result.id._serialized 
             });
@@ -450,6 +480,41 @@ class WhatsAppServiceSimple extends EventEmitter {
                 to, 
                 error: error.message 
             });
+            throw error;
+        }
+    }
+
+    // Send quick reply buttons (WhatsApp interactive Buttons)
+    async sendQuickReplies(connectionId, to, text, buttons) {
+        try {
+            const key = this.normalizeId(connectionId);
+            const client = this.clients.get(key);
+            if (!client) {
+                throw new Error(`WhatsApp client not found for connection ${key}`);
+            }
+            if (!client.info) {
+                throw new Error('WhatsApp client is not ready yet');
+            }
+            // Format number
+            let formattedNumber = to;
+            if (formattedNumber.startsWith('+')) formattedNumber = formattedNumber.substring(1);
+            if (formattedNumber.includes('@c.us')) formattedNumber = formattedNumber.replace('@c.us', '');
+            formattedNumber = formattedNumber + '@c.us';
+
+            // Build Buttons payload
+            const btns = (buttons || []).map(label => ({ body: String(label).slice(0, 20) }));
+            // Ensure at least 1 and at most 3 buttons per WhatsApp constraints
+            const btnSlice = btns.slice(0, 3);
+            if (!Buttons) {
+                const whatsappWeb = require('whatsapp-web.js');
+                Buttons = whatsappWeb.Buttons;
+            }
+            const payload = new Buttons(text, btnSlice, '', '');
+            const result = await client.sendMessage(formattedNumber, payload);
+            this.logger.info('Quick replies sent via WhatsApp Web', { connectionId: key, to, messageId: result.id._serialized });
+            return { success: true, messageId: result.id._serialized, provider: 'whatsapp-web' };
+        } catch (error) {
+            this.logger.error('Failed to send quick replies via WhatsApp Web', { connectionId, to, error: error.message });
             throw error;
         }
     }
@@ -480,7 +545,14 @@ class WhatsAppServiceSimple extends EventEmitter {
 
     // Get client status
     getClientStatus(connectionId) {
-        return this.clients.has(connectionId) ? 'connected' : 'disconnected';
+        const normalizedId = this.normalizeId(connectionId);
+        return this.clients.has(normalizedId) ? 'connected' : 'disconnected';
+    }
+
+    // Get client instance
+    getClient(connectionId) {
+        const normalizedId = this.normalizeId(connectionId);
+        return this.clients.get(normalizedId);
     }
 
     // Event emitter functionality

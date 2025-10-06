@@ -8,6 +8,7 @@ router.use(auth.verifyToken);
 
 // Rutas del dashboard
 router.get('/stats', dashboardController.getDashboardStats.bind(dashboardController));
+router.get('/alerts', dashboardController.getDashboardAlerts.bind(dashboardController));
 
 module.exports = router;
 
