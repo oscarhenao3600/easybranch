@@ -452,6 +452,12 @@ class WhatsAppServiceSimple extends EventEmitter {
             
             // Check if client is ready
             if (!client.info) {
+                console.log('⏳ Cliente WhatsApp no está listo aún para connection:', key);
+                console.log('📊 Estado del cliente:', {
+                    hasClient: !!client,
+                    hasInfo: !!client.info,
+                    isReady: client.info ? 'Sí' : 'No'
+                });
                 throw new Error('WhatsApp client is not ready yet');
             }
             

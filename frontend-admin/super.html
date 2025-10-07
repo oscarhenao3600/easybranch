@@ -3109,8 +3109,22 @@
                             await this.loadBranchesList(); // Fallback
                         }
                     } else {
-                        const error = await response.json();
-                        throw new Error(error.message || 'Error al crear la sucursal');
+                        let errorMessage = 'Error al crear la sucursal';
+                        let details = '';
+                        try {
+                            const errorJson = await response.json();
+                            if (errorJson && errorJson.message) errorMessage = errorJson.message;
+                            if (Array.isArray(errorJson?.errors) && errorJson.errors.length > 0) {
+                                details = '\n' + errorJson.errors.map(e => `${e.path || e.param || 'campo'}: ${e.message || e.msg || 'inválido'}`).join('\n');
+                            }
+                        } catch (e) {
+                            // Si no es JSON, intentar obtener texto
+                            try {
+                                const text = await response.text();
+                                if (text) details = `\n${text}`;
+                            } catch (_) {}
+                        }
+                        throw new Error(`${errorMessage}${details}`);
                     }
                 } catch (error) {
                     console.error('Error creando sucursal:', error);
@@ -6151,7 +6165,17 @@
                     
                     if (branchResponse.ok) {
                         const branchData = await branchResponse.json();
-                        businessId = branchData.data?.businessId || branchData.businessId;
+                        const businessData = branchData.data?.businessId || branchData.businessId;
+                        
+                        // Extraer el ID del negocio si viene como objeto o como string
+                        if (businessData && typeof businessData === 'object') {
+                            businessId = businessData.businessId || businessData._id;
+                        } else {
+                            businessId = businessData;
+                        }
+                        
+                        console.log('🔍 Business data from branch:', businessData);
+                        console.log('🔍 Extracted businessId:', businessId);
                     }
                 } catch (error) {
                     console.error('Error getting branch details:', error);
@@ -6167,6 +6191,12 @@
                     aiIntegration: document.getElementById('autoReply').checked,
                     offHoursMessage: document.getElementById('welcomeMessage').value
                 };
+                
+                // Debug logs
+                console.log('🔍 Datos de conexión a enviar:');
+                console.log('  - branchId:', branchId, '(tipo:', typeof branchId, ')');
+                console.log('  - businessId:', businessId, '(tipo:', typeof businessId, ')');
+                console.log('  - connectionData completo:', connectionData);
                 
                 // Validate required fields
                 if (!connectionData.connectionName || !connectionData.phoneNumber || !connectionData.customerServiceNumber || !connectionData.branchId || !connectionData.businessId) {
@@ -6200,7 +6230,23 @@
                     
                 } catch (error) {
                     console.error('Error creating connection:', error);
-                    this.showAlert('Error creando conexión: ' + error.message, 'danger');
+                    let errorMessage = 'Error creando conexión';
+                    let details = '';
+                    try {
+                        if (error.response) {
+                            const errorJson = await error.response.json();
+                            if (errorJson && errorJson.error) errorMessage = errorJson.error;
+                            if (Array.isArray(errorJson?.errors) && errorJson.errors.length > 0) {
+                                details = '\n' + errorJson.errors.map(e => `${e.path || e.param || 'campo'}: ${e.message || e.msg || 'inválido'}`).join('\n');
+                            }
+                        } else if (error.message) {
+                            errorMessage = error.message;
+                        }
+                    } catch (e) {
+                        // Si no es JSON, usar el mensaje original
+                        if (error.message) errorMessage = error.message;
+                    }
+                    this.showAlert(`${errorMessage}${details}`, 'danger');
                 } finally {
                     // Reset button
                     const createBtn = document.getElementById('createConnectionBtn');
