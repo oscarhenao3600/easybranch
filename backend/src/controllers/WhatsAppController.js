@@ -768,7 +768,29 @@ class WhatsAppController {
             }
 
         } catch (error) {
-            this.logger.error('Error handling incoming message', { error: error.message });
+            // Manejar específicamente el caso cuando el cliente no está listo
+            if (error.message === 'WhatsApp client is not ready yet') {
+                console.log('⏳ Cliente WhatsApp no está listo aún, enviando mensaje de espera...');
+                
+                // Enviar mensaje de que el sistema está iniciando
+                const waitMessage = `⏳ Hola! Estamos configurando nuestro sistema de WhatsApp. Por favor espera unos momentos y vuelve a escribir "hola" en unos segundos. ¡Gracias por tu paciencia! 😊`;
+                
+                try {
+                    // Intentar enviar mensaje de espera después de un delay
+                    setTimeout(async () => {
+                        try {
+                            await this.whatsappService.sendMessage(connectionId, from, waitMessage);
+                            console.log('✅ Mensaje de espera enviado exitosamente');
+                        } catch (retryError) {
+                            console.log('⚠️ No se pudo enviar mensaje de espera:', retryError.message);
+                        }
+                    }, 5000); // Esperar 5 segundos antes de intentar enviar
+                } catch (sendError) {
+                    console.log('⚠️ Error al programar mensaje de espera:', sendError.message);
+                }
+            } else {
+                this.logger.error('Error handling incoming message', { error: error.message });
+            }
         }
     }
 
@@ -920,6 +942,7 @@ class WhatsAppController {
             console.log(`   🏪 Branch ID: ${branchId} (${typeof branchId})`);
             console.log(`   📞 Phone: ${phoneNumber}`);
             console.log(`   📝 Connection Name: ${connectionName}`);
+            console.log('📋 Body completo:', req.body);
             console.log('==========================================');
 
             // Check if there are any branches available for WhatsApp connection
@@ -954,125 +977,41 @@ class WhatsAppController {
             // Handle string IDs by creating default business and branch if needed
             let businessObjectId, branchObjectId;
             
-            if (businessId === 'business1' || typeof businessId === 'string') {
-                // Create or find default business
-                let business = await Business.findOne({ name: 'Restaurante El Sabor' });
+            // Resolver businessId: aceptar ObjectId o businessId (string único del negocio)
+            if (mongoose.Types.ObjectId.isValid(businessId)) {
+                businessObjectId = businessId;
+            } else {
+                // Buscar por businessId string
+                const business = await Business.findOne({ businessId: String(businessId) });
                 if (!business) {
-                    business = new Business({
-                        name: 'Restaurante El Sabor',
-                        businessType: 'restaurant',
-                        contact: {
-                            email: 'info@elsabor.com',
-                            phone: '+573001234567'
-                        },
-                        address: {
-                            street: 'Calle 123 #45-67',
-                            city: 'Bogotá',
-                            state: 'Cundinamarca',
-                            country: 'Colombia',
-                            zipCode: '110111'
-                        },
-                        settings: {
-                            timezone: 'America/Bogota',
-                            currency: 'COP',
-                            language: 'es',
-                            autoReply: true,
-                            delivery: true
-                        }
+                    return res.status(404).json({
+                        success: false,
+                        error: 'Negocio no encontrado'
                     });
-                    await business.save();
                 }
                 businessObjectId = business._id;
-            } else {
-                businessObjectId = businessId;
             }
 
-            // Buscar la sucursal específica por ID
+            // Resolver branchId: aceptar ObjectId o branchId (string único de la sucursal)
             let targetBranch = null;
-            
-            // Primero intentar buscar por ObjectId
             if (mongoose.Types.ObjectId.isValid(branchId)) {
                 targetBranch = await Branch.findById(branchId);
-            }
-            
-            // Si no se encuentra por ObjectId, buscar por branchId string
-            if (!targetBranch) {
-                targetBranch = await Branch.findOne({ branchId: branchId });
-            }
-            
-            // Si aún no se encuentra, buscar por nombre (para casos legacy)
-            if (!targetBranch) {
-                targetBranch = await Branch.findOne({ name: branchId });
-            }
-            
-            if (targetBranch) {
-                branchObjectId = targetBranch._id;
-                console.log(`✅ Sucursal encontrada: ${targetBranch.name} (${targetBranch._id})`);
-                console.log(`🏢 Business ID de la sucursal: ${targetBranch.businessId}`);
             } else {
-                // Solo crear sucursal por defecto si realmente es 'branch1' o un ID específico de fallback
-                if (branchId === 'branch1') {
-                    console.log('⚠️ Creando sucursal por defecto para branch1');
-                    targetBranch = await Branch.findOne({ name: 'Sucursal Centro' });
-                    if (!targetBranch) {
-                        targetBranch = new Branch({
-                            branchId: `BR${Date.now()}`,
-                            businessId: businessObjectId,
-                            name: 'Sucursal Centro',
-                            razonSocial: 'Sucursal Centro',
-                            nit: '900123456-1',
-                            phone: '+573001234567',
-                            address: 'Calle 123 #45-67',
-                            city: 'Bogotá',
-                            department: 'Cundinamarca',
-                            country: 'Colombia',
-                            description: 'Sucursal principal en el centro de la ciudad',
-                            manager: 'Gerente Centro',
-                            email: 'centro@elsabor.com',
-                            contact: {
-                                phone: '+573001234567',
-                                email: 'centro@elsabor.com'
-                            },
-                            whatsapp: {
-                                provider: 'whatsapp-web.js',
-                                phoneNumber: phoneNumber,
-                                connectionStatus: 'disconnected',
-                                qrCode: null,
-                                sessionData: null
-                            },
-                            settings: {
-                                autoReply: true,
-                                delivery: {
-                                    enabled: true,
-                                    radius: 5,
-                                    fee: 0
-                                },
-                                businessHours: {
-                                    monday: { open: '08:00', close: '22:00' },
-                                    tuesday: { open: '08:00', close: '22:00' },
-                                    wednesday: { open: '08:00', close: '22:00' },
-                                    thursday: { open: '08:00', close: '22:00' },
-                                    friday: { open: '08:00', close: '23:00' },
-                                    saturday: { open: '09:00', close: '23:00' },
-                                    sunday: { open: '10:00', close: '21:00' }
-                                }
-                            },
-                            status: 'active',
-                            isActive: true,
-                            createdAt: new Date(),
-                            updatedAt: new Date()
-                        });
-                        await targetBranch.save();
-                    }
-                    branchObjectId = targetBranch._id;
-                } else {
-                    // Si no se encuentra la sucursal específica, devolver error
-                    return res.status(400).json({
-                        success: false,
-                        error: `Sucursal con ID '${branchId}' no encontrada. Por favor, selecciona una sucursal válida.`
-                    });
-                }
+                // Buscar por branchId string
+                targetBranch = await Branch.findOne({ branchId: String(branchId) });
             }
+
+            if (!targetBranch) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Sucursal no encontrada'
+                });
+            }
+
+            branchObjectId = targetBranch._id;
+            console.log(`✅ Sucursal encontrada: ${targetBranch.name} (${targetBranch._id})`);
+            console.log(`🏢 Business ID de la sucursal: ${targetBranch.businessId}`);
+
 
             // Check if phone number already exists
             const existingConnection = await WhatsAppConnection.findOne({ phoneNumber });
@@ -1118,6 +1057,7 @@ class WhatsAppController {
                 phoneNumber,
                 connectionName,
                 customerServiceNumber,
+                connectionId: `WC${Date.now()}${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
                 autoReply: autoReply !== undefined ? autoReply : true,
                 aiIntegration: aiIntegration !== undefined ? aiIntegration : true,
                 businessHours: businessHours || { start: '08:00', end: '22:00' },
@@ -1135,6 +1075,18 @@ class WhatsAppController {
             console.log(`📝 Name: ${connection.connectionName}`);
             console.log(`🤖 AI Integration: ${connection.aiIntegration}`);
             console.log('=====================================');
+            
+            // Inicializar cliente WhatsApp para la nueva conexión
+            console.log('🔄 Inicializando cliente WhatsApp para nueva conexión...');
+            try {
+                if (this.whatsappService) {
+                    await this.whatsappService.createWhatsAppWebClient(connection._id, phoneNumber);
+                    console.log('✅ Cliente WhatsApp inicializado exitosamente');
+                }
+            } catch (initError) {
+                console.log('⚠️ Error inicializando cliente WhatsApp:', initError.message);
+                // No es crítico, el cliente se puede inicializar más tarde
+            }
 
             // Get business and branch info for QR code
             const business = await Business.findById(businessObjectId);
@@ -1227,10 +1179,18 @@ class WhatsAppController {
                 message: 'Conexión de WhatsApp creada exitosamente'
             });
         } catch (error) {
-            this.logger.error('Error creating WhatsApp connection', { error: error.message });
+            console.error('❌ Error completo al crear conexión WhatsApp:', error);
+            console.error('❌ Stack trace:', error.stack);
+            this.logger.error('Error creating WhatsApp connection', { 
+                error: error.message,
+                stack: error.stack,
+                businessId: req.body?.businessId,
+                branchId: req.body?.branchId
+            });
             res.status(500).json({
                 success: false,
-                error: 'Error al crear conexión de WhatsApp'
+                error: 'Error al crear conexión de WhatsApp',
+                details: error.message
             });
         }
     }

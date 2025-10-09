@@ -78,6 +78,11 @@ class WhatsAppService {
             if (!Client || !LocalAuth) {
                 await this.initializeWhatsAppWeb();
             }
+
+            // Solo en Raspberry Pi (producción) usar executablePath
+            if (process.env.PLATFORM === 'raspberry') {
+            puppeteerConfig.executablePath = '/usr/bin/chromium';
+            }
             
             const client = new Client({
                 authStrategy: new LocalAuth({ 
@@ -87,13 +92,17 @@ class WhatsAppService {
                 puppeteer: {
                     headless: true,
                     args: [
-                        '--no-sandbox',
-                        '--disable-setuid-sandbox',
-                        '--disable-dev-shm-usage',
-                        '--disable-accelerated-2d-canvas',
-                        '--no-first-run',
-                        '--no-zygote',
-                        '--disable-gpu'
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-extensions',
+                    '--disable-gpu',
+                    '--no-first-run',
+                    '--no-zygote',
+                    '--single-process',
+                    '--disable-background-timer-throttling',
+                    '--disable-backgrounding-occluded-windows',
+                    '--disable-renderer-backgrounding'
                     ]
                 }
             });

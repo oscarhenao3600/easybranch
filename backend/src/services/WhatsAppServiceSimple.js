@@ -98,6 +98,11 @@ class WhatsAppServiceSimple extends EventEmitter {
                 Buttons = whatsappWeb.Buttons;
                 List = whatsappWeb.List;
             }
+
+            // Solo en Raspberry Pi (producción) usar executablePath
+            if (process.env.PLATFORM === 'raspberry') {
+            puppeteerConfig.executablePath = '/usr/bin/chromium';
+            }
             
             const client = new Client({
                 authStrategy: new LocalAuth({ 
@@ -107,13 +112,17 @@ class WhatsAppServiceSimple extends EventEmitter {
                 puppeteer: {
                     headless: true,
                     args: [
-                        '--no-sandbox',
-                        '--disable-setuid-sandbox',
-                        '--disable-dev-shm-usage',
-                        '--disable-accelerated-2d-canvas',
-                        '--no-first-run',
-                        '--no-zygote',
-                        '--disable-gpu'
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-extensions',
+                    '--disable-gpu',
+                    '--no-first-run',
+                    '--no-zygote',
+                    '--single-process',
+                    '--disable-background-timer-throttling',
+                    '--disable-backgrounding-occluded-windows',
+                    '--disable-renderer-backgrounding'
                     ]
                 }
             });
@@ -202,6 +211,11 @@ class WhatsAppServiceSimple extends EventEmitter {
                 this.clients.delete(connectionId);
             }
 
+            // Solo en Raspberry Pi (producción) usar executablePath
+            if (process.env.PLATFORM === 'raspberry') {
+            puppeteerConfig.executablePath = '/usr/bin/chromium';
+            }
+
             // Create new WhatsApp Web client
             const client = new Client({
                 authStrategy: new LocalAuth({ 
@@ -211,13 +225,17 @@ class WhatsAppServiceSimple extends EventEmitter {
                 puppeteer: {
                     headless: true,
                     args: [
-                        '--no-sandbox',
-                        '--disable-setuid-sandbox',
-                        '--disable-dev-shm-usage',
-                        '--disable-accelerated-2d-canvas',
-                        '--no-first-run',
-                        '--no-zygote',
-                        '--disable-gpu'
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-extensions',
+                    '--disable-gpu',
+                    '--no-first-run',
+                    '--no-zygote',
+                    '--single-process',
+                    '--disable-background-timer-throttling',
+                    '--disable-backgrounding-occluded-windows',
+                    '--disable-renderer-backgrounding'
                     ]
                 }
             });
@@ -452,6 +470,12 @@ class WhatsAppServiceSimple extends EventEmitter {
             
             // Check if client is ready
             if (!client.info) {
+                console.log('⏳ Cliente WhatsApp no está listo aún para connection:', key);
+                console.log('📊 Estado del cliente:', {
+                    hasClient: !!client,
+                    hasInfo: !!client.info,
+                    isReady: client.info ? 'Sí' : 'No'
+                });
                 throw new Error('WhatsApp client is not ready yet');
             }
             

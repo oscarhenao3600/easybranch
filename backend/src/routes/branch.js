@@ -14,7 +14,7 @@ const logger = new LoggerService();
 const branchValidation = [
     body('name').optional().trim().isLength({ min: 2, max: 100 }).withMessage('Nombre debe tener entre 2 y 100 caracteres'),
     body('razonSocial').optional().trim().isLength({ min: 2, max: 100 }).withMessage('Razón social debe tener entre 2 y 100 caracteres'),
-    body('nit').trim().isLength({ min: 8, max: 20 }).withMessage('NIT debe tener entre 8 y 20 caracteres'),
+    body('nit').trim().isLength({ min: 6, max: 20 }).withMessage('NIT debe tener entre 6 y 20 caracteres'),
     body('phone').matches(/^\+?[\d\s\-\(\)]+$/).withMessage('Teléfono inválido'),
     body('address').trim().isLength({ min: 5, max: 200 }).withMessage('Dirección debe tener entre 5 y 200 caracteres'),
     body('city').trim().isLength({ min: 2, max: 50 }).withMessage('Ciudad debe tener entre 2 y 50 caracteres'),
@@ -23,7 +23,8 @@ const branchValidation = [
     body('description').optional().trim().isLength({ max: 500 }).withMessage('Descripción no puede exceder 500 caracteres'),
     body('manager').optional().trim().isLength({ max: 100 }).withMessage('Gerente no puede exceder 100 caracteres'),
     body('email').optional().isEmail().withMessage('Email inválido'),
-    body('businessId').isMongoId().withMessage('ID de negocio inválido')
+    // Permitimos ObjectId o businessId string; validamos no vacío y resolvemos luego
+    body('businessId').notEmpty().withMessage('ID de negocio requerido')
 ];
 
 const updateBranchValidation = [
@@ -306,6 +307,18 @@ router.post('/', authMiddleware.verifyToken, authMiddleware.requireRole(['super_
 
         const { name, razonSocial, nit, phone, address, city, department, country, description, manager, email, businessId } = req.body;
 
+        // Resolver businessId: aceptar ObjectId o businessId (string único del negocio)
+        const mongoose = require('mongoose');
+        let businessDoc = null;
+        if (mongoose.Types.ObjectId.isValid(businessId)) {
+            businessDoc = await Business.findById(businessId);
+        } else {
+            businessDoc = await Business.findOne({ businessId: String(businessId) });
+        }
+        if (!businessDoc) {
+            return res.status(404).json({ success: false, message: 'Negocio no encontrado' });
+        }
+
         // Validar que al menos uno de name o razonSocial esté presente
         if (!name && !razonSocial) {
             return res.status(400).json({ 
@@ -315,12 +328,9 @@ router.post('/', authMiddleware.verifyToken, authMiddleware.requireRole(['super_
         }
 
         // Check if business exists and user has access
-        const business = await Business.findById(businessId);
-        if (!business) {
-            return res.status(404).json({ success: false, message: 'Negocio no encontrado' });
-        }
+        const business = businessDoc;
 
-        if (req.user.role === 'business_admin' && req.user.businessId !== businessId) {
+        if (req.user.role === 'business_admin' && String(req.user.businessId) !== String(business._id)) {
             return res.status(403).json({ success: false, message: 'No tienes permisos para crear sucursales en este negocio' });
         }
 
@@ -335,7 +345,7 @@ router.post('/', authMiddleware.verifyToken, authMiddleware.requireRole(['super_
             country: country || 'Colombia',
             description: description || null,
             manager: manager || null,
-            businessId,
+            businessId: business._id,
             branchId: `BR${Date.now()}${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
             status: 'active',
             isActive: true,
@@ -356,13 +366,29 @@ router.post('/', authMiddleware.verifyToken, authMiddleware.requireRole(['super_
         };
 
         const branch = new Branch(branchData);
+        try {
         await branch.save();
+        } catch (err) {
+            // Duplicado (NIT o índices únicos)
+            if (err && err.code === 11000) {
+                return res.status(409).json({ success: false, message: 'Registro duplicado. Verifica NIT u otros campos únicos.' });
+            }
+            // Errores de validación de mongoose
+            if (err && err.name === 'ValidationError') {
+                const details = Object.values(err.errors || {}).map(e => ({ path: e.path, message: e.message }));
+                return res.status(400).json({ success: false, message: 'Error de validación al crear la sucursal', errors: details });
+            }
+            throw err;
+        }
 
         logger.info(`Branch created: ${branch.branchId} - ${branch.name || branch.razonSocial} for business ${business.name || business.razonSocial}`);
         res.status(201).json({ success: true, data: branch });
     } catch (error) {
         logger.error('Error creating branch:', error);
-        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+        const status = error.status || 500;
+        const payload = { success: false, message: error.message || 'Error interno del servidor' };
+        if (error.errors) payload.errors = error.errors;
+        res.status(status).json(payload);
     }
 });
 
