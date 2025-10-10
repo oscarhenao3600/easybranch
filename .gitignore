@@ -323,7 +323,7 @@ whatsapp-keys/
 twilio-keys/
 
 # AI model files (if any)
-models/
+#models/
 *.model
 
 # Backup databases
