@@ -33,7 +33,7 @@ class BranchAIConfigController {
             }
 
             // Buscar el usuario real en la base de datos
-            const User = require('../models/User');
+            const User = require('../models/user');
             const user = await User.findOne({ userId: req.user.userId });
             if (!user) {
                 return res.status(404).json({
