@@ -1,4 +1,4 @@
-const User = require('../models/user');
+const User = require('../models/User');
 const Business = require('../models/Business');
 const Branch = require('../models/Branch');
 const LoggerService = require('../services/LoggerService');
