@@ -10,10 +10,23 @@ class DatabaseService {
 
   async connect() {
     try {
-      const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/easybranch';
-      
-      this.logger.database('Conectando a MongoDB...', { uri: mongoUri });
-      
+      // 🧠 Selecciona la URI dependiendo del entorno
+      const environment = process.env.NODE_ENV || 'development';
+      let mongoUri;
+
+      if (environment === 'production') {
+        mongoUri =
+          process.env.MONGODB_URI_PROD ||
+          process.env.MONGODB_URI ||
+          'mongodb://mongo:27017/easybranch';
+      } else {
+        mongoUri =
+          process.env.MONGODB_URI ||
+          'mongodb://127.0.0.1:27017/easybranch';
+      }
+
+      this.logger.database(`Conectando a MongoDB (${environment})...`, { uri: mongoUri });
+
       this.connection = await mongoose.connect(mongoUri, {
         useNewUrlParser: true,
         useUnifiedTopology: true,
@@ -23,29 +36,28 @@ class DatabaseService {
       });
 
       this.isConnected = true;
-      
-      this.logger.database('Conexión exitosa a MongoDB');
+      this.logger.database('✅ Conexión exitosa a MongoDB');
 
-      // Configurar eventos de conexión
+      // --- Eventos de conexión ---
       mongoose.connection.on('connected', () => {
-        this.logger.database('MongoDB conectado');
+        this.logger.database('🔗 MongoDB conectado');
         this.isConnected = true;
       });
 
       mongoose.connection.on('error', (err) => {
-        this.logger.error('Error de conexión MongoDB:', err);
+        this.logger.error('❌ Error de conexión MongoDB:', err);
         this.isConnected = false;
       });
 
       mongoose.connection.on('disconnected', () => {
-        this.logger.warn('MongoDB desconectado');
+        this.logger.warn('⚠️ MongoDB desconectado');
         this.isConnected = false;
       });
 
       return this.connection;
 
     } catch (error) {
-      this.logger.error('Error conectando a MongoDB:', error);
+      this.logger.error('❌ Error conectando a MongoDB:', error);
       throw error;
     }
   }
@@ -55,10 +67,10 @@ class DatabaseService {
       if (this.connection) {
         await mongoose.disconnect();
         this.isConnected = false;
-        this.logger.database('Desconexión exitosa de MongoDB');
+        this.logger.database('🔌 Desconexión exitosa de MongoDB');
       }
     } catch (error) {
-      this.logger.error('Error desconectando de MongoDB:', error);
+      this.logger.error('❌ Error desconectando de MongoDB:', error);
       throw error;
     }
   }
@@ -71,7 +83,7 @@ class DatabaseService {
     return this.isConnected && mongoose.connection.readyState === 1;
   }
 
-  // Método para verificar salud de la base de datos
+  // 🩺 Health check
   async healthCheck() {
     try {
       if (!this.getConnectionStatus()) {
@@ -81,15 +93,13 @@ class DatabaseService {
         };
       }
 
-      // Ejecutar ping a la base de datos
       await mongoose.connection.db.admin().ping();
-      
+
       return {
         status: 'healthy',
         message: 'Base de datos funcionando correctamente',
         collections: Object.keys(mongoose.connection.collections)
       };
-
     } catch (error) {
       this.logger.error('Error en health check de BD:', error);
       return {
@@ -99,7 +109,7 @@ class DatabaseService {
     }
   }
 
-  // Método para obtener estadísticas de la base de datos
+  // 📊 Estadísticas de BD
   async getStats() {
     try {
       if (!this.getConnectionStatus()) {
@@ -107,7 +117,7 @@ class DatabaseService {
       }
 
       const stats = await mongoose.connection.db.stats();
-      
+
       return {
         database: stats.db,
         collections: stats.collections,
@@ -116,7 +126,6 @@ class DatabaseService {
         indexes: stats.indexes,
         indexSize: stats.indexSize
       };
-
     } catch (error) {
       this.logger.error('Error obteniendo estadísticas de BD:', error);
       return null;
