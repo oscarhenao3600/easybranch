@@ -7,17 +7,21 @@ class Config {
     }
 
     detectBaseURL() {
+        // Permitir override manual si se define en una etiqueta <script>
+        if (typeof window.API_BASE_URL === 'string' && window.API_BASE_URL.length > 0) {
+            return window.API_BASE_URL.replace(/\/$/, '');
+        }
+
         // Si estamos en localhost, usar localhost:3000 (desarrollo)
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
             return 'http://localhost:3000/api';
         }
-        
-        // Si estamos en una IP (como Raspberry Pi), usar la misma IP y puerto 4000
+
+        // Por defecto, asumir backend en el mismo host puerto 4000
         const protocol = window.location.protocol;
         const hostname = window.location.hostname;
-        const port = '4000'; // Puerto del backend
-        
-        return `${protocol}//${hostname}:${port}/api`;
+        const defaultPort = '4000';
+        return `${protocol}//${hostname}:${defaultPort}/api`;
     }
 
     getBaseURL() {

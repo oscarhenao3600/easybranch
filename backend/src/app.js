@@ -54,7 +54,7 @@ app.use(helmet({
             styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
             imgSrc: ["'self'", "data:", "https:"],
-            connectSrc: ["'self'", "http://localhost:4000"],
+            connectSrc: ["'self'", "http://localhost:4000","http://192.168.1.23:4000"],
             frameSrc: ["'self'"],
             objectSrc: ["'none'"],
             mediaSrc: ["'self'"],
@@ -73,10 +73,12 @@ app.use(cors({
     let allowedOrigins = [
       'http://localhost:3000',
       'http://127.0.0.1:3000',
+      'http://192.168.1.23:3000',
       'http://localhost:3001',
       'http://127.0.0.1:3001',
       'http://localhost:4000',
       'http://127.0.0.1:4000',
+      'http://192.168.1.23:4000',
       'http://localhost:5173', // Vite default port
       'http://127.0.0.1:5173',
       'http://localhost:8080', // Common dev port
