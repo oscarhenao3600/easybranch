@@ -1249,12 +1249,16 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Chart.js para gráficos -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="config.js"></script>
     <script src="./users-methods.js"></script>
     <script>
         class AuthService {
             constructor() {
-                this.baseURL = 'http://localhost:3000/api';
+                this.baseURL = window.appConfig.getBaseURL();
                 this.loadFromStorage();
+                
+                // Debug: mostrar configuración detectada
+                console.log('🔧 AuthService inicializado con URL:', this.baseURL);
             }
 
             loadFromStorage() {
@@ -1343,7 +1347,7 @@
         class SuperAdminDashboard {
             constructor() {
                 this.authService = new AuthService();
-                this.baseURL = 'http://localhost:3000/api';
+                this.baseURL = window.appConfig.getBaseURL();
                 this.currentSection = 'dashboard';
                 this.currentBusinessId = null;
                 this.currentBusinessName = null;
@@ -3389,7 +3393,7 @@
 
             async loadBillingBranches() {
                 try {
-                    const response = await fetch('http://localhost:3000/api/branch', {
+                    const response = await fetch(`${this.baseURL}/branch`, {
                         headers: {
                             'Authorization': `Bearer ${this.authService.getToken()}`
                         }
@@ -3423,7 +3427,7 @@
                     params.append('summary', 'true'); // Solicitar resumen de comisiones por sucursal
 
                     console.log('🔍 Frontend - Loading billing orders with params:', params.toString());
-                    const url = `http://localhost:3000/api/billing/orders?${params}`;
+                    const url = `${this.baseURL}/billing/orders?${params}`;
                     console.log('🌐 Frontend - Request URL:', url);
 
                     const response = await fetch(url, {
@@ -3680,7 +3684,7 @@
                     let params = new URLSearchParams();
                     if (branchId) params.append('branchId', branchId);
 
-                    const response = await fetch(`http://localhost:3000/api/billing/invoices?${params}`, {
+                    const response = await fetch(`${this.baseURL}/billing/invoices?${params}`, {
                         headers: {
                             'Authorization': `Bearer ${this.authService.getToken()}`
                         }
@@ -3798,7 +3802,7 @@
                         return;
                     }
 
-                    const response = await fetch(`http://localhost:3000/api/billing/branch/${branchId}`, {
+                    const response = await fetch(`${this.baseURL}/billing/branch/${branchId}`, {
                         headers: {
                             'Authorization': `Bearer ${this.authService.getToken()}`
                         }
@@ -3959,7 +3963,7 @@
                         commissionPerOrder: parseInt(document.getElementById('commissionPerOrder').value) || 500
                     };
 
-                    const response = await fetch(`http://localhost:3000/api/billing/branch/${branchId}`, {
+                    const response = await fetch(`${this.baseURL}/billing/branch/${branchId}`, {
                         method: 'PUT',
                         headers: {
                             'Content-Type': 'application/json',
@@ -3983,7 +3987,7 @@
 
             async generateInvoice(orderId) {
                 try {
-                    const response = await fetch('http://localhost:3000/api/billing/generate-invoice', {
+                    const response = await fetch('${this.baseURL}/billing/generate-invoice', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -4013,7 +4017,7 @@
 
             async sendInvoice(orderId) {
                 try {
-                    const response = await fetch('http://localhost:3000/api/billing/send-invoice', {
+                    const response = await fetch('${this.baseURL}/billing/send-invoice', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -4243,7 +4247,7 @@
                 // Por ahora, generamos una factura mensual para la sucursal
                 const currentDate = new Date();
                 
-                const response = await fetch('http://localhost:3000/api/billing/generate-monthly-bill', {
+                const response = await fetch('${this.baseURL}/billing/generate-monthly-bill', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -4285,7 +4289,7 @@
                     if (year) params.append('year', year);
                     if (status) params.append('status', status);
 
-                    const response = await fetch(`http://localhost:3000/api/billing/monthly-bills?${params}`, {
+                    const response = await fetch(`${this.baseURL}/billing/monthly-bills?${params}`, {
                         headers: {
                             'Authorization': `Bearer ${this.authService.getToken()}`
                         }
@@ -4463,7 +4467,7 @@
 
                 if (confirm(`¿Generar o ver factura mensual para la sucursal seleccionada en ${month}/${year}?\n\nSi ya existe una factura, se mostrará la existente.`)) {
                     try {
-                        const response = await fetch('http://localhost:3000/api/billing/generate-monthly-bill', {
+                        const response = await fetch('${this.baseURL}/billing/generate-monthly-bill', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -4510,7 +4514,7 @@
                 try {
                     console.log(`🔍 Buscando factura existente para sucursal ${branchId}, período ${month}/${year}`);
                     
-                    const response = await fetch(`http://localhost:3000/api/billing/monthly-bills?branchId=${branchId}&year=${year}&month=${month}`, {
+                    const response = await fetch(`${this.baseURL}/billing/monthly-bills?branchId=${branchId}&year=${year}&month=${month}`, {
                         headers: {
                             'Authorization': `Bearer ${this.authService.getToken()}`
                         }
@@ -4538,7 +4542,7 @@
                 try {
                     console.log(`📄 Obteniendo detalles de factura: ${billId}`);
                     
-                    const response = await fetch(`http://localhost:3000/api/billing/monthly-bills/${billId}`, {
+                    const response = await fetch(`${this.baseURL}/billing/monthly-bills/${billId}`, {
                         headers: {
                             'Authorization': `Bearer ${this.authService.getToken()}`
                         }
@@ -4821,7 +4825,7 @@
 
             async viewBillDetail(billId) {
                 try {
-                    const response = await fetch(`http://localhost:3000/api/billing/monthly-bills/${billId}`, {
+                    const response = await fetch(`${this.baseURL}/billing/monthly-bills/${billId}`, {
                         headers: {
                             'Authorization': `Bearer ${this.authService.getToken()}`
                         }
@@ -5175,7 +5179,7 @@
                     if (businessId) params.append('businessId', businessId);
                     if (branchId) params.append('branchId', branchId);
 
-                    const response = await fetch(`http://localhost:3000/api/reports/${reportType}?${params}`, {
+                    const response = await fetch(`${this.baseURL}/reports/${reportType}?${params}`, {
                         headers: {
                             'Authorization': `Bearer ${this.authService.getToken()}`
                         }
@@ -5783,7 +5787,7 @@
                     if (businessId) params.append('businessId', businessId);
                     if (branchId) params.append('branchId', branchId);
 
-                    const response = await fetch(`http://localhost:3000/api/reports/export?${params}`, {
+                    const response = await fetch(`${this.baseURL}/reports/export?${params}`, {
                         headers: {
                             'Authorization': `Bearer ${this.authService.getToken()}`
                         }
@@ -5811,7 +5815,7 @@
 
             async loadBusinessFilter() {
                 try {
-                    const response = await fetch('http://localhost:3000/api/business', {
+                    const response = await fetch('${this.baseURL}/business', {
                         headers: {
                             'Authorization': `Bearer ${this.authService.getToken()}`
                         }
@@ -5843,7 +5847,7 @@
                 if (!businessId) return;
 
                 try {
-                    const response = await fetch(`http://localhost:3000/api/branch?businessId=${businessId}`, {
+                    const response = await fetch(`${this.baseURL}/branch?businessId=${businessId}`, {
                         headers: {
                             'Authorization': `Bearer ${this.authService.getToken()}`
                         }
@@ -7896,7 +7900,7 @@
 
                     // Usar historial por teléfono del cliente
                     const phoneNumber = (order.customer && order.customer.phone) ? String(order.customer.phone).replace(/^\+/, '') : '';
-                    const url = `http://localhost:3000/api/conversations/history/${phoneNumber}?branchId=${branchId}`;
+                    const url = `${this.baseURL}/conversations/history/${phoneNumber}?branchId=${branchId}`;
                     console.log('🌐 URL completa:', url);
 
                     const response = await fetch(url, {
@@ -8014,7 +8018,7 @@
 
                     // Merge AI conversation history (assistant/system) by clientId (phone)
                     try {
-                        const aiUrl = `http://localhost:3000/api/ai/${branchId}/conversation-history?clientId=${encodeURIComponent(phoneNumber)}&limit=200`;
+                        const aiUrl = `${this.baseURL}/ai/${branchId}/conversation-history?clientId=${encodeURIComponent(phoneNumber)}&limit=200`;
                         const aiRes = await fetch(aiUrl, {
                             method: 'GET',
                             headers: {
