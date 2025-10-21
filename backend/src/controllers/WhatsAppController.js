@@ -279,8 +279,27 @@ class WhatsAppController {
             // Extraer número de teléfono para validación
             const phoneNumber = from.replace('@c.us', '');
             
-            // Validar tipo de mensaje antes de procesar
-            const messageValidation = this.validateMessageType(message, messageType, mediaType, phoneNumber);
+            // Find the connection
+            const connection = await WhatsAppConnection.findById(connectionId);
+            if (!connection) {
+                console.log('❌ Conexión no encontrada en BD:', connectionId);
+                this.logger.error('Connection not found for incoming message', { connectionId });
+                return;
+            }
+
+            // Convert ObjectId to string for consistent handling
+            const connectionIdStr = String(connectionId);
+
+            // Verificar si hay una sesión de recomendación activa ANTES de validar el mensaje
+            const activeSession = await this.recommendationService.getActiveSession(phoneNumber, connection.branchId);
+            if (activeSession) {
+                console.log('🔄 ===== SESIÓN DE RECOMENDACIÓN ACTIVA =====');
+                await this.handleRecommendationResponse(connectionIdStr, phoneNumber, message, activeSession);
+                return;
+            }
+
+            // Validar tipo de mensaje antes de procesar (solo si NO hay sesión de recomendación activa)
+            const messageValidation = this.validateMessageType(message, messageType, mediaType, phoneNumber, false);
             if (messageValidation.shouldIgnore) {
                 console.log('🚫 Mensaje ignorado:', messageValidation.reason);
                 return;
@@ -297,17 +316,6 @@ class WhatsAppController {
                 await this.whatsappService.sendMessage(connectionId, phoneNumber, messageValidation.response);
                 return;
             }
-
-            // Find the connection
-            const connection = await WhatsAppConnection.findById(connectionId);
-            if (!connection) {
-                console.log('❌ Conexión no encontrada en BD:', connectionId);
-                this.logger.error('Connection not found for incoming message', { connectionId });
-                return;
-            }
-
-            // Convert ObjectId to string for consistent handling
-            const connectionIdStr = String(connectionId);
 
             console.log('✅ Conexión encontrada:', connection.phoneNumber);
 
@@ -642,13 +650,7 @@ class WhatsAppController {
                     return;
                 }
 
-                // Check if user is in an active recommendation session
-                const activeSession = await this.recommendationService.getActiveSession(phoneNumber, connection.branchId);
-                if (activeSession) {
-                    console.log('🔄 ===== SESIÓN DE RECOMENDACIÓN ACTIVA =====');
-                    await this.handleRecommendationResponse(connectionIdStr, phoneNumber, message, activeSession);
-                    return;
-                }
+                // La verificación de sesión de recomendación ya se hizo arriba
 
                 // Get business and branch info for context
                 const business = await Business.findById(connection.businessId);
@@ -2670,7 +2672,7 @@ Puedes:
     }
 
     // Validar tipo de mensaje y determinar acción
-    validateMessageType(message, messageType, mediaType, phoneNumber = null) {
+    validateMessageType(message, messageType, mediaType, phoneNumber = null, isInRecommendationSession = false) {
         // Verificar si el contacto está en cooldown
         if (phoneNumber && this.isContactInCooldown(phoneNumber)) {
             const cooldownInfo = this.cooldownContacts.get(phoneNumber);
@@ -2715,7 +2717,7 @@ Puedes:
         }
 
         // Verificar si es un mensaje sin sentido
-        if (this.isNonsenseMessage(message)) {
+        if (this.isNonsenseMessage(message, isInRecommendationSession)) {
             return {
                 shouldIgnore: false,
                 shouldCancel: true,
@@ -2754,7 +2756,7 @@ Por favor envía tu consulta o pedido escribiendo un mensaje de texto.
     }
 
     // Detectar mensajes sin sentido
-    isNonsenseMessage(message) {
+    isNonsenseMessage(message, isInRecommendationSession = false) {
         const trimmedMessage = message.trim().toLowerCase();
         
         // Patrones de mensajes sin sentido
@@ -2764,9 +2766,13 @@ Por favor envía tu consulta o pedido escribiendo un mensaje de texto.
             /^(.)\1{4,}$/, // Misma letra repetida 5+ veces: aaaaa
             /^[a-z]\s[a-z]\s[a-z]$/, // Letras separadas: a b c
             /^(.)\1{2,}$/, // Misma letra repetida 3+ veces: aaa
-            /^[0-9]{1,2}$/, // Solo 1-2 dígitos: 1, 12
             /^[^a-zA-ZáéíóúñÁÉÍÓÚÑ0-9\s]+$/, // Solo símbolos especiales
         ];
+        
+        // Solo considerar números como sin sentido si NO estamos en una sesión de recomendación
+        if (!isInRecommendationSession) {
+            nonsensePatterns.push(/^[0-9]{1,2}$/); // Solo 1-2 dígitos: 1, 12
+        }
 
         // Verificar patrones
         for (const pattern of nonsensePatterns) {
