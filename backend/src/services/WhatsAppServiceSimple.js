@@ -113,13 +113,44 @@ class WhatsAppServiceSimple extends EventEmitter {
                     '--single-process',
                     '--disable-background-timer-throttling',
                     '--disable-backgrounding-occluded-windows',
-                    '--disable-renderer-backgrounding'
-                ]
+                    '--disable-renderer-backgrounding',
+                    '--disable-web-security',
+                    '--disable-features=VizDisplayCompositor',
+                    '--memory-pressure-off',
+                    '--max_old_space_size=4096'
+                ],
+                timeout: 60000, // 60 segundos timeout
+                protocolTimeout: 60000
             };
 
-            // Solo en Raspberry Pi (producción) usar executablePath
-            if (process.env.PLATFORM === 'raspberry') {
+            // Configuración específica por plataforma
+            const platform = process.env.PLATFORM || 'windows';
+            
+            if (platform === 'raspberry') {
+                // Configuración optimizada para Raspberry Pi
                 puppeteerConfig.executablePath = '/usr/bin/chromium';
+                puppeteerConfig.args.push(
+                    '--disable-software-rasterizer',
+                    '--disable-background-networking',
+                    '--disable-default-apps',
+                    '--disable-sync',
+                    '--disable-translate',
+                    '--hide-scrollbars',
+                    '--mute-audio',
+                    '--no-default-browser-check',
+                    '--disable-plugins',
+                    '--disable-images',
+                    '--disable-javascript-harmony-shipping',
+                    '--disable-client-side-phishing-detection',
+                    '--disable-component-extensions-with-background-pages',
+                    '--disable-ipc-flooding-protection'
+                );
+            } else if (platform === 'linux') {
+                // Configuración para Linux (servidores)
+                puppeteerConfig.executablePath = '/usr/bin/chromium-browser';
+            } else if (platform === 'windows') {
+                // Configuración para Windows (desarrollo)
+                // No necesita executablePath, usa el Chrome/Chromium del sistema
             }
             
             const client = new Client({
@@ -228,13 +259,44 @@ class WhatsAppServiceSimple extends EventEmitter {
                     '--single-process',
                     '--disable-background-timer-throttling',
                     '--disable-backgrounding-occluded-windows',
-                    '--disable-renderer-backgrounding'
-                ]
+                    '--disable-renderer-backgrounding',
+                    '--disable-web-security',
+                    '--disable-features=VizDisplayCompositor',
+                    '--memory-pressure-off',
+                    '--max_old_space_size=4096'
+                ],
+                timeout: 60000, // 60 segundos timeout
+                protocolTimeout: 60000
             };
 
-            // Solo en Raspberry Pi (producción) usar executablePath
-            if (process.env.PLATFORM === 'raspberry') {
+            // Configuración específica por plataforma
+            const platform = process.env.PLATFORM || 'windows';
+            
+            if (platform === 'raspberry') {
+                // Configuración optimizada para Raspberry Pi
                 puppeteerConfig.executablePath = '/usr/bin/chromium';
+                puppeteerConfig.args.push(
+                    '--disable-software-rasterizer',
+                    '--disable-background-networking',
+                    '--disable-default-apps',
+                    '--disable-sync',
+                    '--disable-translate',
+                    '--hide-scrollbars',
+                    '--mute-audio',
+                    '--no-default-browser-check',
+                    '--disable-plugins',
+                    '--disable-images',
+                    '--disable-javascript-harmony-shipping',
+                    '--disable-client-side-phishing-detection',
+                    '--disable-component-extensions-with-background-pages',
+                    '--disable-ipc-flooding-protection'
+                );
+            } else if (platform === 'linux') {
+                // Configuración para Linux (servidores)
+                puppeteerConfig.executablePath = '/usr/bin/chromium-browser';
+            } else if (platform === 'windows') {
+                // Configuración para Windows (desarrollo)
+                // No necesita executablePath, usa el Chrome/Chromium del sistema
             }
 
             // Create new WhatsApp Web client
