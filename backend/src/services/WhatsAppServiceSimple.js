@@ -99,19 +99,10 @@ class WhatsAppServiceSimple extends EventEmitter {
                 List = whatsappWeb.List;
             }
 
-            // Solo en Raspberry Pi (producción) usar executablePath
-            if (process.env.PLATFORM === 'raspberry') {
-            puppeteerConfig.executablePath = '/usr/bin/chromium';
-            }
-            
-            const client = new Client({
-                authStrategy: new LocalAuth({ 
-                    clientId: `whatsapp_${connectionId}`,
-                    dataPath: `./sessions/${connectionId}`
-                }),
-                puppeteer: {
-                    headless: true,
-                    args: [
+            // Configurar puppeteer
+            const puppeteerConfig = {
+                headless: true,
+                args: [
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
                     '--disable-dev-shm-usage',
@@ -123,8 +114,20 @@ class WhatsAppServiceSimple extends EventEmitter {
                     '--disable-background-timer-throttling',
                     '--disable-backgrounding-occluded-windows',
                     '--disable-renderer-backgrounding'
-                    ]
-                }
+                ]
+            };
+
+            // Solo en Raspberry Pi (producción) usar executablePath
+            if (process.env.PLATFORM === 'raspberry') {
+                puppeteerConfig.executablePath = '/usr/bin/chromium';
+            }
+            
+            const client = new Client({
+                authStrategy: new LocalAuth({ 
+                    clientId: `whatsapp_${connectionId}`,
+                    dataPath: `./sessions/${connectionId}`
+                }),
+                puppeteer: puppeteerConfig
             });
 
             // Store client reference
@@ -211,20 +214,10 @@ class WhatsAppServiceSimple extends EventEmitter {
                 this.clients.delete(connectionId);
             }
 
-            // Solo en Raspberry Pi (producción) usar executablePath
-            if (process.env.PLATFORM === 'raspberry') {
-            puppeteerConfig.executablePath = '/usr/bin/chromium';
-            }
-
-            // Create new WhatsApp Web client
-            const client = new Client({
-                authStrategy: new LocalAuth({ 
-                    clientId: `whatsapp_${connectionId}`,
-                    dataPath: `./sessions/${connectionId}`
-                }),
-                puppeteer: {
-                    headless: true,
-                    args: [
+            // Configurar puppeteer
+            const puppeteerConfig = {
+                headless: true,
+                args: [
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
                     '--disable-dev-shm-usage',
@@ -236,8 +229,21 @@ class WhatsAppServiceSimple extends EventEmitter {
                     '--disable-background-timer-throttling',
                     '--disable-backgrounding-occluded-windows',
                     '--disable-renderer-backgrounding'
-                    ]
-                }
+                ]
+            };
+
+            // Solo en Raspberry Pi (producción) usar executablePath
+            if (process.env.PLATFORM === 'raspberry') {
+                puppeteerConfig.executablePath = '/usr/bin/chromium';
+            }
+
+            // Create new WhatsApp Web client
+            const client = new Client({
+                authStrategy: new LocalAuth({ 
+                    clientId: `whatsapp_${connectionId}`,
+                    dataPath: `./sessions/${connectionId}`
+                }),
+                puppeteer: puppeteerConfig
             });
 
             // Store client reference
