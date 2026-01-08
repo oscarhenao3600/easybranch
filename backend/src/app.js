@@ -90,22 +90,41 @@ app.use(cors({
       allowedOrigins = allowedOriginsEnv.split(',').map(origin => origin.trim());
     }
     
-    // In development, also allow any localhost origin
-    if (process.env.NODE_ENV === 'development' && origin.includes('localhost')) {
-      return callback(null, true);
+    // In development, allow any localhost origin or same IP origin
+    if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
+      // Allow localhost on any port
+      if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        return callback(null, true);
+      }
+      
+      // Allow same IP address on any port (for network access)
+      const serverIP = '192.168.1.23'; // Puedes hacerlo dinámico si es necesario
+      if (origin.includes(serverIP)) {
+        return callback(null, true);
+      }
     }
     
+    // Check if origin is in allowed list
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
       logger.warn(`CORS blocked origin: ${origin}`);
+      // En desarrollo, permitir de todas formas pero loguear
+      if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
+        logger.warn(`⚠️ CORS: Permitiendo origen en desarrollo: ${origin}`);
+        return callback(null, true);
+      }
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Type', 'Authorization']
 }));
+
+// Manejar preflight requests de CORS explícitamente
+app.options('*', cors());
 
 // Middlewares de parsing
 app.use(express.json({ limit: '10mb' }));

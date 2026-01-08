@@ -17,11 +17,11 @@ class Config {
             return 'http://localhost:3000/api';
         }
 
-        // Por defecto, asumir backend en el mismo host puerto 4000
+        // Por defecto, asumir backend en el mismo host puerto 3000 (backend)
         const protocol = window.location.protocol;
         const hostname = window.location.hostname;
-        const defaultPort = '4000';
-        return `${protocol}//${hostname}:${defaultPort}/api`;
+        const backendPort = '3000'; // Backend corre en puerto 3000
+        return `${protocol}//${hostname}:${backendPort}/api`;
     }
 
     getBaseURL() {
