@@ -99,8 +99,9 @@ class WhatsAppController {
         if (this.whatsappService) {
             console.log('🔧 Configurando event handlers para WhatsAppService...');
             
+            // Configurar handlers usando EventEmitter nativo (.on)
             this.whatsappService.on('messageReceived', (data) => {
-                console.log('📨 ===== EVENTO MESSAGE RECEIVED CAPTURADO =====');
+                console.log('📨 ===== EVENTO MESSAGE RECEIVED CAPTURADO (EventEmitter) =====');
                 console.log('📱 Connection ID:', data.connectionId);
                 console.log('📞 From:', data.from);
                 console.log('💬 Message:', data.message);
@@ -117,8 +118,33 @@ class WhatsAppController {
                 console.log('❌ Cliente WhatsApp desconectado:', data.connectionId);
                 this.handleClientDisconnected(data);
             });
+
+            this.whatsappService.on('qrGenerated', (data) => {
+                this.handleQRGenerated(data);
+            });
+
+            this.whatsappService.on('qrRefreshed', (data) => {
+                this.handleQRRefreshed(data);
+            });
+
+            this.whatsappService.on('authFailure', (data) => {
+                this.handleAuthFailure(data);
+            });
             
-            console.log('✅ Event handlers configurados correctamente');
+            // También mantener compatibilidad con setEventHandlers
+            this.whatsappService.setEventHandlers({
+                qrGenerated: (data) => this.handleQRGenerated(data),
+                qrRefreshed: (data) => this.handleQRRefreshed(data),
+                clientReady: (data) => this.handleClientReady(data),
+                authFailure: (data) => this.handleAuthFailure(data),
+                clientDisconnected: (data) => this.handleClientDisconnected(data),
+                messageReceived: (data) => {
+                    console.log('📨 ===== EVENTO MESSAGE RECEIVED CAPTURADO (setEventHandlers) =====');
+                    this.handleMessageReceived(data);
+                }
+            });
+            
+            console.log('✅ Event handlers configurados (EventEmitter + compatibilidad)');
         } else {
             console.log('❌ WhatsAppService no disponible para configurar event handlers');
         }

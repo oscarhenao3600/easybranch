@@ -647,10 +647,18 @@ class WhatsAppServiceSimple extends EventEmitter {
         return this.clients.get(normalizedId);
     }
 
-    // Event emitter functionality
+    // Event emitter functionality - usar EventEmitter nativo Y handlers personalizados
     emit(event, data) {
+        // Primero usar EventEmitter nativo (para handlers registrados con .on())
+        super.emit(event, data);
+        
+        // También mantener compatibilidad con el sistema antiguo (setEventHandlers)
         if (this.eventHandlers && this.eventHandlers[event]) {
-            this.eventHandlers[event](data);
+            try {
+                this.eventHandlers[event](data);
+            } catch (error) {
+                this.logger.error('Error in event handler', { event, error: error.message });
+            }
         }
     }
 
